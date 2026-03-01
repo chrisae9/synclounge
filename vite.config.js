@@ -26,7 +26,21 @@ const pkg = require('./package.json');
 export default defineConfig({
   plugins: [
     generateConfigPlugin(),
-    vue(),
+    vue({
+      template: {
+        transformAssetUrls: {
+          // defaults
+          video: ['src', 'poster'],
+          source: ['src', 'srcset'],
+          img: ['src', 'srcset'],
+          image: ['xlink:href', 'href'],
+          use: ['xlink:href', 'href'],
+          // Vuetify components
+          'v-img': ['src'],
+          'v-card': ['image', 'img'],
+        },
+      },
+    }),
     vuetify({ autoImport: true }),
   ],
   resolve: {

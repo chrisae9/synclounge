@@ -2,7 +2,7 @@
   <v-dialog max-width="400">
     <template #activator="{ props }">
       <slot
-        v-bind="props"
+        :props="props"
       />
     </template>
 
@@ -230,7 +230,7 @@
           >
             <template #selection="{ item }">
               <span class="text-body-2 text-medium-emphasis">
-                {{ item.raw.text }}
+                {{ item.raw.title }}
               </span>
             </template>
           </v-select>
@@ -299,8 +299,8 @@ export default {
 
   data: () => ({
     syncMethods: [
-      { text: 'Clean Seek', value: 'cleanseek' },
-      { text: 'Skip Ahead', value: 'skipahead' },
+      { title: 'Clean Seek', value: 'cleanseek' },
+      { title: 'Skip Ahead', value: 'skipahead' },
     ],
 
     streamingProtocols,

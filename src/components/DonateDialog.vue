@@ -5,7 +5,7 @@
   >
     <template #activator="{ props }">
       <slot
-        v-bind="props"
+        :props="props"
       />
     </template>
 
