@@ -50,7 +50,7 @@
 
       <v-row
         v-if="metadata.summary"
-        class="text--primary text-body-2"
+        class="text-high-emphasis text-body-2"
       >
         <v-col>
           {{ metadata.summary }}
@@ -58,7 +58,7 @@
       </v-row>
 
       <template v-if="roles.length">
-        <v-subheader>Featuring</v-subheader>
+        <v-list-subheader>Featuring</v-list-subheader>
 
         <v-row>
           <v-col
@@ -77,7 +77,7 @@
               {{ role.tag }}
 
               <div
-                class="pa-2 text--secondary text-caption"
+                class="pa-2 text-medium-emphasis text-caption"
               >
                 {{ role.role }}
               </div>

@@ -6,9 +6,9 @@
       no-gutters
     >
       <v-col>
-        <v-subheader>
+        <v-list-subheader>
           Recently Added
-        </v-subheader>
+        </v-list-subheader>
       </v-col>
 
       <v-col
@@ -82,7 +82,7 @@ export default {
 
   computed: {
     recentItemsPer() {
-      switch (this.$vuetify.breakpoint.name) {
+      switch (this.$vuetify.display.name) {
         case 'xs': return 3;
         case 'sm': return 4;
         case 'md':

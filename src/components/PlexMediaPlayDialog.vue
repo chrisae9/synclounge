@@ -51,7 +51,7 @@
 
             <template #append>
               <v-btn
-                class="primary"
+                color="primary"
                 @click="playClicked(index)"
               >
                 Play

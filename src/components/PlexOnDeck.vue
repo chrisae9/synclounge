@@ -6,11 +6,11 @@
       no-gutters
     >
       <v-col>
-        <v-subheader>
+        <v-list-subheader>
           <slot name="header">
             On Deck
           </slot>
-        </v-subheader>
+        </v-list-subheader>
       </v-col>
 
       <v-col
@@ -83,7 +83,7 @@ export default {
 
   computed: {
     onDeckItemsPer() {
-      switch (this.$vuetify.breakpoint.name) {
+      switch (this.$vuetify.display.name) {
         case 'xs':
           return 1;
         case 'sm':
@@ -105,7 +105,7 @@ export default {
     },
 
     onDeckDownStyle() {
-      return this.onDeckOffest === 0
+      return this.onDeckOffset === 0
         ? {
           opacity: 0.5,
         }

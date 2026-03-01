@@ -1,19 +1,19 @@
 <template>
   <v-list-item>
-    <v-list-item-avatar size="32">
-      <v-img
-        :src="sender.thumb"
-      />
-    </v-list-item-avatar>
+    <template #prepend>
+      <v-avatar size="32">
+        <v-img
+          :src="sender.thumb"
+        />
+      </v-avatar>
+    </template>
 
-    <v-list-item-content>
-      <v-list-item-title v-text="sender.username" />
+    <v-list-item-title v-text="sender.username" />
 
-      <v-list-item-subtitle
-        class="message-content"
-        v-text="message.text"
-      />
-    </v-list-item-content>
+    <v-list-item-subtitle
+      class="message-content"
+      v-text="message.text"
+    />
   </v-list-item>
 </template>
 

@@ -16,8 +16,7 @@
       :sizes="sizes"
     >
       <v-container
-        class="pa-0 ma-0"
-        fill-height
+        class="pa-0 ma-0 fill-height"
         fluid
         style="position: relative;"
       >
@@ -58,7 +57,7 @@
       rounded
       class="pa-0 mb-0 ma-0 pt-content-progress"
       height="4"
-      :value="unwatchedPercent"
+      :model-value="unwatchedPercent"
     />
 
     <v-tooltip

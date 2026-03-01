@@ -1,32 +1,32 @@
 <template>
   <v-list-item
     two-line
-    dense
+    density="compact"
     hover
     class="nowplaying"
     :to="contentLink(GET_ACTIVE_MEDIA_METADATA)"
   >
-    <v-list-item-avatar
-      class="ma-0"
-      tile
-      size="52"
-    >
-      <v-img
-        contain
-        :src="thumb"
-      />
-    </v-list-item-avatar>
+    <template #prepend>
+      <v-avatar
+        class="ma-0"
+        tile
+        size="52"
+      >
+        <v-img
+          contain
+          :src="thumb"
+        />
+      </v-avatar>
+    </template>
 
-    <v-list-item-content>
-      <v-list-item-title>
-        Now Playing
-      </v-list-item-title>
+    <v-list-item-title>
+      Now Playing
+    </v-list-item-title>
 
-      <v-list-item-subtitle>
-        {{ getTitle(GET_ACTIVE_MEDIA_METADATA) }} - {{
-          getSecondaryTitle(GET_ACTIVE_MEDIA_METADATA) }}
-      </v-list-item-subtitle>
-    </v-list-item-content>
+    <v-list-item-subtitle>
+      {{ getTitle(GET_ACTIVE_MEDIA_METADATA) }} - {{
+        getSecondaryTitle(GET_ACTIVE_MEDIA_METADATA) }}
+    </v-list-item-subtitle>
   </v-list-item>
 </template>
 

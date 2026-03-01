@@ -8,8 +8,12 @@ import store from './store';
 const vChatScroll = {
   mounted(el) {
     const observer = new MutationObserver(() => {
-      // eslint-disable-next-line no-param-reassign
-      el.scrollTop = el.scrollHeight;
+      const threshold = 50;
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+      if (isNearBottom) {
+        // eslint-disable-next-line no-param-reassign
+        el.scrollTop = el.scrollHeight;
+      }
     });
     observer.observe(el, { childList: true, subtree: true });
     // eslint-disable-next-line no-param-reassign
@@ -38,7 +42,7 @@ const isEqualIfExpectedTrue = (expected, got) => (expected
   : !got);
 
 const doesServerMatch = (expected, got) => expected.room === got.room
-  && isEqualIfExpectedTrue(expected, got);
+  && isEqualIfExpectedTrue(expected.server, got.server);
 
 router.beforeEach(async (to, from, next) => {
   if (!store.getters.GET_CONFIG) {

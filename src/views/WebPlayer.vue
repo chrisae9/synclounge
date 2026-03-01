@@ -51,7 +51,7 @@
         <v-row
           v-show="ARE_PLAYER_CONTROLS_SHOWN"
           no-gutters
-          class="pa-3 hidden-xs-only hoverBar"
+          class="pa-3 d-none d-sm-flex hoverBar"
         >
           <v-col>
             <v-container fluid>
@@ -67,8 +67,7 @@
                 <v-col class="pl-3">
                   <v-container
                     fluid
-                    class="pa-0"
-                    fill-height
+                    class="pa-0 fill-height"
                   >
                     <v-row no-gutters>
                       <v-col>
@@ -117,8 +116,7 @@
 
           <v-col class="pl-2">
             <v-container
-              class="pa-0"
-              fill-height
+              class="pa-0 fill-height"
             >
               <v-row no-gutters>
                 <v-col>

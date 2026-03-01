@@ -31,7 +31,7 @@
           public servers and the continued development of the application.
         </p>
 
-        <v-subheader> How to donate </v-subheader>
+        <v-list-subheader> How to donate </v-list-subheader>
 
         <v-row
           justify="center"

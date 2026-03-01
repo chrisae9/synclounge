@@ -17,7 +17,7 @@
     <template #content>
       <v-row
         v-if="metadata.summary"
-        class="text--primary text-body-2"
+        class="text-high-emphasis text-body-2"
       >
         <v-col>
           {{ metadata.summary }}

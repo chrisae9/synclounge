@@ -30,16 +30,16 @@
             <v-expansion-panel
               :readonly="GET_CONFIG.force_slplayer"
             >
-              <v-expansion-panel-header>
+              <v-expansion-panel-title>
                 Player: {{ GET_CHOSEN_CLIENT.name }}
-              </v-expansion-panel-header>
+              </v-expansion-panel-title>
 
-              <v-expansion-panel-content>
+              <v-expansion-panel-text>
                 <PlexClientPicker
                   @loading-change="loading = $event"
                   @client-connectable-change="clientConnectable = $event"
                 />
-              </v-expansion-panel-content>
+              </v-expansion-panel-text>
             </v-expansion-panel>
           </v-expansion-panels>
 

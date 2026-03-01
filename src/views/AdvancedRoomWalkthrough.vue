@@ -84,7 +84,7 @@
             md="6"
             lg="6"
           >
-            <v-subheader>
+            <v-list-subheader>
               Plex Players
               <v-icon
                 class="pl-2"
@@ -93,22 +93,20 @@
               >
                 refresh
               </v-icon>
-            </v-subheader>
+            </v-list-subheader>
 
             <v-list
-              dense
+              density="compact"
               style="background: none;"
+              :selected="[previewClientId]"
+              @update:selected="previewClientId = $event[0]"
             >
-              <v-list-item-group
-                v-model="previewClientId"
-              >
-                <PlexClient
-                  v-for="id in GET_PLEX_CLIENT_IDS_SORTED_BY_LAST_SEEN"
-                  :key="id"
-                  :value="id"
-                  :client-id="id"
-                />
-              </v-list-item-group>
+              <PlexClient
+                v-for="id in GET_PLEX_CLIENT_IDS_SORTED_BY_LAST_SEEN"
+                :key="id"
+                :value="id"
+                :client-id="id"
+              />
             </v-list>
           </v-col>
 
@@ -120,7 +118,7 @@
               v-if="previewClientId"
               class="pa-2"
             >
-              <v-subheader>Selected Player</v-subheader>
+              <v-list-subheader>Selected Player</v-list-subheader>
               <v-row>
                 <v-col
                   md="3"
@@ -248,23 +246,20 @@
             md="6"
             lg="7"
           >
-            <v-subheader>Plex Players</v-subheader>
+            <v-list-subheader>Plex Players</v-list-subheader>
 
             <v-list
-              dense
+              density="compact"
               style="background: none;"
-              :value="GET_CHOSEN_CLIENT_ID"
+              :selected="[previewClientId]"
+              @update:selected="previewClientId = $event[0]"
             >
-              <v-list-item-group
-                v-model="previewClientId"
-              >
-                <PlexClient
-                  v-for="id in GET_PLEX_CLIENT_IDS_SORTED_BY_LAST_SEEN"
-                  :key="id"
-                  :value="id"
-                  :client-id="id"
-                />
-              </v-list-item-group>
+              <PlexClient
+                v-for="id in GET_PLEX_CLIENT_IDS_SORTED_BY_LAST_SEEN"
+                :key="id"
+                :value="id"
+                :client-id="id"
+              />
             </v-list>
           </v-col>
         </v-row>

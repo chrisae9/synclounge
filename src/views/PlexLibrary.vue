@@ -264,13 +264,13 @@ export default {
       });
     },
 
-    async onIntersect(entries, observer, isIntersecting) {
+    async onIntersect(isIntersecting) {
       if (isIntersecting && !this.childrenAbortController) {
         await this.fetchMoreContent();
       }
     },
 
-    onRowClick(item) {
+    onRowClick(event, { item }) {
       this.$router.push(this.contentLink(item));
     },
 

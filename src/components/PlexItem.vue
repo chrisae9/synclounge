@@ -58,7 +58,7 @@
             <v-btn
               v-bind="props"
               block
-              class="primary"
+              color="primary"
             >
               <v-icon>play_arrow</v-icon>
             </v-btn>
@@ -67,7 +67,7 @@
           <v-btn
             v-else
             block
-            class="primary"
+            color="primary"
             @click="playMedia(metadata, 0, 0)"
           >
             <v-icon>play_arrow</v-icon>
@@ -85,9 +85,7 @@
           v-if="
             metadata.Media && metadata.Media[0] && metadata.Media[0].videoResolution
           "
-          bottom
-          outlined
-          left
+          variant="outlined"
           class="mr-2"
         >
           {{ metadata.Media[0].videoResolution.toUpperCase() }}
@@ -95,7 +93,7 @@
 
         <v-chip
           v-if="metadata.contentRating"
-          color="grey darken-2"
+          color="grey-darken-2"
           size="small"
           label
           class="mr-2"
@@ -105,7 +103,7 @@
 
         <v-chip
           v-if="metadata.studio"
-          color="grey darken-2"
+          color="grey-darken-2"
           size="small"
           label
         >
@@ -173,7 +171,7 @@
           v-if="metadata.Role && metadata.Role.length"
           cols="auto"
         >
-          <v-subheader>Featuring</v-subheader>
+          <v-list-subheader>Featuring</v-list-subheader>
 
           <div
             v-for="actor in metadata.Role.slice(0, 6)"
@@ -188,7 +186,7 @@
           v-if="metadata.Director && metadata.Director.length"
           cols="auto"
         >
-          <v-subheader>Director</v-subheader>
+          <v-list-subheader>Director</v-list-subheader>
 
           <div
             v-for="director in metadata.Director.slice(0, 3)"
@@ -202,7 +200,7 @@
           v-if="metadata.Producer && metadata.Producer.length"
           cols="auto"
         >
-          <v-subheader>Producers</v-subheader>
+          <v-list-subheader>Producers</v-list-subheader>
 
           <div
             v-for="producer in metadata.Producer.slice(0, 3)"
@@ -216,7 +214,7 @@
           v-if="metadata.Writer && metadata.Writer.length"
           cols="auto"
         >
-          <v-subheader>Writers</v-subheader>
+          <v-list-subheader>Writers</v-list-subheader>
 
           <div
             v-for="writer in metadata.Writer.slice(0, 3)"

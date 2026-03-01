@@ -2,7 +2,7 @@
   <v-navigation-drawer
     :model-value="isRightSidebarOpen"
     style="z-index: 6;"
-    right
+    location="right"
     class="pa-0"
     width="300"
     @update:model-value="SET_RIGHT_SIDEBAR_OPEN"
@@ -33,7 +33,7 @@
         </template>
       </v-list-item>
 
-      <v-list-item dense>
+      <v-list-item density="compact">
         <v-switch
           v-if="AM_I_HOST"
           hide-details
@@ -56,7 +56,7 @@
       >
         <template #activator="{ props }">
           <v-list-item
-            dense
+            density="compact"
             v-bind="props"
           >
             <v-switch
@@ -75,7 +75,7 @@
       <v-list-item
         v-if="(!AM_I_HOST || usingPlexClient)
           && GET_HOST_USER && GET_HOST_USER.state !== 'stopped'"
-        dense
+        density="compact"
       >
         <v-tooltip
           location="bottom"

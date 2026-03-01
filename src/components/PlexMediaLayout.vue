@@ -65,7 +65,7 @@
                     <v-col
                       v-if="secondarySubtitle"
                       cols="12"
-                      class="text-caption text--secondary"
+                      class="text-caption text-medium-emphasis"
                     >
                       {{ secondarySubtitle }}
                     </v-col>
@@ -83,7 +83,7 @@
     </v-row>
 
     <template v-if="children.length">
-      <v-subheader>{{ childrenHeader }}</v-subheader>
+      <v-list-subheader>{{ childrenHeader }}</v-list-subheader>
 
       <v-row>
         <v-col

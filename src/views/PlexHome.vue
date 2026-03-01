@@ -8,16 +8,16 @@
 
     <v-divider />
 
-    <v-subheader>
+    <v-list-subheader>
       Browse
       <v-btn
-        x-small
+        size="x-small"
         icon
         @click="FETCH_PLEX_DEVICES"
       >
         <v-icon>refresh</v-icon>
       </v-btn>
-    </v-subheader>
+    </v-list-subheader>
 
     <v-row>
       <v-col
@@ -44,7 +44,7 @@
           style="background: rgb(0 0 0 / 60%);"
           :title="server.name"
         >
-          <v-container fill-height>
+          <v-container class="fill-height">
             <v-row
               dense
               justify="center"

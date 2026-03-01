@@ -112,7 +112,7 @@
           >
             <v-container
               v-if="!GET_CONFIG"
-              fill-height
+              class="fill-height"
             >
               <v-row
                 justify="center"

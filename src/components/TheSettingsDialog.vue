@@ -8,7 +8,7 @@
 
     <v-card>
       <v-list>
-        <v-subheader>Web Player</v-subheader>
+        <v-list-subheader>Web Player</v-list-subheader>
 
         <v-list-item
           @click="SET_AUTO_SKIP_INTRO(!GET_AUTO_SKIP_INTRO)"
@@ -82,23 +82,21 @@
           </template>
         </v-list-item>
 
-        <v-list-item @click="streamingProtocolSelectOpen = !streamingProtocolSelectOpen">
+        <v-list-item>
           <v-list-item-title>Streaming Protocol</v-list-item-title>
 
           <v-select
-            :menu-props="{ value: streamingProtocolSelectOpen }"
-            dense
+            density="compact"
             hide-details
-            :value="GET_STREAMING_PROTOCOL"
+            :model-value="GET_STREAMING_PROTOCOL"
             :items="streamingProtocols"
             :rules="[v => !!v || 'Item is required']"
             required
-            @blur="streamingProtocolSelectOpen = false"
-            @input="SET_STREAMING_PROTOCOL($event); streamingProtocolSelectOpen = false"
+            @update:model-value="SET_STREAMING_PROTOCOL"
           >
             <template #selection="{ item }">
               <span class="text-body-2 text-medium-emphasis">
-                {{ item }}
+                {{ item.raw }}
               </span>
             </template>
           </v-select>
@@ -106,7 +104,7 @@
 
         <v-divider />
 
-        <v-subheader>Chat</v-subheader>
+        <v-list-subheader>Chat</v-list-subheader>
 
         <v-list-item
           @click="isSecureContext ? CHANGE_NOTIFICATIONS_ENABLED(!ARE_NOTIFICATIONS_ENABLED) : null"
@@ -171,18 +169,18 @@
           </v-list-item-subtitle>
 
           <v-text-field
-            dense
+            density="compact"
             hide-details
             class="text-body-2 text-medium-emphasis"
-            :value="GET_ALTUSERNAME"
+            :model-value="GET_ALTUSERNAME"
             :placeholder="username"
-            @change="SET_ALTUSERNAME"
+            @update:model-value="SET_ALTUSERNAME"
           />
         </v-list-item>
 
         <v-divider />
 
-        <v-subheader>Synchronization</v-subheader>
+        <v-list-subheader>Synchronization</v-list-subheader>
 
         <v-list-item
           @click="SET_AUTOPLAY(!GET_AUTOPLAY)"
@@ -210,31 +208,29 @@
 
           <v-slider
             hide-details
-            :value="GET_SYNCFLEXIBILITY"
+            :model-value="GET_SYNCFLEXIBILITY"
             :min="0"
             :max="10000"
             thumb-label
-            @change="UPDATE_SYNC_FLEXIBILITY"
+            @update:model-value="UPDATE_SYNC_FLEXIBILITY"
           />
         </v-list-item>
 
-        <v-list-item @click="syncModeSelectOpen = !syncModeSelectOpen">
+        <v-list-item>
           <v-list-item-title>Syncing Method</v-list-item-title>
 
           <v-select
-            :menu-props="{ value: syncModeSelectOpen }"
-            dense
+            density="compact"
             hide-details
-            :value="GET_SYNCMODE"
+            :model-value="GET_SYNCMODE"
             :items="syncMethods"
             :rules="[v => !!v || 'Item is required']"
             required
-            @blur="syncModeSelectOpen = false"
-            @input="SET_SYNCMODE($event); syncModeSelectOpen = false"
+            @update:model-value="SET_SYNCMODE"
           >
             <template #selection="{ item }">
               <span class="text-body-2 text-medium-emphasis">
-                {{ item.text }}
+                {{ item.raw.text }}
               </span>
             </template>
           </v-select>
@@ -242,7 +238,7 @@
 
         <v-divider />
 
-        <v-subheader>Plex</v-subheader>
+        <v-list-subheader>Plex</v-list-subheader>
 
         <v-list-item>
           <v-list-item-title>Client Poll Interval</v-list-item-title>
@@ -252,17 +248,15 @@
 
           <v-slider
             hide-details
-            :value="GET_CLIENTPOLLINTERVAL"
+            :model-value="GET_CLIENTPOLLINTERVAL"
             :min="100"
             :max="10000"
             thumb-label
-            @change="SET_CLIENTPOLLINTERVAL"
+            @update:model-value="SET_CLIENTPOLLINTERVAL"
           />
         </v-list-item>
 
-        <v-list-item
-          @click="blockedServersSelectOpen = !blockedServersSelectOpen"
-        >
+        <v-list-item>
           <v-list-item-title>Blocked Servers</v-list-item-title>
 
           <v-list-item-subtitle>
@@ -271,22 +265,20 @@
 
           <v-select
             v-model="BLOCKEDSERVERS"
-            :menu-props="{ value: blockedServersSelectOpen }"
-            dense
+            density="compact"
             hide-details
             multiple
             placeholder="None"
             :items="localServersList"
             item-value="id"
             item-title="name"
-            @blur="blockedServersSelectOpen = false"
           >
             <template #selection="{ item }">
               <v-chip
                 size="small"
                 class="text-body-2 text-medium-emphasis"
               >
-                <span>{{ item.name }}</span>
+                <span>{{ item.raw.name }}</span>
               </v-chip>
             </template>
           </v-select>
@@ -306,9 +298,6 @@ export default {
   name: 'TheSettingsDialog',
 
   data: () => ({
-    streamingProtocolSelectOpen: false,
-    syncModeSelectOpen: false,
-    blockedServersSelectOpen: false,
     syncMethods: [
       { text: 'Clean Seek', value: 'cleanseek' },
       { text: 'Skip Ahead', value: 'skipahead' },

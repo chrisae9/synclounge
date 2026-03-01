@@ -1,6 +1,8 @@
 <template>
   <v-list
-    dense
+    density="compact"
+    :selected="[GET_CHOSEN_CLIENT_ID]"
+    @update:selected="onClientClicked($event[0])"
   >
     <v-alert
       v-if="error"
@@ -28,29 +30,23 @@
       </v-row>
     </v-alert>
 
-    <v-subheader>
+    <v-list-subheader>
       Plex Players
       <v-btn
         icon
-        x-small
+        size="x-small"
         @click="FETCH_PLEX_DEVICES"
       >
         <v-icon>refresh</v-icon>
       </v-btn>
-    </v-subheader>
+    </v-list-subheader>
 
-    <v-list-item-group
-      mandatory
-      :value="GET_CHOSEN_CLIENT_ID"
-      @change="onClientClicked"
-    >
-      <PlexClient
-        v-for="id in GET_PLEX_CLIENT_IDS_SORTED_BY_LAST_SEEN"
-        :key="id"
-        :value="id"
-        :client-id="id"
-      />
-    </v-list-item-group>
+    <PlexClient
+      v-for="id in GET_PLEX_CLIENT_IDS_SORTED_BY_LAST_SEEN"
+      :key="id"
+      :value="id"
+      :client-id="id"
+    />
   </v-list>
 </template>
 
@@ -135,7 +131,7 @@ export default {
 
       this.abortController = null;
 
-      this.$emit('loading-chnage', false);
+      this.$emit('loading-change', false);
     },
   },
 };

@@ -26,10 +26,10 @@
 
           <v-card-actions>
             <v-btn
-              class="primary"
+              color="primary"
               target="_blank"
-              x-large
-              text
+              size="x-large"
+              variant="text"
               :disabled="allowSignIn"
               :href="plexAuthUrl"
               @click="authenticate"

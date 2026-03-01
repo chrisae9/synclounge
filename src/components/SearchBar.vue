@@ -1,6 +1,6 @@
 <template>
   <v-autocomplete
-    dense
+    density="compact"
     :items="items"
     :loading="loading"
     v-model:search="query"
@@ -9,7 +9,7 @@
     clearable
     hide-details
     hide-no-data
-    solo
+    variant="solo"
     :menu-props="{ maxHeight: '80vh', maxWidth: '500px' }"
   >
     <template
@@ -17,12 +17,12 @@
       #prepend-item
     >
       <v-list-item
-        dense
+        density="compact"
         :to="linkWithRoom({ name: 'PlexSearch', params: { query } })"
       >
-        <v-subheader>
+        <v-list-subheader>
           Search all sources...
-        </v-subheader>
+        </v-list-subheader>
       </v-list-item>
     </template>
 
@@ -30,34 +30,34 @@
       <template v-if="item.raw.serverHeader">
         <v-list-item
           class="secondary"
-          dense
+          density="compact"
           v-bind="props"
         >
-          <v-subheader
+          <v-list-subheader
             class="search-header"
           >
             {{ item.raw.serverHeader }}
-          </v-subheader>
+          </v-list-subheader>
         </v-list-item>
       </template>
 
       <template v-else-if="item.raw.hubHeader">
         <v-list-item
-          dense
+          density="compact"
           v-bind="props"
           class="search-header"
         >
-          <v-subheader
+          <v-list-subheader
             class="text-overline search-header"
           >
             {{ item.raw.hubHeader }}
-          </v-subheader>
+          </v-list-subheader>
         </v-list-item>
       </template>
 
       <template v-else>
         <v-list-item
-          dense
+          density="compact"
           v-bind="props"
           :to="contentLink(item.raw)"
           @click="clear"
@@ -260,7 +260,7 @@ export default {
 
 <style scoped>
 .v-list-item.search-header,
-.v-subheader.search-header {
+.v-list-subheader.search-header {
   height: unset;
   min-height: unset;
 }

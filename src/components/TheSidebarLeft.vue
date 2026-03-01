@@ -20,7 +20,7 @@
     <v-divider />
 
     <v-list
-      dense
+      density="compact"
       nav
     >
       <TheSettingsDialog v-slot="{ props }">
@@ -36,7 +36,6 @@
       </TheSettingsDialog>
 
       <v-list-item
-        :router="true"
         :to="{ name: 'SignOut' }"
       >
         <template #prepend>
@@ -46,7 +45,7 @@
         <v-list-item-title>Sign out</v-list-item-title>
       </v-list-item>
 
-      <v-subheader>About</v-subheader>
+      <v-list-subheader>About</v-list-subheader>
 
       <v-list-item
         :href="GET_RELEASE_URL"

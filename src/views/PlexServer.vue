@@ -3,9 +3,9 @@
     class="pt-0"
     fluid
   >
-    <v-subheader>
+    <v-list-subheader>
       Libraries
-    </v-subheader>
+    </v-list-subheader>
 
     <v-row>
       <v-col
@@ -17,13 +17,12 @@
         lg="2"
       >
         <v-tooltip
-          bottom
-          nudge-top="10"
+          location="bottom"
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props }">
             <v-card
               :img="getArtLibrary(library)"
-              v-bind="attrs"
+              v-bind="props"
               flat
               :to="linkWithRoom({
                 name: 'PlexLibrary',
@@ -32,9 +31,8 @@
                   sectionId: library.key,
                 },
               })"
-              v-on="on"
             >
-              <div class="hidden-xs-only pa-2">
+              <div class="d-none d-sm-flex pa-2">
                 <v-img
                   height="75"
                   contain

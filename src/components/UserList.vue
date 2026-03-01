@@ -1,7 +1,7 @@
 <template>
   <v-list
     class="overflow-y-auto user-list"
-    dense
+    density="compact"
   >
     <v-list-item
       v-for="(user, id) in GET_USERS"
@@ -71,7 +71,7 @@
       <v-progress-linear
         class="pt-content-progress"
         :height="2"
-        :value="percent(user)"
+        :model-value="percent(user)"
       />
 
       <template #append>

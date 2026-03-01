@@ -1,12 +1,11 @@
 <template>
   <v-list
     v-chat-scroll
-    subheader
-    dense
+    density="compact"
   >
-    <v-subheader class="md-4">
+    <v-list-subheader class="md-4">
       Chat
-    </v-subheader>
+    </v-list-subheader>
 
     <MessageItem
       v-for="(msg, index) in GET_MESSAGES"

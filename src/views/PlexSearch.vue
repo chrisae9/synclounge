@@ -10,9 +10,8 @@
     <div
       v-for="(hub, id) in hubs"
       :key="id"
-      dense
     >
-      <v-subheader>{{ hub.title }}</v-subheader>
+      <v-list-subheader>{{ hub.title }}</v-list-subheader>
 
       <v-row>
         <v-col

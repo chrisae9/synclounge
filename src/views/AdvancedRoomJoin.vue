@@ -60,7 +60,7 @@
           cols="12"
           class="pa-4"
         >
-          <v-subheader>Select a server</v-subheader>
+          <v-list-subheader>Select a server</v-list-subheader>
 
           <v-row
             justify="center"
@@ -149,8 +149,8 @@
                 <v-card-text>
                   <v-text-field
                     hide-details
-                    :value="customServerUrl"
-                    @change="SET_CUSTOM_SERVER_URL"
+                    :model-value="customServerUrl"
+                    @update:model-value="SET_CUSTOM_SERVER_URL"
                   />
                 </v-card-text>
 
