@@ -14,6 +14,7 @@
     "build": "vue-cli-service build --modern",
     "lint": "vue-cli-service lint",
     "lint:style": "vue-cli-service lint:style",
+    "test": "node --test test/server.test.js",
     "prepare": "if-env SKIP_BUILD=true && echo 'Skipping build' || npm run build"
   },
   "dependencies": {
