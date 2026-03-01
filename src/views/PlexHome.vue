@@ -42,7 +42,6 @@
             { name: 'PlexServer', params: { machineIdentifier: server.clientIdentifier } },
           )"
           style="background: rgb(0 0 0 / 60%);"
-          :title="server.name"
         >
           <v-container class="fill-height">
             <v-row
@@ -54,7 +53,6 @@
                 <v-img
                   src="@/assets/images/logos/plexlogo.png"
                   height="110px"
-                  contain
                 />
               </v-col>
 

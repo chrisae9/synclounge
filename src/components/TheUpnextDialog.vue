@@ -1,8 +1,8 @@
 <template>
   <v-bottom-sheet
-    model-value="true"
+    :model-value="true"
     persistent
-    hide-overlay
+    :scrim="false"
   >
     <v-card
       style="max-width: 100%; margin-left: auto; margin-right: auto;"
@@ -11,8 +11,6 @@
     >
       <v-container
         fluid
-        align-center
-        justify="start"
         class="pa-0"
         style="background: rgb(0 0 0 / 70%);"
       >
@@ -31,7 +29,6 @@
             <v-img
               :src="thumb"
               height="125px"
-              contain
             />
           </v-col>
 

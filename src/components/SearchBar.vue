@@ -65,7 +65,6 @@
           <template #prepend>
             <v-avatar size="42" rounded="0">
               <v-img
-                contain
                 :src="getImgUrl(item.raw)"
               />
             </v-avatar>

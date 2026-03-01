@@ -42,4 +42,15 @@ export default defineConfig({
   build: {
     outDir: 'dist',
   },
+  test: {
+    environment: 'happy-dom',
+    globals: true,
+    include: ['src/**/*.test.js'],
+    server: {
+      deps: {
+        inline: ['vuetify'],
+      },
+    },
+    css: true,
+  },
 });

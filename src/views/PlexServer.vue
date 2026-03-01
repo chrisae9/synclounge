@@ -35,7 +35,6 @@
               <div class="d-none d-sm-flex pa-2">
                 <v-img
                   height="75"
-                  contain
                   :src="getThumb(library)"
                 />
               </div>

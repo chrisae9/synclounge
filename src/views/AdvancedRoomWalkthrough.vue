@@ -88,7 +88,7 @@
               Plex Players
               <v-icon
                 class="pl-2"
-                small
+                size="small"
                 @click="FETCH_PLEX_DEVICES"
               >
                 refresh
@@ -277,7 +277,10 @@ import {
 import plexPlatformMap from '@/utils/plexplatformmap';
 import { slPlayerClientId } from '@/player/constants';
 
-const platformImages = import.meta.glob('@/assets/images/platforms/*.svg', { eager: true, import: 'default' });
+const platformImagesRaw = import.meta.glob('@/assets/images/platforms/*.svg', { eager: true, import: 'default' });
+const platformImages = Object.fromEntries(
+  Object.entries(platformImagesRaw).map(([key, value]) => [key.split('/').pop().replace('.svg', ''), value]),
+);
 
 export default {
   name: 'AdvancedRoomWalkthrough',
@@ -338,10 +341,10 @@ export default {
 
     url() {
       if (this.platform) {
-        return platformImages[`/src/assets/images/platforms/${this.platform}.svg`] || platformImages['/src/assets/images/platforms/plex.svg'];
+        return platformImages[this.platform] || platformImages.plex;
       }
 
-      return platformImages['/src/assets/images/platforms/plex.svg'];
+      return platformImages.plex;
     },
 
     nohttpslink() {

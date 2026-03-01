@@ -1,8 +1,8 @@
 <template>
   <v-card
     :to="contentLink(content)"
-    flat
-    tile
+    variant="flat"
+    rounded="0"
     color="transparent"
     @mouseover="hovering = true"
     @mouseout="hovering = false"
@@ -62,7 +62,7 @@
 
     <v-tooltip
       location="bottom"
-      nudge-top="10"
+      offset="10"
     >
       <template #activator="{ props }">
         <v-row

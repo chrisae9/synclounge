@@ -1,6 +1,6 @@
 <template>
   <v-list-item
-    two-line
+    lines="two"
     density="compact"
     hover
     class="nowplaying"
@@ -9,11 +9,10 @@
     <template #prepend>
       <v-avatar
         class="ma-0"
-        tile
+        rounded="0"
         size="52"
       >
         <v-img
-          contain
           :src="thumb"
         />
       </v-avatar>

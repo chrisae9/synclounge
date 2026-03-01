@@ -19,7 +19,6 @@
 
           <v-card-title>
             <v-img
-              contain
               src="@/assets/images/logos/logo-long-light.png"
             />
           </v-card-title>

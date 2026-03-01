@@ -16,6 +16,8 @@
     "lint": "eslint src/",
     "lint:style": "stylelint 'src/**/*.{vue,scss,css}'",
     "test": "node --test test/*.test.js",
+    "test:client": "vitest run",
+    "test:client:watch": "vitest",
     "prepare": "if-env SKIP_BUILD=true && echo 'Skipping build' || npm run build"
   },
   "dependencies": {
@@ -27,6 +29,7 @@
     "@commitlint/config-conventional": "^19.8.1",
     "@delucis/if-env": "^1.1.2",
     "@vitejs/plugin-vue": "^5.2.0",
+    "@vue/test-utils": "^2.4.6",
     "caf": "^15.0.1",
     "date-fns": "^2.30.0",
     "detect-browser": "^5.3.0",
@@ -36,6 +39,7 @@
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-vue": "^9.32.0",
     "fast-xml-parser": "^4.5.3",
+    "happy-dom": "^20.7.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.2",
     "mux.js": "^6.3.0",
@@ -51,6 +55,7 @@
     "vanilla-tilt": "^1.8.1",
     "vite": "^6.0.0",
     "vite-plugin-vuetify": "^2.0.0",
+    "vitest": "^4.0.18",
     "vue": "^3.5.0",
     "vue-router": "^4.4.0",
     "vuetify": "^3.7.0",

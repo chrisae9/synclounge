@@ -32,10 +32,7 @@
         >
           <v-btn
             v-show="shouldShowSkipIntroButton"
-            absolute
-            bottom
-            right
-            large
+            size="large"
             class="skip-intro"
             :style="skipIntroButtonStyle"
             @click="SKIP_INTRO"
@@ -58,7 +55,6 @@
               <v-row no-gutters>
                 <v-col cols="auto">
                   <v-img
-                    contain
                     :src="GET_THUMB_URL"
                     class="plex-thumb"
                   />
@@ -108,7 +104,6 @@
         >
           <v-col cols="auto">
             <v-img
-              contain
               :src="GET_THUMB_URL"
               class="plex-thumb"
             />
@@ -481,6 +476,9 @@ export default {
 
 .v-btn.skip-intro {
   z-index: 2;
+  position: absolute;
+  bottom: 0;
+  right: 0;
 }
 
 .v-btn.skip-intro.fade-transition-leave-active {

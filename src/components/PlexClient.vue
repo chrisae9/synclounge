@@ -36,7 +36,10 @@ import { mapGetters } from 'vuex';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import plexPlatformMap from '@/utils/plexplatformmap';
 
-const platformImages = import.meta.glob('@/assets/images/platforms/*.svg', { eager: true, import: 'default' });
+const platformImagesRaw = import.meta.glob('@/assets/images/platforms/*.svg', { eager: true, import: 'default' });
+const platformImages = Object.fromEntries(
+  Object.entries(platformImagesRaw).map(([key, value]) => [key.split('/').pop().replace('.svg', ''), value]),
+);
 
 export default {
   name: 'PlexClient',
@@ -74,10 +77,10 @@ export default {
 
     url() {
       if (this.platform) {
-        return platformImages[`/src/assets/images/platforms/${this.platform}.svg`] || platformImages['/src/assets/images/platforms/plex.svg'];
+        return platformImages[this.platform] || platformImages.plex;
       }
 
-      return platformImages['/src/assets/images/platforms/plex.svg'];
+      return platformImages.plex;
     },
   },
 };
