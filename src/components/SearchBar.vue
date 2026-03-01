@@ -8,8 +8,9 @@
     no-filter
     clearable
     hide-details
-    hide-no-data
     variant="solo"
+    :item-title="getItemDisplayTitle"
+    no-data-text=""
     :menu-props="{ maxHeight: '80vh', maxWidth: '500px' }"
   >
     <template
@@ -28,31 +29,19 @@
 
     <template #item="{ item, props }">
       <template v-if="item.raw.serverHeader">
-        <v-list-item
-          class="bg-secondary"
-          density="compact"
-          v-bind="props"
+        <v-list-subheader
+          class="bg-secondary search-header"
         >
-          <v-list-subheader
-            class="search-header"
-          >
-            {{ item.raw.serverHeader }}
-          </v-list-subheader>
-        </v-list-item>
+          {{ item.raw.serverHeader }}
+        </v-list-subheader>
       </template>
 
       <template v-else-if="item.raw.hubHeader">
-        <v-list-item
-          density="compact"
-          v-bind="props"
-          class="search-header"
+        <v-list-subheader
+          class="text-overline search-header"
         >
-          <v-list-subheader
-            class="text-overline search-header"
-          >
-            {{ item.raw.hubHeader }}
-          </v-list-subheader>
-        </v-list-item>
+          {{ item.raw.hubHeader }}
+        </v-list-subheader>
       </template>
 
       <template v-else>
@@ -152,6 +141,12 @@ export default {
     ...mapActions('plexservers', [
       'SEARCH_PLEX_SERVER_HUB',
     ]),
+
+    getItemDisplayTitle(item) {
+      if (item.serverHeader) return item.serverHeader;
+      if (item.hubHeader) return item.hubHeader;
+      return item.title || '';
+    },
 
     getItemSecondaryTitle(item) {
       return item.reason

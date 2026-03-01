@@ -48,29 +48,6 @@
           <v-icon>fullscreen</v-icon>
         </v-btn>
 
-        <v-btn
-          v-for="item in links"
-          :key="item.title"
-          size="small"
-          tag="a"
-          class="d-none d-md-flex"
-          variant="text"
-          :href="item.href"
-          :target="item.target"
-        >
-          {{ item.title }}
-        </v-btn>
-
-        <DonateDialog v-slot="{ props }">
-          <v-btn
-            size="small"
-            class="d-none d-md-flex"
-            variant="text"
-            v-bind="props"
-          >
-            Donate ♥
-          </v-btn>
-        </DonateDialog>
       </v-toolbar-items>
 
       <router-view name="rightSidebarButton" />
@@ -160,7 +137,7 @@
 import './assets/css/style.css';
 
 import {
-  mapActions, mapGetters, mapMutations, mapState,
+  mapActions, mapGetters, mapMutations,
 } from 'vuex';
 import { defineAsyncComponent } from 'vue';
 import redirection from '@/mixins/redirection';
@@ -173,7 +150,6 @@ export default {
     TheSidebarLeft: defineAsyncComponent(() => import('@/components/TheSidebarLeft.vue')),
     TheUpnextDialog: defineAsyncComponent(() => import('@/components/TheUpnextDialog.vue')),
     TheNowPlayingChip: defineAsyncComponent(() => import('@/components/TheNowPlayingChip.vue')),
-    DonateDialog: defineAsyncComponent(() => import('@/components/DonateDialog.vue')),
     TheAppBarCrumbs: defineAsyncComponent(() => import('@/components/TheAppBarCrumbs.vue')),
   },
 
@@ -219,26 +195,6 @@ export default {
       'GET_ROOM',
       'GET_SERVER',
     ]),
-
-    ...mapState([
-      'repositoryUrl',
-      'discordUrl',
-    ]),
-
-    links() {
-      return [
-        {
-          title: 'Github',
-          href: this.repositoryUrl,
-          target: '_blank',
-        },
-        {
-          title: 'Discord',
-          target: '_blank',
-          href: this.discordUrl,
-        },
-      ];
-    },
 
     showNowPlaying() {
       return this.GET_ACTIVE_SERVER_ID && this.GET_CHOSEN_CLIENT_ID !== slPlayerClientId;

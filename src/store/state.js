@@ -2,8 +2,6 @@ import { detect } from 'detect-browser';
 
 const state = () => ({
   version: import.meta.env.VITE_APP_VERSION,
-  repositoryUrl: 'https://github.com/synclounge/synclounge',
-  discordUrl: 'https://discord.gg/fKQB3yt',
 
   background: null,
   configuration: null,

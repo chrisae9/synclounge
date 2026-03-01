@@ -1,5 +1,4 @@
 export default {
-  GET_RELEASE_URL: (state) => `${state.repositoryUrl}/releases/tag/v${state.version}`,
   GET_BACKGROUND: (state) => state.background,
   GET_UP_NEXT_POST_PLAY_DATA: (state) => state.upNextPostPlayData,
   GET_CONFIG: (state) => state.configuration,

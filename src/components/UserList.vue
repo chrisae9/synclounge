@@ -8,7 +8,7 @@
       :key="id"
     >
       <template #prepend>
-        <v-avatar>
+        <v-avatar size="40">
           <img
             :src="user.thumb"
             class="avatar-img"
@@ -249,6 +249,10 @@ export default {
 
 .avatar-img {
   border: 3px solid;
+  border-radius: 50%;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .avatar-icon {
@@ -256,6 +260,12 @@ export default {
   opacity: 0.8;
   position: absolute;
   background-color: rgb(0 0 0 / 70%);
+  border-radius: 50%;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .border-error {

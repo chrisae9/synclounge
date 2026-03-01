@@ -83,7 +83,7 @@ router.beforeEach(async (to, from, next) => {
     next({ name: 'RoomCreation' });
   } else if (to.matched.some((record) => record.meta.protected)
     && (!store.getters['synclounge/IS_IN_ROOM']
-      || doesServerMatch({
+      || !doesServerMatch({
         server: store.getters['synclounge/GET_SERVER'],
         room: store.getters['synclounge/GET_ROOM'],
       }, to.params))

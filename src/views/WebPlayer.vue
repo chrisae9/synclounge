@@ -14,7 +14,7 @@
           autoplay
           preload="auto"
           playsinline="true"
-          class="black"
+          style="background-color: black;"
 
           @pause="HANDLE_PLAYER_PAUSE"
           @ended="PRESS_STOP"
@@ -54,35 +54,20 @@
             <v-container fluid>
               <v-row no-gutters>
                 <v-col cols="auto">
-                  <v-img
+                  <img
                     :src="GET_THUMB_URL"
                     class="plex-thumb"
-                  />
+                  >
                 </v-col>
 
                 <v-col class="pl-3">
-                  <v-container
-                    fluid
-                    class="pa-0 fill-height"
-                  >
-                    <v-row no-gutters>
-                      <v-col>
-                        <h1>{{ GET_TITLE }}</h1>
-                      </v-col>
-                    </v-row>
-
-                    <v-row no-gutters>
-                      <v-col>
-                        <h3>{{ GET_SECONDARY_TITLE }}</h3>
-                      </v-col>
-                    </v-row>
-
-                    <v-row no-gutters>
-                      <v-col class="text-subtitle-2 text-primary">
-                        Playing from {{ GET_PLEX_SERVER.name }}
-                      </v-col>
-                    </v-row>
-                  </v-container>
+                  <div>
+                    <h1>{{ GET_TITLE }}</h1>
+                    <h3>{{ GET_SECONDARY_TITLE }}</h3>
+                    <div class="text-subtitle-2 text-primary">
+                      Playing from {{ GET_PLEX_SERVER.name }}
+                    </div>
+                  </div>
                 </v-col>
               </v-row>
             </v-container>
@@ -103,34 +88,20 @@
           class="pa-3"
         >
           <v-col cols="auto">
-            <v-img
+            <img
               :src="GET_THUMB_URL"
               class="plex-thumb"
-            />
+            >
           </v-col>
 
           <v-col class="pl-2">
-            <v-container
-              class="pa-0 fill-height"
-            >
-              <v-row no-gutters>
-                <v-col>
-                  <h1>{{ GET_TITLE }}</h1>
-                </v-col>
-              </v-row>
-
-              <v-row no-gutters>
-                <v-col>
-                  <h3>{{ GET_SECONDARY_TITLE }}</h3>
-                </v-col>
-              </v-row>
-
-              <v-row no-gutters>
-                <v-col class="text-subtitle-2 text-primary">
-                  Playing from {{ GET_PLEX_SERVER.name }}
-                </v-col>
-              </v-row>
-            </v-container>
+            <div>
+              <h1>{{ GET_TITLE }}</h1>
+              <h3>{{ GET_SECONDARY_TITLE }}</h3>
+              <div class="text-subtitle-2 text-primary">
+                Playing from {{ GET_PLEX_SERVER.name }}
+              </div>
+            </div>
           </v-col>
         </v-row>
 
