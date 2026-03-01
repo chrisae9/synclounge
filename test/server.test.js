@@ -852,6 +852,55 @@ describe('server', () => {
     });
   });
 
+  // --- SSRF prevention ---
+
+  describe('SSRF prevention in poster proxy', () => {
+    const ssrfCases = [
+      ['localhost', 'http://localhost:32400/photo'],
+      ['127.x loopback', 'http://127.0.0.1:32400/photo'],
+      ['10.x private', 'http://10.0.0.1/photo'],
+      ['172.16-31.x private', 'http://172.16.0.1/photo'],
+      ['192.168.x private', 'http://192.168.1.1/photo'],
+      ['169.254.x link-local', 'http://169.254.169.254/latest/meta-data/'],
+    ];
+
+    for (const [label, url] of ssrfCases) {
+      it(`blocks ${label} (${url})`, async () => {
+        await request('/api/metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: {
+            title: `SSRF ${label}`,
+            type: 'movie',
+            posterUrl: url,
+            machineIdentifier: `ssrf-${label.replace(/\s/g, '')}`,
+            ratingKey: '1',
+          },
+        });
+
+        const res = await request(`/share/poster/ssrf-${label.replace(/\s/g, '')}/1`);
+        assert.equal(res.status, 403);
+      });
+    }
+
+    it('allows legitimate external URLs', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Legit',
+          type: 'movie',
+          posterUrl: 'https://httpbin.org/image/jpeg',
+          machineIdentifier: 'ssrf-legit',
+          ratingKey: '1',
+        },
+      });
+
+      const res = await request('/share/poster/ssrf-legit/1');
+      assert.equal(res.status, 200);
+    });
+  });
+
   // --- OG injection with optional :server? URL suffix ---
 
   describe('OG injection URL variants', () => {

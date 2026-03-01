@@ -4,34 +4,26 @@ const syncloungeServer = require('syncloungeserver');
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
+const { Readable } = require('node:stream');
 const config = require('./config');
+const { createCache } = require('./cache');
 
 const blockList = Object.keys(syncloungeServer.defaultConfig);
 const appConfig = config.get(null, blockList);
 console.log(appConfig);
 
-// --- Metadata cache with TTL and max size ---
-const METADATA_TTL = 24 * 60 * 60 * 1000; // 24 hours
-const METADATA_MAX_SIZE = 10000;
-const metadataCache = new Map();
+const { setMetadata, getMetadata } = createCache();
 
-function setMetadata(key, value) {
-  // Evict oldest entries if at capacity
-  if (metadataCache.size >= METADATA_MAX_SIZE && !metadataCache.has(key)) {
-    const oldestKey = metadataCache.keys().next().value;
-    metadataCache.delete(oldestKey);
-  }
-  metadataCache.set(key, { ...value, cachedAt: Date.now() });
-}
-
-function getMetadata(key) {
-  const entry = metadataCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.cachedAt > METADATA_TTL) {
-    metadataCache.delete(key);
-    return null;
-  }
-  return entry;
+// --- SSRF prevention for poster proxy ---
+function isPrivateUrl(urlStr) {
+  let parsed;
+  try { parsed = new URL(urlStr); } catch { return true; }
+  if (!['http:', 'https:'].includes(parsed.protocol)) return true;
+  const host = parsed.hostname;
+  if (host === 'localhost' || host === '::1' || host === '0.0.0.0') return true;
+  if (/^(127\.|10\.|192\.168\.|169\.254\.)/.test(host)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
+  return false;
 }
 
 // --- HTML escaping for XSS prevention ---
@@ -115,6 +107,10 @@ const preStaticInjection = (router) => {
       return res.status(404).send('Not found');
     }
 
+    if (isPrivateUrl(meta.posterUrl)) {
+      return res.status(403).send('Forbidden');
+    }
+
     try {
       const response = await fetch(meta.posterUrl);
       if (!response.ok) {
@@ -124,8 +120,7 @@ const preStaticInjection = (router) => {
       res.set('Content-Type', response.headers.get('content-type') || 'image/jpeg');
       res.set('Cache-Control', 'public, max-age=86400');
 
-      const buffer = Buffer.from(await response.arrayBuffer());
-      return res.send(buffer);
+      Readable.fromWeb(response.body).pipe(res);
     } catch (e) {
       console.error('Poster proxy error:', e.message);
       return res.status(502).send('Failed to fetch poster');
