@@ -328,6 +328,82 @@ describe('server', () => {
     });
   });
 
+  // --- POST /api/metadata input edge cases ---
+
+  describe('POST /api/metadata input edge cases', () => {
+    it('does not crash when Content-Type header is missing', async () => {
+      const res = await fetch(`${BASE}/api/metadata`, {
+        method: 'POST',
+        body: JSON.stringify({ machineIdentifier: 'x', ratingKey: '1' }),
+        // No Content-Type header
+      });
+      // Should not be 500 (crash) — either 400 or 4xx
+      assert.notEqual(res.status, 500);
+    });
+
+    it('does not crash when Content-Type is text/plain', async () => {
+      const res = await fetch(`${BASE}/api/metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ machineIdentifier: 'x', ratingKey: '1' }),
+      });
+      assert.notEqual(res.status, 500);
+    });
+
+    it('handles ratingKey sent as integer (not string)', async () => {
+      const postRes = await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Integer Key Movie',
+          year: 2020,
+          type: 'movie',
+          posterUrl: 'https://example.com/poster.jpg',
+          machineIdentifier: 'intkey-machine',
+          ratingKey: 888, // integer, not string
+        },
+      });
+      assert.equal(postRes.status, 200);
+
+      // URL params are always strings — verify cache lookup still matches
+      const res = await request('/room/r/browse/server/intkey-machine/ratingKey/888');
+      const html = await res.text();
+      assert.ok(html.includes('Integer Key Movie'));
+    });
+
+    it('does not collide cache keys when machineIdentifier contains a colon', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'First Entry',
+          type: 'movie',
+          machineIdentifier: 'a:b',
+          ratingKey: 'c',
+        },
+      });
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Second Entry',
+          type: 'movie',
+          machineIdentifier: 'a',
+          ratingKey: 'b:c',
+        },
+      });
+
+      const res1 = await request('/room/r/browse/server/a:b/ratingKey/c');
+      const html1 = await res1.text();
+      const res2 = await request('/room/r/browse/server/a/ratingKey/b:c');
+      const html2 = await res2.text();
+
+      // These should have different titles (not collide)
+      assert.ok(html1.includes('First Entry'));
+      assert.ok(html2.includes('Second Entry'));
+    });
+  });
+
   // --- SPA fallback edge cases ---
 
   describe('SPA fallback edge cases', () => {
@@ -401,6 +477,49 @@ describe('server', () => {
       const res = await request('/room/test');
       assert.equal(res.status, 200);
       assert.ok(res.headers.get('content-type').includes('text/html'));
+    });
+
+    it('serves index.html for /signout', async () => {
+      const res = await request('/signout');
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes('<div id="app">'));
+    });
+
+    it('serves index.html for library route', async () => {
+      const res = await request('/room/test/browse/server/abc/library/1');
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes('<div id="app">'));
+    });
+
+    it('serves index.html for PlexServer route', async () => {
+      const res = await request('/room/test/browse/server/abc');
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes('<div id="app">'));
+    });
+
+    it('does not intercept .webmanifest files', async () => {
+      const res = await request('/manifest.webmanifest');
+      const html = await res.text();
+      // Should not serve index.html for manifest files
+      assert.ok(!html.includes('<div id="app">'));
+    });
+
+    it('does not intercept .woff2 files', async () => {
+      const res = await request('/fonts/something.woff2');
+      assert.equal(res.status, 404);
+    });
+
+    it('does not intercept .svg files', async () => {
+      const res = await request('/img/nonexistent.svg');
+      assert.equal(res.status, 404);
+    });
+
+    it('does not intercept DELETE requests', async () => {
+      const res = await request('/room/test', { method: 'DELETE' });
+      assert.notEqual(res.status, 200);
     });
   });
 
@@ -612,6 +731,71 @@ describe('server', () => {
       const html = await res.text();
       assert.ok(html.includes('S15E24'));
     });
+
+    it('handles season 0 (specials) without treating it as missing', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Behind the Scenes',
+          type: 'episode',
+          grandparentTitle: 'Breaking Bad',
+          parentIndex: 0,
+          index: 3,
+          machineIdentifier: 'fmt-test',
+          ratingKey: '607',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/fmt-test/ratingKey/607');
+      const html = await res.text();
+      // Season 0 is a real Plex pattern for specials — should show S00E03
+      assert.ok(html.includes('S00E03'));
+      assert.ok(html.includes('Breaking Bad'));
+    });
+
+    it('handles episode index 0', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Prelude',
+          type: 'episode',
+          grandparentTitle: 'Show',
+          parentIndex: 1,
+          index: 0,
+          machineIdentifier: 'fmt-test',
+          ratingKey: '608',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/fmt-test/ratingKey/608');
+      const html = await res.text();
+      assert.ok(html.includes('S01E00'));
+    });
+
+    it('handles bare episode with no show name and no indexes gracefully', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Orphan',
+          type: 'episode',
+          machineIdentifier: 'fmt-test',
+          ratingKey: '609',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/fmt-test/ratingKey/609');
+      const html = await res.text();
+      // Should not have a leading dash or look broken
+      assert.ok(html.includes('og:title'));
+      // Extract the title content
+      const match = html.match(/og:title" content="([^"]*)"/);
+      assert.ok(match, 'og:title meta tag should exist');
+      // Should not start with "- " or " -"
+      assert.ok(!match[1].startsWith('-'), `Title should not start with dash: "${match[1]}"`);
+    });
   });
 
   // --- Poster proxy edge cases ---
@@ -648,6 +832,103 @@ describe('server', () => {
 
       const res = await request('/share/poster/badupstream/701');
       assert.equal(res.status, 502);
+    });
+
+    it('returns 502 when upstream returns a 4xx error', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: '404 Upstream',
+          type: 'movie',
+          posterUrl: 'https://httpbin.org/status/404',
+          machineIdentifier: 'upstream4xx',
+          ratingKey: '702',
+        },
+      });
+
+      const res = await request('/share/poster/upstream4xx/702');
+      assert.equal(res.status, 502);
+    });
+  });
+
+  // --- OG injection with optional :server? URL suffix ---
+
+  describe('OG injection URL variants', () => {
+    before(async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'URL Variant Movie',
+          year: 2025,
+          type: 'movie',
+          posterUrl: 'https://example.com/poster.jpg',
+          machineIdentifier: 'urlvar-machine',
+          ratingKey: '800',
+        },
+      });
+    });
+
+    it('injects OG tags when optional :server? suffix is present', async () => {
+      const res = await request(
+        '/room/test/browse/server/urlvar-machine/ratingKey/800/myserver',
+      );
+      const html = await res.text();
+      assert.ok(html.includes('og:title'));
+      assert.ok(html.includes('URL Variant Movie (2025)'));
+    });
+
+    it('injects OG tags with different room names', async () => {
+      const res = await request(
+        '/room/another-room/browse/server/urlvar-machine/ratingKey/800',
+      );
+      const html = await res.text();
+      assert.ok(html.includes('URL Variant Movie'));
+    });
+  });
+
+  // --- XSS edge cases ---
+
+  describe('XSS edge cases', () => {
+    it('escapes HTML in grandparentTitle for episode type', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Episode',
+          type: 'episode',
+          grandparentTitle: '<img src=x onerror=alert(1)>',
+          parentIndex: 1,
+          index: 1,
+          machineIdentifier: 'xss2-machine',
+          ratingKey: '900',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/xss2-machine/ratingKey/900');
+      const html = await res.text();
+      assert.ok(!html.includes('<img src=x'));
+      assert.ok(html.includes('&lt;img'));
+    });
+
+    it('handles null/undefined summary without crashing', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Null Summary',
+          type: 'movie',
+          summary: null,
+          machineIdentifier: 'xss2-machine',
+          ratingKey: '901',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/xss2-machine/ratingKey/901');
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(!html.includes('og:description'));
     });
   });
 });

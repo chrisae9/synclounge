@@ -53,10 +53,11 @@ try {
 function injectOgTags(html, meta) {
   let title;
   if (meta.type === 'episode') {
-    const season = meta.parentIndex ? `S${String(meta.parentIndex).padStart(2, '0')}` : '';
-    const episode = meta.index ? `E${String(meta.index).padStart(2, '0')}` : '';
+    const season = meta.parentIndex != null ? `S${String(meta.parentIndex).padStart(2, '0')}` : '';
+    const episode = meta.index != null ? `E${String(meta.index).padStart(2, '0')}` : '';
     const epNum = season || episode ? `${season}${episode} ` : '';
-    title = `${meta.grandparentTitle || ''} - ${epNum}${meta.title || ''}`.trim();
+    const parts = [meta.grandparentTitle, `${epNum}${meta.title || ''}`].filter(Boolean);
+    title = parts.join(' - ').trim();
   } else {
     title = meta.year ? `${meta.title} (${meta.year})` : (meta.title || '');
   }
@@ -76,7 +77,7 @@ function injectOgTags(html, meta) {
 }
 
 // --- File extension check for SPA fallback ---
-const STATIC_EXT_RE = /\.\w{2,4}$/;
+const STATIC_EXT_RE = /\.\w{2,}$/;
 
 const preStaticInjection = (router) => {
   // Add route for config
@@ -95,7 +96,7 @@ const preStaticInjection = (router) => {
       return res.status(400).json({ error: 'machineIdentifier and ratingKey are required' });
     }
 
-    const key = `${machineIdentifier}:${ratingKey}`;
+    const key = `${machineIdentifier}\0${ratingKey}`;
     setMetadata(key, {
       title, year, summary, type, posterUrl,
       machineIdentifier, ratingKey,
@@ -107,7 +108,7 @@ const preStaticInjection = (router) => {
 
   // --- GET /share/poster/:machineIdentifier/:ratingKey: proxy poster images ---
   router.get('/share/poster/:machineIdentifier/:ratingKey', async (req, res) => {
-    const key = `${req.params.machineIdentifier}:${req.params.ratingKey}`;
+    const key = `${req.params.machineIdentifier}\0${req.params.ratingKey}`;
     const meta = getMetadata(key);
 
     if (!meta || !meta.posterUrl) {
@@ -159,7 +160,7 @@ const preStaticInjection = (router) => {
 
     if (mediaMatch) {
       const [, machineIdentifier, ratingKey] = mediaMatch;
-      const key = `${machineIdentifier}:${ratingKey}`;
+      const key = `${machineIdentifier}\0${ratingKey}`;
       const meta = getMetadata(key);
 
       if (meta) {
