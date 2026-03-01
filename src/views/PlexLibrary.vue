@@ -11,7 +11,6 @@
       <v-col>
         <v-data-table
           fixed-header
-          hide-default-footer
           :headers="headers[library.type]"
           :items="contents"
           v-model:sort-by="sortByArray"
@@ -44,6 +43,8 @@
               style="height: auto;"
             />
           </template>
+
+          <template #bottom />
         </v-data-table>
       </v-col>
     </v-row>

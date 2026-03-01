@@ -42,7 +42,7 @@
                     Coming up next
                   </h2>
 
-                  <div class="headline">
+                  <div class="text-h5">
                     {{ getTitle(GET_UP_NEXT_POST_PLAY_DATA) }}
                   </div>
 
@@ -51,7 +51,7 @@
                   <v-col
                     cols="12"
                     md="6"
-                    class="text-xs-left text-subtitle-2 text-primary"
+                    class="text-left text-subtitle-2 text-primary"
                   >
                     From {{ server.name }}
                   </v-col>
@@ -69,7 +69,7 @@
                     <v-icon>close</v-icon>
                   </v-btn>
 
-                  <div class="text-xs-right">
+                  <div class="text-right">
                     <v-btn
                       color="primary"
                       @click="playPressed"
@@ -94,7 +94,7 @@
             <div class="c-timebar__background" />
 
             <div
-              class="c-timebar__remaining primary"
+              class="c-timebar__remaining bg-primary"
               :style="transitionBarWithStyle"
             />
           </div>

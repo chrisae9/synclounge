@@ -30,7 +30,7 @@
 
             <div
               v-if="showUnwatchedFlag && !showServer"
-              class="unwatched primary pa-1 text-body-2"
+              class="unwatched bg-primary pa-1 text-body-2"
             >
               {{ unwatchedCount }}
             </div>

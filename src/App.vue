@@ -99,17 +99,24 @@
         class="pa-0"
         fluid
       >
-        <v-img
+        <img
+          v-if="GET_BACKGROUND"
           :src="GET_BACKGROUND"
-          :height="bgHeight"
+          style="display: none;"
           @load="backgroundLoad"
           @error="backgroundError"
         >
-          <v-sheet
-            :color="sheetColor"
-            class="overflow-y-auto pa-3"
-            :height="bgHeight"
-          >
+
+        <v-sheet
+          :style="GET_BACKGROUND ? {
+            backgroundImage: `url(${GET_BACKGROUND})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          } : {}"
+          :color="sheetColor"
+          class="overflow-y-auto pa-3"
+          :height="bgHeight"
+        >
             <v-container
               v-if="!GET_CONFIG"
               class="fill-height"
@@ -144,7 +151,6 @@
 
             <TheUpnextDialog v-if="GET_UP_NEXT_POST_PLAY_DATA" />
           </v-sheet>
-        </v-img>
       </v-container>
     </v-main>
   </v-app>
@@ -178,7 +184,7 @@ export default {
   ],
 
   data: () => ({
-    numBackgroundErrors: 0,
+    numBackgroundFailures: 0,
   }),
 
   computed: {

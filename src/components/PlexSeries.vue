@@ -40,7 +40,6 @@
 
           <v-chip
             v-if="metadata.studio"
-            secondary
             color="grey"
           >
             {{ metadata.studio }}
@@ -69,11 +68,13 @@
             lg="4"
           >
             <v-chip>
-              <v-avatar left>
-                <v-img
-                  :src="makeHttpsUrl(role.thumb)"
-                />
-              </v-avatar>
+              <template #prepend>
+                <v-avatar>
+                  <v-img
+                    :src="makeHttpsUrl(role.thumb)"
+                  />
+                </v-avatar>
+              </template>
               {{ role.tag }}
 
               <div

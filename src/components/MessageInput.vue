@@ -1,13 +1,13 @@
 <template>
   <v-text-field
     v-model="messageToBeSent"
-    append-outer-icon="send"
+    append-icon="send"
     :label="chatboxLabel"
     hide-details
     single-line
     class="ml-2 mr-2 pr-1"
-    @click:append-outer="sendMessage"
-    @keyup.enter.native="sendMessage"
+    @click:append="sendMessage"
+    @keyup.enter="sendMessage"
   />
 </template>
 

@@ -29,6 +29,12 @@ app.use(router).use(store).use(vuetify);
 app.directive('chat-scroll', vChatScroll);
 
 app.config.errorHandler = (err) => {
+  // Suppress Vuetify v-img internal error during unmount (known race condition)
+  if (err instanceof TypeError && err.message?.includes('naturalHeight')) {
+    console.debug('Suppressed v-img unmount error:', err.message);
+    return;
+  }
+
   store.dispatch('DISPLAY_NOTIFICATION', {
     text: err.message,
     color: 'error',

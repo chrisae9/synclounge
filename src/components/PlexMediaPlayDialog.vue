@@ -10,7 +10,7 @@
     </template>
 
     <v-card>
-      <v-card-title class="headline">
+      <v-card-title class="text-h5">
         Playback Settings
       </v-card-title>
 

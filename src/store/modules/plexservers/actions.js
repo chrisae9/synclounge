@@ -449,12 +449,14 @@ export default {
   }),
 
   SET_MEDIA_AS_BACKGROUND: async ({ getters, commit }, media) => {
+    if (!media) return;
     const url = getters.GET_MEDIA_BACKGROUND_URL(media);
     commit('SET_BACKGROUND', url, { root: true });
   },
 
-  FETCH_AND_SET_RANDOM_BACKGROUND_IMAGE: async ({ dispatch }, params) => {
+  FETCH_AND_SET_RANDOM_BACKGROUND_IMAGE: async ({ dispatch, getters }, params) => {
     await dispatch('plex/FETCH_PLEX_DEVICES_IF_NEEDED', null, { root: true });
+    if (!getters.GET_CONNECTABLE_PLEX_SERVER_IDS.length) return;
     const item = await dispatch('FETCH_RANDOM_ITEM', params);
     return dispatch('SET_MEDIA_AS_BACKGROUND', item);
   },

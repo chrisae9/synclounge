@@ -29,7 +29,7 @@
     <template #item="{ item, props }">
       <template v-if="item.raw.serverHeader">
         <v-list-item
-          class="secondary"
+          class="bg-secondary"
           density="compact"
           v-bind="props"
         >

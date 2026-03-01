@@ -1,7 +1,7 @@
 <template>
   <v-breadcrumbs
     :items="crumbs"
-    class="text-xs-left"
+    class="text-left"
     style="justify-content: left;"
   >
     <template #divider>
@@ -13,7 +13,7 @@
         :to="props.item.to"
         :exact="true"
       >
-        {{ props.item.text }}
+        {{ props.item.title }}
       </v-breadcrumbs-item>
     </template>
   </v-breadcrumbs>
@@ -44,7 +44,7 @@ export default {
     crumbs() {
       const data = [
         {
-          text: 'Home',
+          title: 'Home',
           to: this.linkWithRoom({ name: 'PlexHome' }),
         },
       ];
@@ -52,7 +52,7 @@ export default {
       if (this.GET_ACTIVE_METADATA) {
         if (this.GET_ACTIVE_METADATA.query) {
           data.push({
-            text: `Search: ${this.GET_ACTIVE_METADATA.query}`,
+            title: `Search: ${this.GET_ACTIVE_METADATA.query}`,
             to: this.linkWithRoom({
               name: 'PlexSearch',
               params: {
@@ -64,7 +64,7 @@ export default {
 
         if (this.GET_ACTIVE_METADATA.machineIdentifier) {
           data.push({
-            text: this.GET_PLEX_SERVER(this.GET_ACTIVE_METADATA.machineIdentifier).name,
+            title: this.GET_PLEX_SERVER(this.GET_ACTIVE_METADATA.machineIdentifier).name,
             to: this.linkWithRoom({
               name: 'PlexServer',
               params: {
@@ -75,7 +75,7 @@ export default {
 
           if (this.GET_ACTIVE_METADATA.librarySectionID != null) {
             data.push({
-              text: this.GET_ACTIVE_METADATA.librarySectionTitle,
+              title: this.GET_ACTIVE_METADATA.librarySectionTitle,
               to: this.linkWithRoom({
                 name: 'PlexLibrary',
                 params: {
@@ -89,7 +89,7 @@ export default {
           if (this.GET_ACTIVE_METADATA.grandparentRatingKey != null) {
           // TODO: figure out how to tell lol
             data.push({
-              text: this.GET_ACTIVE_METADATA.grandparentTitle,
+              title: this.GET_ACTIVE_METADATA.grandparentTitle,
               to: this.linkWithRoom({
                 name: 'PlexMedia',
                 params: {
@@ -102,7 +102,7 @@ export default {
 
           if (this.GET_ACTIVE_METADATA.parentRatingKey != null) {
             data.push({
-              text: this.GET_ACTIVE_METADATA.parentTitle,
+              title: this.GET_ACTIVE_METADATA.parentTitle,
               to: this.linkWithRoom({
                 name: 'PlexMedia',
                 params: {
@@ -115,7 +115,7 @@ export default {
 
           if (this.GET_ACTIVE_METADATA.ratingKey != null) {
             data.push({
-              text: this.GET_ACTIVE_METADATA.title,
+              title: this.GET_ACTIVE_METADATA.title,
               to: this.contentLink(this.GET_ACTIVE_METADATA),
             });
           }
