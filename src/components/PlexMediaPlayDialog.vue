@@ -3,9 +3,9 @@
     v-model="dialog"
     width="500"
   >
-    <template #activator="stuff">
+    <template #activator="{ props }">
       <slot
-        v-bind="stuff"
+        v-bind="props"
       />
     </template>
 
@@ -29,36 +29,34 @@
             v-for="(media, index) in metadata.Media"
             :key="media.Part[0].key"
           >
-            <v-list-item-content>
-              <v-list-item-title>
+            <v-list-item-title>
                 {{ media.videoResolution }}p -
-                <span class="text--secondary">{{ getDuration(media.duration) }}</span>
+                <span class="text-medium-emphasis">{{ getDuration(media.duration) }}</span>
               </v-list-item-title>
 
               <v-list-item-subtitle>
-                <span class="text--primary">Video Codec:</span>
+                <span class="text-high-emphasis">Video Codec:</span>
                 {{ media.videoCodec }} ({{ media.bitrate }}kbps)
               </v-list-item-subtitle>
 
               <v-list-item-subtitle class="wrap">
-                <span class="text--primary">Audio Streams:</span>
+                <span class="text-high-emphasis">Audio Streams:</span>
                 {{ audioStreams(media.Part[0].Stream) }}
               </v-list-item-subtitle>
 
               <v-list-item-subtitle class="wrap">
-                <span class="text--primary">Subtitles:</span>
+                <span class="text-high-emphasis">Subtitles:</span>
                 {{ subtitleStreams(media.Part[0].Stream) }}
               </v-list-item-subtitle>
-            </v-list-item-content>
 
-            <v-list-item-action>
+            <template #append>
               <v-btn
                 class="primary"
                 @click="playClicked(index)"
               >
                 Play
               </v-btn>
-            </v-list-item-action>
+            </template>
           </v-list-item>
         </v-list>
       </v-card-actions>

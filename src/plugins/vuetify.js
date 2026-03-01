@@ -1,22 +1,20 @@
-import Vue from 'vue';
-import Vuetify from 'vuetify/lib';
+import 'vuetify/styles';
+import { createVuetify } from 'vuetify';
+import { aliases, md } from 'vuetify/iconsets/md';
 
-Vue.use(Vuetify);
-
-export default new Vuetify({
+export default createVuetify({
   icons: {
-    iconfont: 'md',
+    defaultSet: 'md',
+    aliases,
+    sets: { md },
   },
-
   theme: {
-    dark: true,
-    options: {
-      customProperties: true,
-    },
-
+    defaultTheme: 'dark',
     themes: {
       dark: {
-        primary: '#e5a00d',
+        colors: {
+          primary: '#e5a00d',
+        },
       },
     },
   },

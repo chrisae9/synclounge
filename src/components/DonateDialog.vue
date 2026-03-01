@@ -3,9 +3,9 @@
     v-model="donateDialog"
     max-width="650px"
   >
-    <template #activator="stuff">
+    <template #activator="{ props }">
       <slot
-        v-bind="stuff"
+        v-bind="props"
       />
     </template>
 
@@ -45,7 +45,7 @@
             <v-btn
               block
               color="primary"
-              class="white--text"
+              class="text-white"
               target="_blank"
               href="https://paypal.me/PlexTogether"
             >
@@ -90,7 +90,7 @@
 
         <v-divider />
 
-        <p class="pa-2 text--secondary mb-0 pb-0">
+        <p class="pa-2 text-medium-emphasis mb-0 pb-0">
           If you make a donation, stop by the Discord and message samcm#2715
           to get your Donator role. Thankyou!
         </p>

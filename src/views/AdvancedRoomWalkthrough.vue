@@ -23,27 +23,27 @@
         class="ma-4"
       >
         <v-stepper-header>
-          <v-stepper-step
-            step="1"
+          <v-stepper-item
+            value="1"
             :complete="true"
           >
             Select a client
-          </v-stepper-step>
+          </v-stepper-item>
 
           <v-divider />
 
-          <v-stepper-step
-            step="2"
+          <v-stepper-item
+            value="2"
             :complete="false"
           >
             Join a server
-          </v-stepper-step>
+          </v-stepper-item>
 
           <v-divider />
 
-          <v-stepper-step step="3">
+          <v-stepper-item value="3">
             Sync
-          </v-stepper-step>
+          </v-stepper-item>
         </v-stepper-header>
       </v-stepper>
 
@@ -159,7 +159,7 @@
 
                     <div
                       v-if="previewClientErrorMsg"
-                      class="red--text text--lighten-1"
+                      class="text-red-lighten-1"
                     >
                       {{ previewClientErrorMsg }}
                     </div>
@@ -197,7 +197,7 @@
                       <v-progress-circular
                         indeterminate
                         :size="50"
-                        class="amber--text"
+                        class="text-amber"
                         style="display: inline-block;"
                       />
                     </div>
@@ -205,14 +205,14 @@
 
                   <div
                     v-if="previewClient.product.indexOf('Web') > -1"
-                    class="warning--text"
+                    class="text-warning"
                   >
                     Note: Plex Web is currently not supported.
                   </div>
 
                   <div
                     v-if="previewClient.product.indexOf('Plex for Android') > -1"
-                    class="warning--text"
+                    class="text-warning"
                   >
                     Note: Plex for Android applications may not work properly. See "What clients are
                     supported?" in the
@@ -221,7 +221,7 @@
 
                   <div
                     v-if="previewClient.product.indexOf('Plex for Windows') > -1"
-                    class="warning--text"
+                    class="text-warning"
                   >
                     Note: Plex Desktop applications may not work properly. See "What clients are
                     supported?" in the
@@ -230,7 +230,7 @@
 
                   <div
                     v-if="isHttps && previewClient.clientIdentifier !== slPlayerClientId"
-                    class="warning--text"
+                    class="text-warning"
                   >
                     Note: You may not be able to connect to external Plex Clients while loading the
                     page via HTTPS. Click
@@ -274,6 +274,7 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import {
   mapActions, mapGetters, mapMutations, mapState,
@@ -281,11 +282,13 @@ import {
 import plexPlatformMap from '@/utils/plexplatformmap';
 import { slPlayerClientId } from '@/player/constants';
 
+const platformImages = import.meta.glob('@/assets/images/platforms/*.svg', { eager: true, import: 'default' });
+
 export default {
   name: 'AdvancedRoomWalkthrough',
 
   components: {
-    PlexClient: () => import('@/components/PlexClient.vue'),
+    PlexClient: defineAsyncComponent(() => import('@/components/PlexClient.vue')),
   },
 
   data: () => ({
@@ -313,7 +316,7 @@ export default {
     },
 
     doReverse() {
-      switch (this.$vuetify.breakpoint.name) {
+      switch (this.$vuetify.display.name) {
         case 'xs':
           return true;
         case 'sm':
@@ -340,12 +343,10 @@ export default {
 
     url() {
       if (this.platform) {
-        // eslint-disable-next-line global-require, import/no-dynamic-require
-        return require(`@/assets/images/platforms/${this.platform}.svg`);
+        return platformImages[`/src/assets/images/platforms/${this.platform}.svg`] || platformImages['/src/assets/images/platforms/plex.svg'];
       }
 
-      // eslint-disable-next-line global-require
-      return require('@/assets/images/platforms/plex.svg');
+      return platformImages['/src/assets/images/platforms/plex.svg'];
     },
 
     nohttpslink() {
@@ -359,7 +360,7 @@ export default {
     },
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.cancelRequests();
   },
 

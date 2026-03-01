@@ -1,12 +1,12 @@
 <template>
   <v-bottom-sheet
-    value="true"
+    model-value="true"
     persistent
     hide-overlay
   >
     <v-card
       style="max-width: 100%; margin-left: auto; margin-right: auto;"
-      class="white--text pa-0"
+      class="text-white pa-0"
       :img="background"
     >
       <v-container
@@ -54,7 +54,7 @@
                   <v-col
                     cols="12"
                     md="6"
-                    class="text-xs-left text-subtitle-2 primary--text"
+                    class="text-xs-left text-subtitle-2 text-primary"
                   >
                     From {{ server.name }}
                   </v-col>
@@ -161,7 +161,7 @@ export default {
     this.startTimer();
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.cancelTimer();
   },
 

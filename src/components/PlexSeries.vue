@@ -90,13 +90,14 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mapActions } from 'vuex';
 
 export default {
   name: 'PlexSeries',
 
   components: {
-    PlexMediaLayout: () => import('@/components/PlexMediaLayout.vue'),
+    PlexMediaLayout: defineAsyncComponent(() => import('@/components/PlexMediaLayout.vue')),
   },
 
   props: {
@@ -150,7 +151,7 @@ export default {
     },
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.abortRequests();
   },
 

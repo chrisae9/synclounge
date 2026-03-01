@@ -62,18 +62,17 @@
     />
 
     <v-tooltip
-      bottom
+      location="bottom"
       nudge-top="10"
     >
-      <template #activator="{ on, attrs }">
+      <template #activator="{ props }">
         <v-row
-          v-bind="attrs"
+          v-bind="props"
           dense
           no-gutters
           align="end"
           class="pa-1"
           style="max-width: 100%;"
-          v-on="on"
         >
           <v-col
             cols="12"
@@ -84,7 +83,7 @@
 
           <v-col
             cols="12"
-            class="text-caption text-truncate text--secondary"
+            class="text-caption text-truncate text-medium-emphasis"
           >
             {{ getSecondaryTitle(content, fullTitle) }}
           </v-col>
@@ -92,7 +91,7 @@
           <v-col
             v-if="content.reason"
             cols="12"
-            class="text-caption text-truncate text--secondary"
+            class="text-caption text-truncate text-medium-emphasis"
           >
             {{ getReasonTitle(content) }}
           </v-col>
@@ -101,13 +100,13 @@
 
       <div>{{ getTitle(content, fullTitle) }}</div>
 
-      <div class="text-caption text--secondary">
+      <div class="text-caption text-medium-emphasis">
         {{ getSecondaryTitle(content, fullTitle) }}
       </div>
 
       <div
         v-if="content.reason"
-        class="text-caption text--secondary"
+        class="text-caption text-medium-emphasis"
       >
         {{ getReasonTitle(content) }}
       </div>
@@ -219,14 +218,14 @@ export default {
     // Object with keys of breakpoint codes and values of their minumum width
     breakpointMins() {
       const {
-        xs, sm, md, lg,
-      } = this.$vuetify.breakpoint.thresholds;
+        sm, md, lg, xl,
+      } = this.$vuetify.display.thresholds;
 
       return {
-        xl: lg,
-        lg: md,
-        md: sm,
-        sm: xs,
+        xl,
+        lg,
+        md,
+        sm,
       };
     },
 
@@ -303,7 +302,7 @@ export default {
     }
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     if (this.$el.vanillaTilt) {
       this.$el.vanillaTilt.destroy();
     }

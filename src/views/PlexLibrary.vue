@@ -14,12 +14,11 @@
           hide-default-footer
           :headers="headers[library.type]"
           :items="contents"
-          :sort-by.sync="sortBy"
-          :sort-desc.sync="sortDesc"
-          :items-per-page.sync="itemsPerPage"
+          v-model:sort-by="sortByArray"
+          v-model:items-per-page="itemsPerPage"
           :server-items-length="totalItems"
           :loading="childrenAbortController != null"
-          item-key="ratingKey"
+          item-value="ratingKey"
           :must-sort="true"
           style="cursor: pointer;"
           @click:row="onRowClick"
@@ -77,6 +76,7 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters, mapMutations } from 'vuex';
 import { intervalToDuration } from 'date-fns';
 import contentLink from '@/mixins/contentlink';
@@ -85,7 +85,7 @@ export default {
   name: 'PlexLibrary',
 
   components: {
-    PlexThumbnail: () => import('@/components/PlexThumbnail.vue'),
+    PlexThumbnail: defineAsyncComponent(() => import('@/components/PlexThumbnail.vue')),
   },
 
   mixins: [
@@ -109,23 +109,22 @@ export default {
     stopNewContent: false,
     contents: [],
     itemsPerPage: 0,
-    sortBy: [],
-    sortDesc: [],
+    sortByArray: [],
     backgroundAbortController: null,
     childrenAbortController: null,
 
     headers: {
       show: [
-        { text: 'Title', value: 'title' },
-        { text: 'Year', value: 'year' },
-        { text: 'Unplayed', value: 'viewedLeafCount' },
+        { title: 'Title', key: 'title' },
+        { title: 'Year', key: 'year' },
+        { title: 'Unplayed', key: 'viewedLeafCount' },
       ],
 
       movie: [
-        { text: 'Title', value: 'title' },
-        { text: 'Year', value: 'year' },
-        { text: 'Duration', value: 'duration' },
-        { text: 'Progress', value: 'viewOffset' },
+        { title: 'Title', key: 'title' },
+        { title: 'Year', key: 'year' },
+        { title: 'Duration', key: 'duration' },
+        { title: 'Progress', key: 'viewOffset' },
       ],
     },
   }),
@@ -152,8 +151,7 @@ export default {
     // This exists so we can watch if the sort changes
     combinedSortKey() {
       return {
-        sortBy: this.sortBy,
-        sortDesc: this.sortDesc,
+        sortByArray: this.sortByArray,
       };
     },
 
@@ -167,11 +165,11 @@ export default {
     },
 
     sortParam() {
-      if (this.sortBy.length > 0 && this.sortDesc.length > 0) {
-        const sortField = this.sortBy[0] === 'viewedLeafCount'
+      if (this.sortByArray.length > 0) {
+        const sortField = this.sortByArray[0].key === 'viewedLeafCount'
           ? 'unviewedLeafCount'
-          : this.sortBy[0];
-        const isDesc = this.sortDesc[0];
+          : this.sortByArray[0].key;
+        const isDesc = this.sortByArray[0].order === 'desc';
 
         const sortOption = isDesc
           ? ':desc'
@@ -219,13 +217,12 @@ export default {
       this.stopNewContent = false;
       this.contents = [];
       this.itemsPerPage = 0;
-      this.sortBy = [];
-      this.sortDesc = [];
+      this.sortByArray = [];
       this.abortChildrenRequests();
     },
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.abortBackgroundRequests();
     this.abortChildrenRequests();
   },
@@ -372,11 +369,11 @@ export default {
 </script>
 
 <style scoped>
-.v-data-table--fixed-header /deep/ > .v-data-table__wrapper > table > thead > tr > th {
+.v-data-table--fixed-header :deep(> .v-data-table__wrapper > table > thead > tr > th) {
   top: -12px;
 }
 
-.v-data-table /deep/ .v-data-table__wrapper {
+.v-data-table :deep(.v-data-table__wrapper) {
   overflow: unset;
 }
 </style>

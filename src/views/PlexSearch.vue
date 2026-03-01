@@ -39,14 +39,14 @@
 </template>
 
 <script>
-import Vue from 'vue';
+import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters, mapMutations } from 'vuex';
 
 export default {
   name: 'PlexSearch',
 
   components: {
-    PlexThumbnail: () => import('@/components/PlexThumbnail.vue'),
+    PlexThumbnail: defineAsyncComponent(() => import('@/components/PlexThumbnail.vue')),
   },
 
   props: {
@@ -80,7 +80,7 @@ export default {
     },
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.abortRequests();
   },
 
@@ -110,7 +110,7 @@ export default {
     addHubs(newHubs) {
       newHubs.forEach((hub) => {
         if (!this.hubs[hub.hubIdentifier]) {
-          Vue.set(this.hubs, hub.hubIdentifier, hub);
+          this.hubs[hub.hubIdentifier] = hub;
         } else {
           this.hubs[hub.hubIdentifier].Metadata.push(...hub.Metadata);
         }

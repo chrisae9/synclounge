@@ -1,14 +1,11 @@
-import Vue from 'vue';
-import Router from 'vue-router';
-
-Vue.use(Router);
+import { createRouter, createWebHistory } from 'vue-router';
 
 const searchBar = () => import('@/components/SearchBar.vue');
 const rightSidebar = () => import('@/components/TheSidebarRight.vue');
 const rightSidebarButton = () => import('@/components/TheSidebarRightButton.vue');
 
-export default new Router({
-  mode: 'history',
+export default createRouter({
+  history: createWebHistory(),
   routes: [
     {
       path: '/',
@@ -178,7 +175,7 @@ export default new Router({
     },
 
     {
-      path: '*',
+      path: '/:pathMatch(.*)*',
       redirect: {
         name: 'RoomCreation',
       },

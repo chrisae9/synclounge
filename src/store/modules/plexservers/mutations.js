@@ -1,4 +1,3 @@
-import Vue from 'vue';
 import stateFactory from './state';
 
 export default {
@@ -11,11 +10,11 @@ export default {
   },
 
   ADD_PLEX_SERVER: (state, server) => {
-    Vue.set(state.servers, server.clientIdentifier, server);
+    state.servers[server.clientIdentifier] = server;
   },
 
   DELETE_PLEX_SERVER: (state, serverId) => {
-    Vue.delete(state.servers, serverId);
+    delete state.servers[serverId];
   },
 
   SET_BLOCKED_SERVER_IDS: (state, blockedIds) => {

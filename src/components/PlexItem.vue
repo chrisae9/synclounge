@@ -20,7 +20,7 @@
         <v-row style="max-width: 200px;">
           <v-col
             cols="auto"
-            class="text--secondary text-subtitle-2"
+            class="text-medium-emphasis text-subtitle-2"
           >
             Now playing on {{ GET_CHOSEN_CLIENT.name }} from {{ server.name }}
           </v-col>
@@ -51,15 +51,14 @@
         <v-col>
           <PlexMediaPlayDialog
             v-if="metadata.Media.length > 1 || metadata.viewOffset"
-            v-slot="{ on, attrs }"
+            v-slot="{ props }"
             :key="combinedKey"
             :metadata="metadata"
           >
             <v-btn
-              v-bind="attrs"
+              v-bind="props"
               block
               class="primary"
-              v-on="on"
             >
               <v-icon>play_arrow</v-icon>
             </v-btn>
@@ -97,7 +96,7 @@
         <v-chip
           v-if="metadata.contentRating"
           color="grey darken-2"
-          small
+          size="small"
           label
           class="mr-2"
         >
@@ -107,7 +106,7 @@
         <v-chip
           v-if="metadata.studio"
           color="grey darken-2"
-          small
+          size="small"
           label
         >
           {{ metadata.studio }}
@@ -119,11 +118,10 @@
         class="ml-auto"
       >
         <v-menu>
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props }">
             <v-btn
               icon
-              v-bind="attrs"
-              v-on="on"
+              v-bind="props"
             >
               <v-icon>more_vert</v-icon>
             </v-btn>
@@ -153,7 +151,7 @@
     <template #content>
       <v-row
         v-if="metadata.summary"
-        class="text--primary text-body-2"
+        class="text-high-emphasis text-body-2"
       >
         <v-col>
           <SpoilerText
@@ -167,7 +165,7 @@
 
       <v-row
         v-if="metadata.type === 'movie'"
-        class="hidden-sm-and-down"
+        class="d-none d-md-flex"
         justify="start"
         align="start"
       >
@@ -182,7 +180,7 @@
             :key="actor.tag"
           >
             {{ actor.tag }}
-            <span class="text--secondary text-caption"> {{ actor.role }} </span>
+            <span class="text-medium-emphasis text-caption"> {{ actor.role }} </span>
           </div>
         </v-col>
 
@@ -233,6 +231,7 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 import duration from '@/mixins/duration';
 import playMedia from '@/mixins/playmedia';
@@ -241,9 +240,9 @@ export default {
   name: 'PlexItem',
 
   components: {
-    PlexMediaLayout: () => import('@/components/PlexMediaLayout.vue'),
-    SpoilerText: () => import('@/components/SpoilerText.vue'),
-    PlexMediaPlayDialog: () => import('@/components/PlexMediaPlayDialog.vue'),
+    PlexMediaLayout: defineAsyncComponent(() => import('@/components/PlexMediaLayout.vue')),
+    SpoilerText: defineAsyncComponent(() => import('@/components/SpoilerText.vue')),
+    PlexMediaPlayDialog: defineAsyncComponent(() => import('@/components/PlexMediaPlayDialog.vue')),
   },
 
   mixins: [
@@ -364,7 +363,7 @@ export default {
     },
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.abortRequests();
   },
 

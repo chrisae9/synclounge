@@ -1,4 +1,3 @@
-import Vue from 'vue';
 import { slPlayerClientId } from '@/player/constants';
 import stateFactory from './state';
 
@@ -8,11 +7,11 @@ export default {
   },
 
   ADD_PLEX_CLIENT: (state, client) => {
-    Vue.set(state.clients, client.clientIdentifier, client);
+    state.clients[client.clientIdentifier] = client;
   },
 
   DELETE_PLEX_CLIENT: (state, clientId) => {
-    Vue.delete(state.clients, clientId);
+    delete state.clients[clientId];
   },
 
   SET_CHOSEN_CLIENT_ID: (state, id) => {
@@ -44,7 +43,7 @@ export default {
   },
 
   SET_CLIENT_CHOSEN_CONNECTION: (state, { clientIdentifier, chosenConnection }) => {
-    Vue.set(state.clients[clientIdentifier], 'chosenConnection', chosenConnection);
+    state.clients[clientIdentifier].chosenConnection = chosenConnection;
   },
 
   SET_PLEX_CLIENT_TIMELINE_COMMAND_ID: (state, id) => {

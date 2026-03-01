@@ -2,32 +2,32 @@
   <v-list-item
     v-bind="$attrs"
   >
-    <v-list-item-avatar>
-      <v-img
-        class="client-logo"
-        :class="platformClass"
-        :src="url"
-      />
-    </v-list-item-avatar>
+    <template #prepend>
+      <v-avatar>
+        <v-img
+          class="client-logo"
+          :class="platformClass"
+          :src="url"
+        />
+      </v-avatar>
+    </template>
 
-    <v-list-item-content>
-      <v-list-item-title>
-        {{ plexClient.name }}
-        <v-chip
-          v-for="label in plexClient.labels"
-          :key="label[0]"
-          :color="label[1]"
-          small
-          label
-        >
-          {{ label[0] }}
-        </v-chip>
-      </v-list-item-title>
+    <v-list-item-title>
+      {{ plexClient.name }}
+      <v-chip
+        v-for="label in plexClient.labels"
+        :key="label[0]"
+        :color="label[1]"
+        size="small"
+        label
+      >
+        {{ label[0] }}
+      </v-chip>
+    </v-list-item-title>
 
-      <v-list-item-subtitle>
-        {{ plexClient.product }} - last seen {{ lastSeenAgo }}
-      </v-list-item-subtitle>
-    </v-list-item-content>
+    <v-list-item-subtitle>
+      {{ plexClient.product }} - last seen {{ lastSeenAgo }}
+    </v-list-item-subtitle>
   </v-list-item>
 </template>
 
@@ -35,6 +35,8 @@
 import { mapGetters } from 'vuex';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import plexPlatformMap from '@/utils/plexplatformmap';
+
+const platformImages = import.meta.glob('@/assets/images/platforms/*.svg', { eager: true, import: 'default' });
 
 export default {
   name: 'PlexClient',
@@ -72,12 +74,10 @@ export default {
 
     url() {
       if (this.platform) {
-        // eslint-disable-next-line global-require, import/no-dynamic-require
-        return require(`@/assets/images/platforms/${this.platform}.svg`);
+        return platformImages[`/src/assets/images/platforms/${this.platform}.svg`] || platformImages['/src/assets/images/platforms/plex.svg'];
       }
 
-      // eslint-disable-next-line global-require
-      return require('@/assets/images/platforms/plex.svg');
+      return platformImages['/src/assets/images/platforms/plex.svg'];
     },
   },
 };
@@ -111,7 +111,7 @@ export default {
 .platform-default,
 .platform-plex,
 .platform-plexamp {
-  background-color: var(--v-primary-base);
+  background-color: rgb(var(--v-theme-primary));
 }
 
 .platform-dlna {

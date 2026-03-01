@@ -2,92 +2,87 @@
   <v-list
     class="overflow-y-auto user-list"
     dense
-    two-line
   >
     <v-list-item
       v-for="(user, id) in GET_USERS"
       :key="id"
     >
-      <v-list-item-avatar>
-        <img
-          :src="user.thumb"
-          class="avatar-img"
-          :class="getSyncBorderClass(user)"
-        >
+      <template #prepend>
+        <v-avatar>
+          <img
+            :src="user.thumb"
+            class="avatar-img"
+            :class="getSyncBorderClass(user)"
+          >
 
-        <v-icon
-          v-if="user.state !== 'playing'"
-          class="avatar-icon"
-        >
-          {{ stateIcons[user.state] }}
-        </v-icon>
-      </v-list-item-avatar>
+          <v-icon
+            v-if="user.state !== 'playing'"
+            class="avatar-icon"
+          >
+            {{ stateIcons[user.state] }}
+          </v-icon>
+        </v-avatar>
+      </template>
 
-      <v-list-item-content>
-        <v-tooltip
-          bottom
-          multi-line
-        >
-          <template #activator="{ on, attrs }">
-            <div
-              v-bind="attrs"
-              v-on="on"
-            >
-              <v-list-item-title>
-                {{ user.username }}
-                <span
-                  v-if="id === GET_SOCKET_ID"
-                  class="text--secondary"
-                >
-                  (you)
-                </span>
-              </v-list-item-title>
-
-              <v-list-item-subtitle
-                class="text--secondary text-tiny"
+      <v-tooltip
+        location="bottom"
+      >
+        <template #activator="{ props }">
+          <div
+            v-bind="props"
+          >
+            <v-list-item-title>
+              {{ user.username }}
+              <span
+                v-if="id === GET_SOCKET_ID"
+                class="text-medium-emphasis"
               >
-                {{ getTitle(user.media) }}
-              </v-list-item-subtitle>
-            </div>
-          </template>
+                (you)
+              </span>
+            </v-list-item-title>
 
-          Watching on {{ user.playerProduct || `Unknown Plex Client` }}
-          <span v-if="user.media && GET_PLEX_SERVER(user.media.machineIdentifier)">
-            <br>
-            via {{ GET_PLEX_SERVER(user.media.machineIdentifier).name }}
-          </span>
-        </v-tooltip>
-
-        <div
-          class="d-flex justify-space-between text-tiny"
-        >
-          <div>
-            {{ getTimeFromMs(getAdjustedTime(user)) }}
+            <v-list-item-subtitle
+              class="text-medium-emphasis text-tiny"
+            >
+              {{ getTitle(user.media) }}
+            </v-list-item-subtitle>
           </div>
+        </template>
 
-          <div>
-            {{ getTimeFromMs(user.duration) }}
-          </div>
+        Watching on {{ user.playerProduct || `Unknown Plex Client` }}
+        <span v-if="user.media && GET_PLEX_SERVER(user.media.machineIdentifier)">
+          <br>
+          via {{ GET_PLEX_SERVER(user.media.machineIdentifier).name }}
+        </span>
+      </v-tooltip>
+
+      <div
+        class="d-flex justify-space-between text-tiny"
+      >
+        <div>
+          {{ getTimeFromMs(getAdjustedTime(user)) }}
         </div>
 
-        <v-progress-linear
-          class="pt-content-progress"
-          :height="2"
-          :value="percent(user)"
-        />
-      </v-list-item-content>
+        <div>
+          {{ getTimeFromMs(user.duration) }}
+        </div>
+      </div>
 
-      <v-list-item-action>
+      <v-progress-linear
+        class="pt-content-progress"
+        :height="2"
+        :value="percent(user)"
+      />
+
+      <template #append>
         <v-tooltip
           v-if="id === GET_HOST_ID || AM_I_HOST"
-          bottom
-          multi-line
+          location="bottom"
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props }">
             <v-icon
               color="primary"
-              v-bind="attrs"
-              v-on="on"
+              v-bind="props"
               @click="AM_I_HOST && id !== GET_HOST_ID ? TRANSFER_HOST(id) : null"
             >
               {{ getHostIconName(id === GET_HOST_ID) }}
@@ -99,13 +94,11 @@
 
         <v-tooltip
           v-if="id !== GET_HOST_ID && AM_I_HOST"
-          bottom
-          multi-line
+          location="bottom"
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props }">
             <v-icon
-              v-bind="attrs"
-              v-on="on"
+              v-bind="props"
               @click="KICK_USER(id)"
             >
               clear
@@ -114,7 +107,7 @@
 
           <span>Kick</span>
         </v-tooltip>
-      </v-list-item-action>
+      </template>
     </v-list-item>
   </v-list>
 </template>
@@ -169,7 +162,7 @@ export default {
     }, this.GET_CONFIG.sidebar_time_update_interval);
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     clearInterval(this.timeUpdateIntervalId);
   },
 

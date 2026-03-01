@@ -59,6 +59,7 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
 import redirection from '@/mixins/redirection';
 import { slPlayerClientId } from '@/player/constants';
@@ -68,7 +69,7 @@ export default {
   name: 'RoomJoin',
 
   components: {
-    PlexClientPicker: () => import('@/components/PlexClientPicker.vue'),
+    PlexClientPicker: defineAsyncComponent(() => import('@/components/PlexClientPicker.vue')),
   },
 
   mixins: [

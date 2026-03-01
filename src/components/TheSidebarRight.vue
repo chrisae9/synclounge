@@ -1,39 +1,36 @@
 <template>
   <v-navigation-drawer
-    :value="isRightSidebarOpen"
+    :model-value="isRightSidebarOpen"
     style="z-index: 6;"
-    app
     right
     class="pa-0"
     width="300"
-    @input="SET_RIGHT_SIDEBAR_OPEN"
+    @update:model-value="SET_RIGHT_SIDEBAR_OPEN"
   >
     <template #prepend>
       <v-list-item>
-        <v-list-item-content>
-          <v-list-item-subtitle
-            v-if="Object.keys(GET_USERS).length != 1"
-            class="participant-count"
-          >
-            {{ Object.keys(GET_USERS).length }} people
-          </v-list-item-subtitle>
+        <v-list-item-subtitle
+          v-if="Object.keys(GET_USERS).length != 1"
+          class="participant-count"
+        >
+          {{ Object.keys(GET_USERS).length }} people
+        </v-list-item-subtitle>
 
-          <v-list-item-subtitle
-            v-else
-            class="participant-count"
-          >
-            It's just you, invite some friends
-          </v-list-item-subtitle>
-        </v-list-item-content>
+        <v-list-item-subtitle
+          v-else
+          class="participant-count"
+        >
+          It's just you, invite some friends
+        </v-list-item-subtitle>
 
-        <v-list-item-action>
+        <template #append>
           <v-btn
             icon
             @click="DISCONNECT_AND_NAVIGATE_HOME"
           >
             <v-icon>exit_to_app</v-icon>
           </v-btn>
-        </v-list-item-action>
+        </template>
       </v-list-item>
 
       <v-list-item dense>
@@ -42,35 +39,32 @@
           hide-details
           class="pa-0 ma-0"
           label="Party Pausing"
-          :input-value="IS_PARTY_PAUSING_ENABLED"
-          @change="SEND_SET_PARTY_PAUSING_ENABLED"
+          :model-value="IS_PARTY_PAUSING_ENABLED"
+          @update:model-value="SEND_SET_PARTY_PAUSING_ENABLED"
         />
 
-        <v-list-item-content
+        <v-list-item-subtitle
           v-if="!AM_I_HOST && GET_HOST_USER.state === 'stopped'"
         >
-          <v-list-item-subtitle>
-            Waiting for {{ GET_HOST_USER ? GET_HOST_USER.username : 'host' }} to start
-          </v-list-item-subtitle>
-        </v-list-item-content>
+          Waiting for {{ GET_HOST_USER ? GET_HOST_USER.username : 'host' }} to start
+        </v-list-item-subtitle>
       </v-list-item>
 
       <v-tooltip
         v-if="AM_I_HOST"
-        bottom
+        location="bottom"
       >
-        <template #activator="{ on, attrs }">
+        <template #activator="{ props }">
           <v-list-item
             dense
-            v-bind="attrs"
-            v-on="on"
+            v-bind="props"
           >
             <v-switch
               class="pa-0 ma-0"
               hide-details
               label="Auto Host"
-              :input-value="IS_AUTO_HOST_ENABLED"
-              @change="SEND_SET_AUTO_HOST_ENABLED"
+              :model-value="IS_AUTO_HOST_ENABLED"
+              @update:model-value="SEND_SET_AUTO_HOST_ENABLED"
             />
           </v-list-item>
         </template>
@@ -84,15 +78,14 @@
         dense
       >
         <v-tooltip
-          bottom
+          location="bottom"
           color="rgb(44, 44, 49)"
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props }">
             <v-btn
-              v-bind="attrs"
+              v-bind="props"
               color="primary"
               :disabled="!IS_PARTY_PAUSING_ENABLED"
-              v-on="on"
               @click="sendPartyPause(GET_HOST_USER.state === 'playing')"
             >
               <v-icon v-if="GET_HOST_USER.state === 'playing'">
@@ -130,6 +123,7 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import {
   mapActions, mapGetters, mapMutations, mapState,
 } from 'vuex';
@@ -140,9 +134,9 @@ export default {
   name: 'TheSidebarRight',
 
   components: {
-    MessageList: () => import('@/components/MessageList.vue'),
-    MessageInput: () => import('@/components/MessageInput.vue'),
-    UserList: () => import('@/components/UserList.vue'),
+    MessageList: defineAsyncComponent(() => import('@/components/MessageList.vue')),
+    MessageInput: defineAsyncComponent(() => import('@/components/MessageInput.vue')),
+    UserList: defineAsyncComponent(() => import('@/components/UserList.vue')),
   },
 
   computed: {

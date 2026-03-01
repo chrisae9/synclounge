@@ -55,13 +55,14 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters, mapMutations } from 'vuex';
 
 export default {
   name: 'PlexClientPicker',
 
   components: {
-    PlexClient: () => import('@/components/PlexClient.vue'),
+    PlexClient: defineAsyncComponent(() => import('@/components/PlexClient.vue')),
   },
 
   data: () => ({
@@ -84,7 +85,7 @@ export default {
     },
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.cancelRequests();
   },
 

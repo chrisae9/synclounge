@@ -29,27 +29,27 @@
         class="ma-4"
       >
         <v-stepper-header>
-          <v-stepper-step
-            step="1"
+          <v-stepper-item
+            value="1"
             :complete="true"
           >
             Select a client
-          </v-stepper-step>
+          </v-stepper-item>
 
           <v-divider />
 
-          <v-stepper-step
-            step="2"
+          <v-stepper-item
+            value="2"
             :complete="false"
           >
             Join a server
-          </v-stepper-step>
+          </v-stepper-item>
 
           <v-divider />
 
-          <v-stepper-step step="3">
+          <v-stepper-item value="3">
             Sync
-          </v-stepper-step>
+          </v-stepper-item>
         </v-stepper-header>
       </v-stepper>
 
@@ -77,7 +77,7 @@
                 <v-img
                   height="125"
                   :src="server.image"
-                  class="white--text align-end"
+                  class="text-white align-end"
                   gradient="to bottom, rgba(0,0,0,.6), rgba(0,0,0,.9)"
                 >
                   <v-card-title v-text="server.name" />
@@ -109,7 +109,7 @@
 
                   <div
                     v-else
-                    class="text-center red--text"
+                    class="text-center text-red"
                   >
                     error
                   </div>
@@ -138,7 +138,7 @@
                 <v-img
                   height="125"
                   src="@/assets/images/synclounge-white.png"
-                  class="white--text align-end"
+                  class="text-white align-end"
                   gradient="to bottom, rgba(0,0,0,.6), rgba(0,0,0,.9)"
                 >
                   <v-card-title>
@@ -177,7 +177,7 @@
                 <v-progress-circular
                   indeterminate
                   :size="50"
-                  class="amber--text"
+                  class="text-amber"
                   style="display: inline-block;"
                 />
               </div>
@@ -190,9 +190,9 @@
           >
             <v-col
               cols="12"
-              class="red--text"
+              class="text-red"
             >
-              <v-icon class="red--text">
+              <v-icon class="text-red">
                 info
               </v-icon>
               {{ serverError }}
@@ -247,7 +247,7 @@ export default {
     ]),
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     clearInterval(this.testConnectionInterval);
   },
 
@@ -274,28 +274,28 @@ export default {
 
     connectionQualityClass(value) {
       if (value < 50) {
-        return ['green--text', 'text--lighten-1'];
+        return ['text-green-lighten-1'];
       }
       if (value < 150) {
-        return ['lime--text'];
+        return ['text-lime'];
       }
       if (value < 250) {
-        return ['orange--text'];
+        return ['text-orange'];
       }
-      return ['red--text'];
+      return ['text-red'];
     },
 
     loadQualityClass(value) {
       if (value === 'low') {
-        return ['green--text', 'text--lighten-1'];
+        return ['text-green-lighten-1'];
       }
       if (value === 'medium') {
-        return ['orange--text'];
+        return ['text-orange'];
       }
       if (value === 'high') {
-        return ['red--text'];
+        return ['text-red'];
       }
-      return ['white--text'];
+      return ['text-white'];
     },
 
     async connect(server) {

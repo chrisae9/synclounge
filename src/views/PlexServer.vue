@@ -77,6 +77,7 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters, mapMutations } from 'vuex';
 import { getAppWidth, getAppHeight } from '@/utils/sizing';
 import linkWithRoom from '@/mixins/linkwithroom';
@@ -85,8 +86,8 @@ export default {
   name: 'PlexServer',
 
   components: {
-    PlexOnDeck: () => import('@/components/PlexOnDeck.vue'),
-    PlexRecentlyAdded: () => import('@/components/PlexRecentlyAdded.vue'),
+    PlexOnDeck: defineAsyncComponent(() => import('@/components/PlexOnDeck.vue')),
+    PlexRecentlyAdded: defineAsyncComponent(() => import('@/components/PlexRecentlyAdded.vue')),
   },
 
   mixins: [
@@ -129,7 +130,7 @@ export default {
     },
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.abortRequests();
   },
 

@@ -1,23 +1,21 @@
 <template>
   <v-navigation-drawer
-    app
     temporary
-    :value="isLeftSidebarOpen"
-    disable-route-watcher
-    @input="SET_LEFT_SIDEBAR_OPEN"
+    :model-value="isLeftSidebarOpen"
+    @update:model-value="SET_LEFT_SIDEBAR_OPEN"
   >
     <v-list-item v-if="GET_PLEX_USER">
-      <v-list-item-avatar>
-        <v-img
-          :src="GET_PLEX_USER.thumb"
-        />
-      </v-list-item-avatar>
+      <template #prepend>
+        <v-avatar>
+          <v-img
+            :src="GET_PLEX_USER.thumb"
+          />
+        </v-avatar>
+      </template>
 
-      <v-list-item-content>
-        <v-list-item-title style="font-weight: bold;">
-          {{ GET_PLEX_USER.username }}
-        </v-list-item-title>
-      </v-list-item-content>
+      <v-list-item-title style="font-weight: bold;">
+        {{ GET_PLEX_USER.username }}
+      </v-list-item-title>
     </v-list-item>
     <v-divider />
 
@@ -25,18 +23,15 @@
       dense
       nav
     >
-      <TheSettingsDialog v-slot="{ on, attrs }">
+      <TheSettingsDialog v-slot="{ props }">
         <v-list-item
-          v-bind="attrs"
-          v-on="on"
+          v-bind="props"
         >
-          <v-list-item-icon>
+          <template #prepend>
             <v-icon>settings</v-icon>
-          </v-list-item-icon>
+          </template>
 
-          <v-list-item-content>
-            <v-list-item-title>Settings</v-list-item-title>
-          </v-list-item-content>
+          <v-list-item-title>Settings</v-list-item-title>
         </v-list-item>
       </TheSettingsDialog>
 
@@ -44,13 +39,11 @@
         :router="true"
         :to="{ name: 'SignOut' }"
       >
-        <v-list-item-icon>
+        <template #prepend>
           <v-icon>cancel</v-icon>
-        </v-list-item-icon>
+        </template>
 
-        <v-list-item-content>
-          <v-list-item-title>Sign out</v-list-item-title>
-        </v-list-item-content>
+        <v-list-item-title>Sign out</v-list-item-title>
       </v-list-item>
 
       <v-subheader>About</v-subheader>
@@ -59,53 +52,44 @@
         :href="GET_RELEASE_URL"
         target="_blank"
       >
-        <v-list-item-icon>
+        <template #prepend>
           <v-icon>info</v-icon>
-        </v-list-item-icon>
+        </template>
 
-        <v-list-item-content>
-          <v-list-item-title>v{{ version }}</v-list-item-title>
-        </v-list-item-content>
+        <v-list-item-title>v{{ version }}</v-list-item-title>
       </v-list-item>
 
       <v-list-item
         :href="discordUrl"
         target="_blank"
       >
-        <v-list-item-icon>
+        <template #prepend>
           <v-icon>chat</v-icon>
-        </v-list-item-icon>
+        </template>
 
-        <v-list-item-content>
-          <v-list-item-title>Discord</v-list-item-title>
-        </v-list-item-content>
+        <v-list-item-title>Discord</v-list-item-title>
       </v-list-item>
 
       <v-list-item
         :href="repositoryUrl"
         target="_blank"
       >
-        <v-list-item-icon>
+        <template #prepend>
           <v-icon>code</v-icon>
-        </v-list-item-icon>
+        </template>
 
-        <v-list-item-content>
-          <v-list-item-title>GitHub</v-list-item-title>
-        </v-list-item-content>
+        <v-list-item-title>GitHub</v-list-item-title>
       </v-list-item>
 
-      <DonateDialog v-slot="{ on, attrs }">
+      <DonateDialog v-slot="{ props }">
         <v-list-item
-          v-bind="attrs"
-          v-on="on"
+          v-bind="props"
         >
-          <v-list-item-icon>
+          <template #prepend>
             <v-icon>favorite</v-icon>
-          </v-list-item-icon>
+          </template>
 
-          <v-list-item-content>
-            <v-list-item-title>Donate</v-list-item-title>
-          </v-list-item-content>
+          <v-list-item-title>Donate</v-list-item-title>
         </v-list-item>
       </DonateDialog>
     </v-list>
@@ -113,14 +97,15 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mapGetters, mapMutations, mapState } from 'vuex';
 
 export default {
   name: 'TheSidebarLeft',
 
   components: {
-    TheSettingsDialog: () => import('@/components/TheSettingsDialog.vue'),
-    DonateDialog: () => import('@/components/DonateDialog.vue'),
+    TheSettingsDialog: defineAsyncComponent(() => import('@/components/TheSettingsDialog.vue')),
+    DonateDialog: defineAsyncComponent(() => import('@/components/DonateDialog.vue')),
   },
 
   computed: {

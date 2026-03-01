@@ -57,13 +57,14 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mapActions } from 'vuex';
 
 export default {
   name: 'PlexOnDeck',
 
   components: {
-    PlexThumbnail: () => import('@/components/PlexThumbnail.vue'),
+    PlexThumbnail: defineAsyncComponent(() => import('@/components/PlexThumbnail.vue')),
   },
 
   props: {
@@ -126,7 +127,7 @@ export default {
     },
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.abortRequests();
   },
 

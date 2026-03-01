@@ -1,14 +1,30 @@
-import Vue from 'vue';
-import VueChatScroll from 'vue-chat-scroll';
+import { createApp } from 'vue';
 
 import vuetify from './plugins/vuetify';
 import App from './App.vue';
 import router from './router';
 import store from './store';
 
-Vue.use(VueChatScroll);
+const vChatScroll = {
+  mounted(el) {
+    const observer = new MutationObserver(() => {
+      // eslint-disable-next-line no-param-reassign
+      el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(el, { childList: true, subtree: true });
+    // eslint-disable-next-line no-param-reassign
+    el._chatScrollObserver = observer;
+  },
+  unmounted(el) {
+    el._chatScrollObserver?.disconnect();
+  },
+};
 
-Vue.config.errorHandler = (err) => {
+const app = createApp(App);
+app.use(router).use(store).use(vuetify);
+app.directive('chat-scroll', vChatScroll);
+
+app.config.errorHandler = (err) => {
   store.dispatch('DISPLAY_NOTIFICATION', {
     text: err.message,
     color: 'error',
@@ -79,9 +95,4 @@ router.beforeEach(async (to, from, next) => {
   }
 });
 
-new Vue({
-  router,
-  store,
-  vuetify,
-  render: (h) => h(App),
-}).$mount('#app');
+app.mount('#app');

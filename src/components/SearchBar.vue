@@ -3,7 +3,7 @@
     dense
     :items="items"
     :loading="loading"
-    :search-input.sync="query"
+    v-model:search="query"
     prepend-icon="search"
     no-filter
     clearable
@@ -26,33 +26,31 @@
       </v-list-item>
     </template>
 
-    <template #item="{ item, on, attrs }">
-      <template v-if="item.serverHeader">
+    <template #item="{ item, props }">
+      <template v-if="item.raw.serverHeader">
         <v-list-item
           class="secondary"
           dense
-          v-bind="attrs"
-          v-on="on"
+          v-bind="props"
         >
           <v-subheader
             class="search-header"
           >
-            {{ item.serverHeader }}
+            {{ item.raw.serverHeader }}
           </v-subheader>
         </v-list-item>
       </template>
 
-      <template v-else-if="item.hubHeader">
+      <template v-else-if="item.raw.hubHeader">
         <v-list-item
           dense
-          v-bind="attrs"
+          v-bind="props"
           class="search-header"
-          v-on="on"
         >
           <v-subheader
             class="text-overline search-header"
           >
-            {{ item.hubHeader }}
+            {{ item.raw.hubHeader }}
           </v-subheader>
         </v-list-item>
       </template>
@@ -60,24 +58,21 @@
       <template v-else>
         <v-list-item
           dense
-          v-bind="attrs"
-          :to="contentLink(item)"
+          v-bind="props"
+          :to="contentLink(item.raw)"
           @click="clear"
         >
-          <v-list-item-avatar
-            height="42"
-            tile
-          >
-            <v-img
-              contain
-              :src="getImgUrl(item)"
-            />
-          </v-list-item-avatar>
+          <template #prepend>
+            <v-avatar size="42" rounded="0">
+              <v-img
+                contain
+                :src="getImgUrl(item.raw)"
+              />
+            </v-avatar>
+          </template>
 
-          <v-list-item-content>
-            <v-list-item-title> {{ getTitle(item) }} </v-list-item-title>
-            <v-list-item-subtitle> {{ getItemSecondaryTitle(item) }} </v-list-item-subtitle>
-          </v-list-item-content>
+          <v-list-item-title> {{ getTitle(item.raw) }} </v-list-item-title>
+          <v-list-item-subtitle> {{ getItemSecondaryTitle(item.raw) }} </v-list-item-subtitle>
         </v-list-item>
       </template>
     </template>
@@ -150,7 +145,7 @@ export default {
     },
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.abortRequests();
   },
 

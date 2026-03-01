@@ -83,7 +83,7 @@
                     </v-row>
 
                     <v-row no-gutters>
-                      <v-col class="text-subtitle-2 primary--text">
+                      <v-col class="text-subtitle-2 text-primary">
                         Playing from {{ GET_PLEX_SERVER.name }}
                       </v-col>
                     </v-row>
@@ -96,13 +96,13 @@
       </v-fade-transition>
 
       <div
-        v-if="$vuetify.breakpoint.mdAndDown"
+        v-if="$vuetify.display.mdAndDown"
       >
         <MessageList class="messages-wrapper" />
         <MessageInput />
       </div>
 
-      <div class="hidden-sm-and-up">
+      <div class="d-sm-none">
         <v-row
           justify="center"
           class="pa-3"
@@ -133,7 +133,7 @@
               </v-row>
 
               <v-row no-gutters>
-                <v-col class="text-subtitle-2 primary--text">
+                <v-col class="text-subtitle-2 text-primary">
                   Playing from {{ GET_PLEX_SERVER.name }}
                 </v-col>
               </v-row>
@@ -169,6 +169,7 @@
 
 <script>
 
+import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters, mapState } from 'vuex';
 
 import initialize from '@/player/init';
@@ -182,8 +183,8 @@ export default {
   name: 'WebPlayer',
 
   components: {
-    MessageList: () => import('@/components/MessageList.vue'),
-    MessageInput: () => import('@/components/MessageInput.vue'),
+    MessageList: defineAsyncComponent(() => import('@/components/MessageList.vue')),
+    MessageInput: defineAsyncComponent(() => import('@/components/MessageInput.vue')),
   },
 
   mixins: [
@@ -319,7 +320,7 @@ export default {
     this.controlsOffset = getControlsOffset(this.$refs?.videoPlayerContainer?.offsetHeight);
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('resize', this.RERENDER_SUBTITLE_CONTAINER);
     this.DESTROY_PLAYER_STATE();

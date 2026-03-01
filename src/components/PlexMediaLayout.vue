@@ -24,7 +24,7 @@
                         :src="thumbUrl"
                         width="200"
                         :aspect-ratio="2 / 3"
-                        class="hidden-sm-and-down"
+                        class="d-none d-md-flex"
                       />
                     </v-col>
                   </v-row>
@@ -112,6 +112,7 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mapGetters } from 'vuex';
 import { getAppWidth, getAppHeight } from '@/utils/sizing';
 
@@ -128,7 +129,7 @@ export default {
   name: 'PlexSeries',
 
   components: {
-    PlexThumbnail: () => import('@/components/PlexThumbnail.vue'),
+    PlexThumbnail: defineAsyncComponent(() => import('@/components/PlexThumbnail.vue')),
   },
 
   props: {

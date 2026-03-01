@@ -4,9 +4,6 @@
     <router-view name="rightSidebar" />
 
     <v-app-bar
-      app
-      scroll-off-screen
-      :scroll-threshold="1"
       style="z-index: 5;"
     >
       <v-app-bar-nav-icon @click="SET_LEFT_SIDEBAR_OPEN" />
@@ -38,14 +35,13 @@
         <v-btn
           v-if="inviteUrl"
           color="primary"
-          raised
           @click="copyToClipboard(inviteUrl)"
         >
           Invite
         </v-btn>
 
         <v-btn
-          class="hidden-lg-and-up"
+          class="d-lg-none"
           icon
           @click="toggleFullScreen"
         >
@@ -55,23 +51,22 @@
         <v-btn
           v-for="item in links"
           :key="item.title"
-          small
+          size="small"
           tag="a"
-          class="hidden-sm-and-down"
-          text
+          class="d-none d-md-flex"
+          variant="text"
           :href="item.href"
           :target="item.target"
         >
           {{ item.title }}
         </v-btn>
 
-        <DonateDialog v-slot="{ on, attrs }">
+        <DonateDialog v-slot="{ props }">
           <v-btn
-            small
-            class="hidden-sm-and-down"
-            text
-            v-bind="attrs"
-            v-on="on"
+            size="small"
+            class="d-none d-md-flex"
+            variant="text"
+            v-bind="props"
           >
             Donate ♥
           </v-btn>
@@ -98,7 +93,6 @@
 
     <v-main
       class="main-content"
-      app
     >
       <v-container
         align="start"
@@ -129,7 +123,7 @@
                   <v-progress-circular
                     indeterminate
                     size="60"
-                    class="amber--text"
+                    class="text-amber"
                   />
                 </v-col>
               </v-row>
@@ -138,12 +132,12 @@
             <router-view v-else />
 
             <v-snackbar
-              :value="GET_SNACKBAR_OPEN"
+              :model-value="GET_SNACKBAR_OPEN"
               :color="GET_SNACKBAR_MESSAGE.color"
-              bottom
+              location="bottom"
               timeout="4000"
               content-class="text-center"
-              @input="SET_SNACKBAR_OPEN"
+              @update:model-value="SET_SNACKBAR_OPEN"
             >
               {{ GET_SNACKBAR_MESSAGE.text }}
             </v-snackbar>
@@ -162,6 +156,7 @@ import './assets/css/style.css';
 import {
   mapActions, mapGetters, mapMutations, mapState,
 } from 'vuex';
+import { defineAsyncComponent } from 'vue';
 import redirection from '@/mixins/redirection';
 import clipboard from '@/mixins/clipboard';
 import linkWithRoom from '@/mixins/linkwithroom';
@@ -169,11 +164,11 @@ import { slPlayerClientId } from '@/player/constants';
 
 export default {
   components: {
-    TheSidebarLeft: () => import('@/components/TheSidebarLeft.vue'),
-    TheUpnextDialog: () => import('@/components/TheUpnextDialog.vue'),
-    TheNowPlayingChip: () => import('@/components/TheNowPlayingChip.vue'),
-    DonateDialog: () => import('@/components/DonateDialog.vue'),
-    TheAppBarCrumbs: () => import('@/components/TheAppBarCrumbs.vue'),
+    TheSidebarLeft: defineAsyncComponent(() => import('@/components/TheSidebarLeft.vue')),
+    TheUpnextDialog: defineAsyncComponent(() => import('@/components/TheUpnextDialog.vue')),
+    TheNowPlayingChip: defineAsyncComponent(() => import('@/components/TheNowPlayingChip.vue')),
+    DonateDialog: defineAsyncComponent(() => import('@/components/DonateDialog.vue')),
+    TheAppBarCrumbs: defineAsyncComponent(() => import('@/components/TheAppBarCrumbs.vue')),
   },
 
   mixins: [
@@ -248,7 +243,7 @@ export default {
     },
 
     smallLogoMedia() {
-      return `(max-width: ${this.$vuetify.breakpoint.thresholds.xs}px)`;
+      return `(max-width: ${this.$vuetify.display.thresholds.sm}px)`;
     },
 
     sheetColor() {
@@ -258,7 +253,7 @@ export default {
     },
 
     bgHeight() {
-      return this.$vuetify.breakpoint.height - this.$vuetify.application.top;
+      return this.$vuetify.display.height - (document.querySelector('.v-toolbar')?.offsetHeight || 64);
     },
 
     inviteUrl() {
@@ -336,7 +331,7 @@ export default {
     document.addEventListener('fullscreenchange', this.onFullScreenChange);
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     document.removeEventListener('fullscreenchange', this.onFullScreenChange);
   },
 

@@ -17,13 +17,14 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mapGetters } from 'vuex';
 
 export default {
   name: 'MessageList',
 
   components: {
-    MessageItem: () => import('@/components/MessageItem.vue'),
+    MessageItem: defineAsyncComponent(() => import('@/components/MessageItem.vue')),
   },
 
   computed: {

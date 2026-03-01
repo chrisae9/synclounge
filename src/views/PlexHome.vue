@@ -23,7 +23,7 @@
       <v-col
         v-if="!GET_PLEX_SERVERS.length"
         cols="12"
-        class="text-h5 primary--text"
+        class="text-h5 text-primary"
       >
         No Plex Servers found.
         Make sure your server owner has shared libraries with you!
@@ -67,7 +67,7 @@
                     {{ server.name }}
                   </div>
 
-                  <div class="text--secondary text-caption">
+                  <div class="text-medium-emphasis text-caption">
                     v{{ server.productVersion }}
                   </div>
 
@@ -77,7 +77,7 @@
 
                   <div
                     v-if="!server.chosenConnection"
-                    class="error--text"
+                    class="text-error"
                   >
                     Unable to connect.
                     Try disabling your adblocker
@@ -93,6 +93,7 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters, mapMutations } from 'vuex';
 import linkWithRoom from '@/mixins/linkwithroom';
 
@@ -100,7 +101,7 @@ export default {
   name: 'PlexHome',
 
   components: {
-    PlexOnDeck: () => import('@/components/PlexOnDeck.vue'),
+    PlexOnDeck: defineAsyncComponent(() => import('@/components/PlexOnDeck.vue')),
   },
 
   mixins: [
@@ -124,7 +125,7 @@ export default {
     await this.fetchRandomBackground();
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.abortRequests();
   },
 

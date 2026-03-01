@@ -27,22 +27,23 @@
         style="left: 50%; top: 50%;"
         :size="60"
         indeterminate
-        class="amber--text"
+        class="text-amber"
       />
     </v-col>
   </v-row>
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters, mapMutations } from 'vuex';
 
 export default {
   name: 'PlexMedia',
 
   components: {
-    PlexItem: () => import('@/components/PlexItem.vue'),
-    PlexSeason: () => import('@/components/PlexSeason.vue'),
-    PlexSeries: () => import('@/components/PlexSeries.vue'),
+    PlexItem: defineAsyncComponent(() => import('@/components/PlexItem.vue')),
+    PlexSeason: defineAsyncComponent(() => import('@/components/PlexSeason.vue')),
+    PlexSeries: defineAsyncComponent(() => import('@/components/PlexSeries.vue')),
   },
 
   props: {
@@ -85,7 +86,7 @@ export default {
     },
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.abortRequests();
   },
 

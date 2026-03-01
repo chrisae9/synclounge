@@ -97,7 +97,7 @@ export default {
     }
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     if (this.cancelToken) {
       this.cancelToken.abort();
       this.cancelToken = null;

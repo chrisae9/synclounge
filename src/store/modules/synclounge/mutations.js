@@ -1,4 +1,3 @@
-import Vue from 'vue';
 import stateFactory from './state';
 
 export default {
@@ -51,7 +50,7 @@ export default {
   },
 
   SET_USER: (state, { id, data }) => {
-    Vue.set(state.users, id, data);
+    state.users[id] = data;
   },
 
   SET_MESSAGES_USER_CACHE: (state, value) => {
@@ -59,7 +58,7 @@ export default {
   },
 
   SET_MESSAGES_USER_CACHE_USER: (state, { id, data }) => {
-    Vue.set(state.messagesUserCache, id, data);
+    state.messagesUserCache[id] = data;
   },
 
   SET_HOST_ID: (state, hostId) => {
@@ -67,25 +66,25 @@ export default {
   },
 
   DELETE_USER: (state, id) => {
-    Vue.delete(state.users, id);
+    delete state.users[id];
   },
 
   SET_USER_PLAYER_STATE: (state, {
     id, state: playerState, time, duration, playbackRate,
   }) => {
-    Vue.set(state.users[id], 'state', playerState);
-    Vue.set(state.users[id], 'time', time);
-    Vue.set(state.users[id], 'duration', duration);
-    Vue.set(state.users[id], 'playbackRate', playbackRate);
-    Vue.set(state.users[id], 'updatedAt', Date.now());
+    state.users[id].state = playerState;
+    state.users[id].time = time;
+    state.users[id].duration = duration;
+    state.users[id].playbackRate = playbackRate;
+    state.users[id].updatedAt = Date.now();
   },
 
   SET_USER_MEDIA: (state, { id, media }) => {
-    Vue.set(state.users[id], 'media', media);
+    state.users[id].media = media;
   },
 
   SET_USER_SYNC_FLEXIBILITY: (state, { id, syncFlexibility }) => {
-    Vue.set(state.users[id], 'syncFlexibility', syncFlexibility);
+    state.users[id].syncFlexibility = syncFlexibility;
   },
 
   SET_UPNEXT_TIMEOUT_ID: (state, id) => {

@@ -1,26 +1,21 @@
-// Inspired by https://stackoverflow.com/a/60187886
 const path = require('node:path');
-const createAliasSetting = require('@vue/eslint-config-airbnb/createAliasSetting');
 
 module.exports = {
   root: true,
   env: {
     browser: true,
+    es2020: true,
   },
-  extends: ['plugin:vue/recommended', '@vue/airbnb'],
+  extends: ['plugin:vue/vue3-recommended', 'airbnb-base'],
   parserOptions: {
-    parser: '@babel/eslint-parser',
     ecmaVersion: 2020,
+    sourceType: 'module',
   },
   rules: {
     'max-len': [
       'error',
       {
         code: 100,
-        // ignoreComments: true,
-        // ignoreUrls: true,
-        // ignoreStrings: true,
-        // ignoreTemplateLiterals: true,
       },
     ],
 
@@ -33,10 +28,16 @@ module.exports = {
     'vuejs-accessibility/click-events-have-key-events': 'off',
     'vue/no-v-text-v-html-on-component': 'off',
     'vue/no-template-target-blank': 'off',
+    'import/no-unresolved': ['error', {
+      ignore: ['^@/'],
+    }],
   },
   settings: {
-    ...createAliasSetting({
-      '@': `${path.resolve(__dirname, './src')}`,
-    }),
+    'import/resolver': {
+      alias: {
+        map: [['@', path.resolve(__dirname, './src')]],
+        extensions: ['.js', '.vue', '.json'],
+      },
+    },
   },
 };

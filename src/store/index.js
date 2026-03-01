@@ -1,5 +1,4 @@
-import Vue from 'vue';
-import Vuex from 'vuex';
+import { createStore } from 'vuex';
 import createPersistedState from 'vuex-persistedstate';
 
 import actions from './actions';
@@ -7,8 +6,6 @@ import state from './state';
 import mutations from './mutations';
 import getters from './getters';
 import modules from './modules';
-
-Vue.use(Vuex);
 
 const persistedState = createPersistedState({
   paths: [
@@ -38,8 +35,8 @@ const persistedState = createPersistedState({
   ],
 });
 
-const store = new Vuex.Store({
-  strict: process.env.NODE_ENV !== 'production',
+const store = createStore({
+  strict: import.meta.env.MODE !== 'production',
   state,
   mutations,
   actions,
