@@ -31,8 +31,7 @@ export default {
   ESTABLISH_SOCKET_CONNECTION: async ({ getters, commit, dispatch }) => {
     await dispatch('DISCONNECT_IF_CONNECTED');
 
-    const currentUrl = new URL(window.location.pathname, window.location.origin);
-    const properBase = new URL(getters.GET_SERVER, currentUrl.toString());
+    const properBase = new URL(getters.GET_SERVER || '/', window.location.origin);
 
     const url = combineUrl('socket.io', properBase.toString());
     console.log('ESTABLISH_SOCKET_CONNECTION', url.toString());

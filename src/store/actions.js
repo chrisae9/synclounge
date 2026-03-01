@@ -18,7 +18,7 @@ export default {
 
   FETCH_CONFIG: async ({ dispatch, commit }) => {
     try {
-      const config = await fetchJson('config.json');
+      const config = await fetchJson('/config.json');
       commit('SET_CONFIGURATION', config);
     } catch (e) {
       console.error(e);

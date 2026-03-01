@@ -8,7 +8,7 @@ const rightSidebar = () => import('@/components/TheSidebarRight.vue');
 const rightSidebarButton = () => import('@/components/TheSidebarRightButton.vue');
 
 export default new Router({
-  mode: 'hash',
+  mode: 'history',
   routes: [
     {
       path: '/',
@@ -16,13 +16,6 @@ export default new Router({
       component: () => import('@/views/RoomCreation.vue'),
       meta: {
         requiresAuth: true,
-      },
-    },
-
-    {
-      path: '*',
-      redirect: {
-        name: 'RoomCreation',
       },
     },
 
@@ -181,6 +174,13 @@ export default new Router({
         requiresAuth: true,
         protected: true,
         showAppBarExtension: true,
+      },
+    },
+
+    {
+      path: '*',
+      redirect: {
+        name: 'RoomCreation',
       },
     },
   ],

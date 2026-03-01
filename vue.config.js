@@ -12,8 +12,7 @@ const pkgVersion = require('./package.json').version;
 process.env.VUE_APP_VERSION = process.env.VERSION || pkgVersion;
 
 module.exports = {
-  // Relative publicPath to support subfolders
-  publicPath: '',
+  publicPath: '/',
   transpileDependencies: ['vuetify'],
   integrity: true,
   configureWebpack: {
