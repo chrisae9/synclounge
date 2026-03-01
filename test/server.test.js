@@ -327,4 +327,327 @@ describe('server', () => {
       assert.ok('authentication' in data);
     });
   });
+
+  // --- SPA fallback edge cases ---
+
+  describe('SPA fallback edge cases', () => {
+    it('does not intercept POST requests', async () => {
+      const res = await request('/room/test', { method: 'POST' });
+      // Should not serve index.html for non-GET
+      assert.notEqual(res.status, 200);
+    });
+
+    it('does not intercept PUT requests', async () => {
+      const res = await request('/room/test', { method: 'PUT' });
+      assert.notEqual(res.status, 200);
+    });
+
+    it('does not intercept .png files', async () => {
+      const res = await request('/images/nonexistent.png');
+      assert.equal(res.status, 404);
+    });
+
+    it('does not intercept .map files', async () => {
+      const res = await request('/js/app.12345.js.map');
+      assert.equal(res.status, 404);
+    });
+
+    it('does not intercept .woff font files', async () => {
+      const res = await request('/fonts/something.woff');
+      assert.equal(res.status, 404);
+    });
+
+    it('does not intercept .ico files', async () => {
+      const res = await request('/nonexistent.ico');
+      assert.equal(res.status, 404);
+    });
+
+    it('serves index.html for /join/:room', async () => {
+      const res = await request('/join/my-room');
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes('<div id="app">'));
+    });
+
+    it('serves index.html for /clientselect', async () => {
+      const res = await request('/clientselect');
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes('<div id="app">'));
+    });
+
+    it('serves index.html for /joinroom', async () => {
+      const res = await request('/joinroom');
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes('<div id="app">'));
+    });
+
+    it('serves index.html for /room/:room/player', async () => {
+      const res = await request('/room/test/player');
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes('<div id="app">'));
+    });
+
+    it('serves index.html for /room/:room/search/:query', async () => {
+      const res = await request('/room/test/search/batman');
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes('<div id="app">'));
+    });
+
+    it('sets Content-Type to text/html on SPA responses', async () => {
+      const res = await request('/room/test');
+      assert.equal(res.status, 200);
+      assert.ok(res.headers.get('content-type').includes('text/html'));
+    });
+  });
+
+  // --- Metadata overwrite and optional fields ---
+
+  describe('metadata updates and optional fields', () => {
+    it('overwrites metadata for the same key', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Original Title',
+          year: 2020,
+          type: 'movie',
+          machineIdentifier: 'overwrite-test',
+          ratingKey: '500',
+        },
+      });
+
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Updated Title',
+          year: 2021,
+          type: 'movie',
+          machineIdentifier: 'overwrite-test',
+          ratingKey: '500',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/overwrite-test/ratingKey/500');
+      const html = await res.text();
+      assert.ok(html.includes('Updated Title (2021)'));
+      assert.ok(!html.includes('Original Title'));
+    });
+
+    it('omits og:description when summary is missing', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'No Summary Movie',
+          year: 2023,
+          type: 'movie',
+          machineIdentifier: 'optional-test',
+          ratingKey: '501',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/optional-test/ratingKey/501');
+      const html = await res.text();
+      assert.ok(html.includes('og:title'));
+      assert.ok(!html.includes('og:description'));
+    });
+
+    it('omits og:image when posterUrl is missing', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'No Poster Movie',
+          year: 2023,
+          type: 'movie',
+          machineIdentifier: 'optional-test',
+          ratingKey: '502',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/optional-test/ratingKey/502');
+      const html = await res.text();
+      assert.ok(html.includes('og:title'));
+      assert.ok(!html.includes('og:image'));
+    });
+  });
+
+  // --- OG title formatting edge cases ---
+
+  describe('OG title formatting edge cases', () => {
+    it('renders movie without year as just the title', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Untitled Movie',
+          type: 'movie',
+          machineIdentifier: 'fmt-test',
+          ratingKey: '600',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/fmt-test/ratingKey/600');
+      const html = await res.text();
+      assert.ok(html.includes('content="Untitled Movie"'));
+    });
+
+    it('renders show type with year like a movie', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Breaking Bad',
+          year: 2008,
+          type: 'show',
+          machineIdentifier: 'fmt-test',
+          ratingKey: '601',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/fmt-test/ratingKey/601');
+      const html = await res.text();
+      assert.ok(html.includes('Breaking Bad (2008)'));
+      assert.ok(html.includes('video.other'));
+    });
+
+    it('renders episode with only season number', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Pilot',
+          type: 'episode',
+          grandparentTitle: 'Lost',
+          parentIndex: 1,
+          machineIdentifier: 'fmt-test',
+          ratingKey: '602',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/fmt-test/ratingKey/602');
+      const html = await res.text();
+      assert.ok(html.includes('Lost - S01 Pilot'));
+    });
+
+    it('renders episode with only episode number', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Special',
+          type: 'episode',
+          grandparentTitle: 'Some Show',
+          index: 3,
+          machineIdentifier: 'fmt-test',
+          ratingKey: '603',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/fmt-test/ratingKey/603');
+      const html = await res.text();
+      assert.ok(html.includes('Some Show - E03 Special'));
+    });
+
+    it('renders episode without show name gracefully', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Orphan Episode',
+          type: 'episode',
+          parentIndex: 2,
+          index: 5,
+          machineIdentifier: 'fmt-test',
+          ratingKey: '604',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/fmt-test/ratingKey/604');
+      const html = await res.text();
+      assert.ok(html.includes('S02E05 Orphan Episode'));
+    });
+
+    it('zero-pads single-digit season and episode numbers', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Test',
+          type: 'episode',
+          grandparentTitle: 'Show',
+          parentIndex: 1,
+          index: 1,
+          machineIdentifier: 'fmt-test',
+          ratingKey: '605',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/fmt-test/ratingKey/605');
+      const html = await res.text();
+      assert.ok(html.includes('S01E01'));
+    });
+
+    it('handles double-digit season and episode numbers', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Finale',
+          type: 'episode',
+          grandparentTitle: 'Long Show',
+          parentIndex: 15,
+          index: 24,
+          machineIdentifier: 'fmt-test',
+          ratingKey: '606',
+        },
+      });
+
+      const res = await request('/room/r/browse/server/fmt-test/ratingKey/606');
+      const html = await res.text();
+      assert.ok(html.includes('S15E24'));
+    });
+  });
+
+  // --- Poster proxy edge cases ---
+
+  describe('poster proxy edge cases', () => {
+    it('returns 404 when cached metadata has no posterUrl', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'No Poster',
+          type: 'movie',
+          machineIdentifier: 'noposter',
+          ratingKey: '700',
+        },
+      });
+
+      const res = await request('/share/poster/noposter/700');
+      assert.equal(res.status, 404);
+    });
+
+    it('returns 502 when upstream poster URL is unreachable', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Bad Upstream',
+          type: 'movie',
+          posterUrl: 'http://192.0.2.1:1/nonexistent',
+          machineIdentifier: 'badupstream',
+          ratingKey: '701',
+        },
+      });
+
+      const res = await request('/share/poster/badupstream/701');
+      assert.equal(res.status, 502);
+    });
+  });
 });

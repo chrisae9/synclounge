@@ -166,7 +166,9 @@ const preStaticInjection = (router) => {
         const protocol = req.headers['x-forwarded-proto'] || req.protocol;
         const host = req.headers['x-forwarded-host'] || req.get('host');
         const baseUrl = `${protocol}://${host}`;
-        const posterProxyUrl = `${baseUrl}/share/poster/${machineIdentifier}/${ratingKey}`;
+        const posterProxyUrl = meta.posterUrl
+          ? `${baseUrl}/share/poster/${machineIdentifier}/${ratingKey}`
+          : null;
 
         const html = injectOgTags(indexHtml, { ...meta, posterProxyUrl });
         res.set('Content-Type', 'text/html');
