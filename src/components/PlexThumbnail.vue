@@ -153,10 +153,6 @@ export default {
       default: '',
     },
 
-    spoilerFilter: {
-      type: Boolean,
-    },
-
     fullTitle: {
       type: Boolean,
     },
@@ -179,9 +175,7 @@ export default {
     ]),
 
     mediaUrl() {
-      const preferArt = (!this.hovering && this.spoilerFilter && !this.content.viewCount)
-        || this.type === 'art';
-      return preferArt
+      return this.type === 'art'
         ? (this.content.art || this.content.thumb)
         : (this.content.thumb || this.content.art);
     },

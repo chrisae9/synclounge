@@ -177,16 +177,14 @@
         class="text-high-emphasis text-body-2"
       >
         <v-col>
-          <SpoilerText
-            :key="combinedKey"
-            :hide="!metadata.viewCount"
+          <div
+            ref="summaryText"
+            :class="{ 'summary-clamped': !summaryExpanded }"
           >
-            <div :class="{ 'summary-clamped': !summaryExpanded }">
-              {{ metadata.summary }}
-            </div>
-          </SpoilerText>
+            {{ metadata.summary }}
+          </div>
           <v-btn
-            v-if="summaryIsLong && !summaryExpanded"
+            v-if="summaryOverflows && !summaryExpanded"
             variant="text"
             size="small"
             class="px-0 mt-1 text-medium-emphasis"
@@ -284,7 +282,6 @@ export default {
 
   components: {
     PlexMediaLayout: defineAsyncComponent(() => import('@/components/PlexMediaLayout.vue')),
-    SpoilerText: defineAsyncComponent(() => import('@/components/SpoilerText.vue')),
     PlexMediaPlayDialog: defineAsyncComponent(() => import('@/components/PlexMediaPlayDialog.vue')),
   },
 
@@ -305,6 +302,7 @@ export default {
     children: [],
     abortController: null,
     summaryExpanded: false,
+    summaryOverflows: false,
   }),
 
   computed: {
@@ -391,10 +389,6 @@ export default {
       return this.GET_PLEX_SERVER(this.metadata.machineIdentifier);
     },
 
-    summaryIsLong() {
-      return this.metadata.summary && this.metadata.summary.length > 120;
-    },
-
     isPlaying() {
       return this.GET_ACTIVE_MEDIA_METADATA?.machineIdentifier === this.metadata.machineIdentifier
       && this.GET_ACTIVE_MEDIA_METADATA?.ratingKey === this.metadata.ratingKey;
@@ -406,10 +400,16 @@ export default {
       handler() {
         this.dialog = false;
         this.summaryExpanded = false;
+        this.summaryOverflows = false;
+        this.$nextTick(() => this.checkSummaryOverflow());
         return this.fetchRelated();
       },
       immediate: true,
     },
+  },
+
+  updated() {
+    this.checkSummaryOverflow();
   },
 
   beforeUnmount() {
@@ -417,6 +417,12 @@ export default {
   },
 
   methods: {
+    checkSummaryOverflow() {
+      const el = this.$refs.summaryText;
+      if (el) {
+        this.summaryOverflows = el.scrollHeight > el.clientHeight + 1;
+      }
+    },
     ...mapActions('plexclients', [
       'PLAY_MEDIA',
       'PRESS_STOP',
