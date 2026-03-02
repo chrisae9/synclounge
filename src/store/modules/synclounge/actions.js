@@ -297,7 +297,7 @@ export default {
         < rootGetters.GET_CONFIG.synclounge_upnext_trigger_time_from_end,
 
   PROCESS_UPNEXT: async ({
-    getters, rootGetters, dispatch, commit,
+    getters, rootGetters, dispatch,
   }, playerState) => {
     // Cancel any timers because the state has changed and previous is now invalid
     await dispatch('CANCEL_UPNEXT');

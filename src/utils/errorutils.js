@@ -1,7 +1,7 @@
 const mapErrorMessage = (error) => {
   const message = error?.message || '';
 
-  if (error?.name === 'TypeError' && message.includes('Failed to fetch')
+  if ((error?.name === 'TypeError' && message.includes('Failed to fetch'))
     || message.includes('NetworkError')
     || message.includes('Network request failed')) {
     return 'Unable to connect. Check your internet connection.';

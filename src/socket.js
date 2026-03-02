@@ -61,6 +61,8 @@ export const waitForEvent = (eventName, timeoutMs) => new Promise((resolve, reje
   }
 
   let timer;
+  let onEvent;
+  let onDisconnect;
 
   const cleanup = () => {
     if (timer) clearTimeout(timer);
@@ -68,12 +70,12 @@ export const waitForEvent = (eventName, timeoutMs) => new Promise((resolve, reje
     socket.off('disconnect', onDisconnect);
   };
 
-  const onEvent = (data) => {
+  onEvent = (data) => {
     cleanup();
     resolve(data);
   };
 
-  const onDisconnect = () => {
+  onDisconnect = () => {
     cleanup();
     console.warn('Socket: disconnected while waiting for:', eventName);
     reject(new Error(`Disconnected while waiting for ${eventName}`));

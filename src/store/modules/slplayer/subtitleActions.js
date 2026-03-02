@@ -242,7 +242,7 @@ export default {
     console.debug('DESTROY_SUBTITLES');
     if (videoClock) {
       videoClock.destroy();
-    // eslint-disable-next-line no-underscore-dangle
+      // eslint-disable-next-line no-underscore-dangle
       videoClock._autoClock._manualClock._eventListeners.clear();
     }
 
