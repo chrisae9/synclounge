@@ -1,22 +1,22 @@
 $material-dark-elevation-colors: (
-  "0": #151924,
-  "1": #171b26,
-  "2": #1a1e28,
-  "3": #1c202b,
-  "4": #1e222d,
-  "6": #232731,
-  "8": #282b36,
-  "12": #31353e,
-  "16": #3a3e47,
-  "24": #4d5059
+  "0": #000000,
+  "1": #0A0A0A,
+  "2": #0F0F0F,
+  "3": #121212,
+  "4": #141414,
+  "6": #1A1A1A,
+  "8": #1E1E1E,
+  "12": #242424,
+  "16": #2C2C2C,
+  "24": #363636
 );
 
 $material-dark: (
-  "surface": #151924,
+  "surface": #000000,
   "app-bar": map-get($material-dark-elevation-colors, "4"),
   "bottom-navigation": map-get($material-dark-elevation-colors, "8"),
   "cards": map-get($material-dark-elevation-colors, "1"),
-  
+
   "navigation-drawer": map-get($material-dark-elevation-colors, "8"),
   "toolbar": map-get($material-dark-elevation-colors, "4"),
 );

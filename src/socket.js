@@ -27,12 +27,19 @@ export const open = async (url, options) => {
 };
 
 export const close = () => {
+  if (!socket) {
+    return;
+  }
   console.debug('Socket: closing');
   socket.close();
   socket = null;
 };
 
 export const emit = ({ eventName, data }) => {
+  if (!socket || !socket.connected) {
+    console.warn('Socket: cannot emit, not connected:', eventName);
+    return;
+  }
   if (eventName !== 'slPong') {
     console.debug('Socket emit:', eventName);
   }
@@ -40,15 +47,48 @@ export const emit = ({ eventName, data }) => {
 };
 
 export const on = ({ eventName, handler }) => {
+  if (!socket) {
+    console.warn('Socket: cannot register listener, socket is null:', eventName);
+    return;
+  }
   socket.on(eventName, handler);
 };
 
-export const waitForEvent = (eventName) => new Promise((resolve, reject) => {
-  socket.once(eventName, (resolve));
-  socket.once('disconnect', () => {
+export const waitForEvent = (eventName, timeoutMs) => new Promise((resolve, reject) => {
+  if (!socket) {
+    reject(new Error('Socket is not initialized'));
+    return;
+  }
+
+  let timer;
+
+  const cleanup = () => {
+    if (timer) clearTimeout(timer);
+    socket.off(eventName, onEvent);
+    socket.off('disconnect', onDisconnect);
+  };
+
+  const onEvent = (data) => {
+    cleanup();
+    resolve(data);
+  };
+
+  const onDisconnect = () => {
+    cleanup();
     console.warn('Socket: disconnected while waiting for:', eventName);
     reject(new Error(`Disconnected while waiting for ${eventName}`));
-  });
+  };
+
+  socket.once(eventName, onEvent);
+  socket.once('disconnect', onDisconnect);
+
+  if (timeoutMs != null) {
+    timer = setTimeout(() => {
+      cleanup();
+      console.warn('Socket: timed out waiting for:', eventName);
+      reject(new Error(`Timed out waiting for ${eventName}`));
+    }, timeoutMs);
+  }
 });
 
 export const isConnected = () => socket?.connected;

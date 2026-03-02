@@ -5,7 +5,11 @@
     :label="chatboxLabel"
     hide-details
     single-line
-    class="ml-2 mr-2 pr-1"
+    density="compact"
+    variant="outlined"
+    maxlength="500"
+    counter
+    class="mx-2 my-1 chat-input"
     @click:append="sendMessage"
     @keyup.enter="sendMessage"
   />
@@ -33,14 +37,31 @@ export default {
       'SEND_MESSAGE',
     ]),
 
-    sendMessage() {
-      if (this.messageToBeSent === '') {
+    async sendMessage() {
+      const trimmed = this.messageToBeSent.trim();
+      if (!trimmed) {
         return;
       }
-      console.log(`We should send this message: ${this.messageToBeSent}`);
-      this.SEND_MESSAGE(this.messageToBeSent);
+      await this.SEND_MESSAGE(trimmed);
       this.messageToBeSent = '';
     },
   },
 };
 </script>
+
+<style scoped>
+.chat-input {
+  font-size: 0.8rem;
+}
+
+.chat-input :deep(.v-field) {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.chat-input :deep(.v-field__input) {
+  font-size: 0.8rem;
+  min-height: 32px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+</style>

@@ -8,10 +8,24 @@
 export default class VideoClock {
   constructor(video, autoClock) {
     this._autoClock = autoClock;
-    video.addEventListener('playing', () => this._autoClock.play(), false);
-    video.addEventListener('pause', () => this._autoClock.pause(), false);
-    video.addEventListener('seeking', () => this._autoClock.seeking(), false);
-    video.addEventListener('ratechange', () => this._autoClock.setRate(video.playbackRate), false);
+    this._video = video;
+
+    this._onPlaying = () => this._autoClock.play();
+    this._onPause = () => this._autoClock.pause();
+    this._onSeeking = () => this._autoClock.seeking();
+    this._onRatechange = () => this._autoClock.setRate(video.playbackRate);
+
+    video.addEventListener('playing', this._onPlaying, false);
+    video.addEventListener('pause', this._onPause, false);
+    video.addEventListener('seeking', this._onSeeking, false);
+    video.addEventListener('ratechange', this._onRatechange, false);
+  }
+
+  destroy() {
+    this._video.removeEventListener('playing', this._onPlaying, false);
+    this._video.removeEventListener('pause', this._onPause, false);
+    this._video.removeEventListener('seeking', this._onSeeking, false);
+    this._video.removeEventListener('ratechange', this._onRatechange, false);
   }
 
   /**

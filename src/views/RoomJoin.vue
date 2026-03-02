@@ -9,6 +9,8 @@
           class="mx-auto"
           max-width="550"
           :loading="loading"
+          variant="outlined"
+          color="rgba(255, 255, 255, 0.12)"
         >
           <v-card-title>
             <v-img
@@ -23,13 +25,31 @@
             {{ error }}
           </v-alert>
 
-          <v-card-actions class="mt-2">
-            <v-btn
+          <v-card-text
+            v-if="loading"
+            class="text-center"
+          >
+            <v-progress-circular
+              indeterminate
               color="primary"
+              class="mr-2"
+            />
+            Joining room...
+          </v-card-text>
+
+          <v-card-actions
+            v-if="error"
+            class="mt-2 justify-center"
+          >
+            <v-btn
+              variant="flat"
+              color="primary"
+              class="text-white"
+              block
               :disabled="loading"
               @click="joinInvite"
             >
-              Join Invite
+              Retry
             </v-btn>
           </v-card-actions>
         </v-card>
@@ -41,6 +61,7 @@
 <script>
 import { mapActions } from 'vuex';
 import linkWithRoom from '@/mixins/linkwithroom';
+import mapErrorMessage from '@/utils/errorutils';
 
 export default {
   name: 'RoomJoin',
@@ -68,6 +89,7 @@ export default {
 
   async created() {
     await this.DISCONNECT_IF_CONNECTED();
+    await this.joinInvite();
   },
 
   methods: {
@@ -87,12 +109,15 @@ export default {
         });
 
         if (this.$route.name === 'RoomJoin') {
-          this.$router.push(this.linkWithRoom({ name: 'PlexHome' }));
+          const destination = this.$route.query.watching
+            ? { name: 'WebPlayer' }
+            : { name: 'PlexHome' };
+          this.$router.push(this.linkWithRoom(destination));
         }
       } catch (e) {
         this.DISCONNECT_IF_CONNECTED();
         console.error(e);
-        this.error = e.message;
+        this.error = mapErrorMessage(e);
       }
 
       this.loading = false;

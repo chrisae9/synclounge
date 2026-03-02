@@ -26,6 +26,7 @@
 
       <v-tooltip
         location="bottom"
+        content-class="thumbnail-tooltip"
       >
         <template #activator="{ props }">
           <div
@@ -78,6 +79,7 @@
         <v-tooltip
           v-if="id === GET_HOST_ID || AM_I_HOST"
           location="bottom"
+          content-class="thumbnail-tooltip"
         >
           <template #activator="{ props }">
             <v-icon
@@ -95,6 +97,7 @@
         <v-tooltip
           v-if="id !== GET_HOST_ID && AM_I_HOST"
           location="bottom"
+          content-class="thumbnail-tooltip"
         >
           <template #activator="{ props }">
             <v-icon

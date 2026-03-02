@@ -9,7 +9,10 @@
       />
     </template>
 
-    <v-card>
+    <v-card
+      color="rgb(18, 18, 18)"
+      class="playback-card"
+    >
       <v-card-title class="text-h5">
         Playback Settings
       </v-card-title>
@@ -19,39 +22,47 @@
           v-if="metadata.viewOffset"
           v-model="resumeFrom"
           hide-details
+          color="primary"
           :label="'Resume from ' + getDuration(metadata.viewOffset)"
         />
       </v-card-subtitle>
 
-      <v-card-actions>
-        <v-list>
+      <v-card-text class="pt-0">
+        <v-list
+          bg-color="transparent"
+          class="pa-0"
+        >
           <v-list-item
             v-for="(media, index) in metadata.Media"
             :key="media.Part[0].key"
+            class="px-0"
           >
             <v-list-item-title>
-                {{ media.videoResolution }}p -
-                <span class="text-medium-emphasis">{{ getDuration(media.duration) }}</span>
-              </v-list-item-title>
+              {{ media.videoResolution }}p -
+              <span class="text-medium-emphasis">{{ getDuration(media.duration) }}</span>
+            </v-list-item-title>
 
-              <v-list-item-subtitle>
-                <span class="text-high-emphasis">Video Codec:</span>
-                {{ media.videoCodec }} ({{ media.bitrate }}kbps)
-              </v-list-item-subtitle>
+            <v-list-item-subtitle class="wrap">
+              <span class="text-high-emphasis">Video Codec:</span>
+              {{ media.videoCodec }} ({{ media.bitrate }}kbps)
+            </v-list-item-subtitle>
 
-              <v-list-item-subtitle class="wrap">
-                <span class="text-high-emphasis">Audio Streams:</span>
-                {{ audioStreams(media.Part[0].Stream) }}
-              </v-list-item-subtitle>
+            <v-list-item-subtitle class="wrap">
+              <span class="text-high-emphasis">Audio Streams:</span>
+              {{ audioStreams(media.Part[0].Stream) }}
+            </v-list-item-subtitle>
 
-              <v-list-item-subtitle class="wrap">
-                <span class="text-high-emphasis">Subtitles:</span>
-                {{ subtitleStreams(media.Part[0].Stream) }}
-              </v-list-item-subtitle>
+            <v-list-item-subtitle class="wrap">
+              <span class="text-high-emphasis">Subtitles:</span>
+              {{ subtitleStreams(media.Part[0].Stream) }}
+            </v-list-item-subtitle>
 
             <template #append>
               <v-btn
+                :ref="index === 0 ? 'playBtn' : undefined"
+                variant="flat"
                 color="primary"
+                class="text-white align-self-center"
                 @click="playClicked(index)"
               >
                 Play
@@ -59,7 +70,7 @@
             </template>
           </v-list-item>
         </v-list>
-      </v-card-actions>
+      </v-card-text>
     </v-card>
   </v-dialog>
 </template>
@@ -87,6 +98,18 @@ export default {
     dialog: false,
     resumeFrom: true,
   }),
+
+  watch: {
+    dialog(open) {
+      if (open) {
+        this.$nextTick(() => {
+          setTimeout(() => {
+            this.$refs.playBtn?.$el?.focus();
+          }, 300);
+        });
+      }
+    },
+  },
 
   computed: {
     offset() {
@@ -131,5 +154,9 @@ export default {
 <style scoped>
 .wrap {
   white-space: normal !important;
+}
+
+.playback-card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 </style>

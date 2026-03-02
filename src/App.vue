@@ -4,7 +4,12 @@
     <router-view name="rightSidebar" />
 
     <v-app-bar
+      color="transparent"
+      elevation="0"
+      class="app-bar-blur"
+      scroll-behavior="hide"
       style="z-index: 5;"
+      :extension-height="$vuetify.display.smAndDown && showAppBarExtension ? 80 : 48"
     >
       <v-app-bar-nav-icon @click="SET_LEFT_SIDEBAR_OPEN" />
 
@@ -29,26 +34,19 @@
       <v-toolbar-items>
         <v-btn
           v-if="inviteUrl"
+          variant="flat"
           color="primary"
+          class="text-white"
           @click="copyToClipboard(inviteUrl)"
         >
-          <v-icon start class="d-sm-none">
+          <v-icon
+            start
+            class="d-sm-none"
+          >
             person_add
           </v-icon>
           <span class="d-none d-sm-inline">Invite</span>
         </v-btn>
-
-        <v-btn
-          class="d-none d-sm-flex"
-          icon
-          href="https://github.com/chrisae9/synclounge"
-          target="_blank"
-        >
-          <v-icon>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
-          </v-icon>
-        </v-btn>
-
       </v-toolbar-items>
 
       <router-view name="rightSidebarButton" />
@@ -57,13 +55,12 @@
         v-if="showAppBarExtension"
         #extension
       >
-        <TheAppBarCrumbs />
-
-        <v-spacer />
-        <router-view
-          style="max-width: 400px; min-width: 0; flex-shrink: 1;"
-          name="searchBar"
-        />
+        <div class="extension-wrapper">
+          <div class="app-bar-search">
+            <router-view name="searchBar" />
+          </div>
+          <TheAppBarCrumbs />
+        </div>
 
         <router-view name="appBarView" />
       </template>
@@ -80,45 +77,44 @@
         <v-sheet
           color="transparent"
           class="overflow-y-auto pa-3"
-          style="height: calc(100vh - var(--v-layout-top, 64px));"
+          style="height: calc(100dvh - var(--v-layout-top, 64px));"
         >
-            <v-container
-              v-if="!GET_CONFIG"
-              class="fill-height"
+          <v-container
+            v-if="!GET_CONFIG"
+            class="fill-height"
+          >
+            <v-row
+              justify="center"
+              align="center"
+              class="pt-4 text-center"
             >
-              <v-row
-                justify="center"
-                align="center"
-                class="pt-4 text-center"
-              >
-                <v-col>
-                  <v-progress-circular
-                    indeterminate
-                    size="60"
-                    class="text-amber"
-                  />
-                </v-col>
-              </v-row>
-            </v-container>
+              <v-col>
+                <v-progress-circular
+                  indeterminate
+                  size="60"
+                  color="primary"
+                />
+              </v-col>
+            </v-row>
+          </v-container>
 
-            <router-view v-else />
+          <router-view v-else />
 
-            <v-snackbar
-              :model-value="GET_SNACKBAR_OPEN"
-              :color="GET_SNACKBAR_MESSAGE.color"
-              location="bottom"
-              timeout="4000"
-              content-class="text-center"
-              @update:model-value="SET_SNACKBAR_OPEN"
-            >
-              {{ GET_SNACKBAR_MESSAGE.text }}
-            </v-snackbar>
+          <v-snackbar
+            :model-value="GET_SNACKBAR_OPEN"
+            :color="GET_SNACKBAR_MESSAGE.color"
+            location="bottom"
+            timeout="4000"
+            content-class="text-center"
+            @update:model-value="SET_SNACKBAR_OPEN"
+          >
+            {{ GET_SNACKBAR_MESSAGE.text }}
+          </v-snackbar>
 
-            <TheUpnextDialog v-if="GET_UP_NEXT_POST_PLAY_DATA" />
-          </v-sheet>
+          <TheUpnextDialog v-if="GET_UP_NEXT_POST_PLAY_DATA" />
+        </v-sheet>
       </v-container>
     </v-main>
-
   </v-app>
 </template>
 
@@ -242,7 +238,6 @@ export default {
     }
   },
 
-
   methods: {
     mediaSlug(meta) {
       let name;
@@ -278,3 +273,39 @@ export default {
 };
 </script>
 
+<style scoped>
+.app-bar-blur {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(0, 0, 0, 0.6) !important;
+}
+
+.extension-wrapper {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+
+.app-bar-search {
+  max-width: 400px;
+  min-width: 120px;
+  flex: 0 1 400px;
+  order: 1;
+}
+
+@media (max-width: 600px) {
+  .extension-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 2px;
+  }
+
+  .app-bar-search {
+    max-width: none;
+    flex: 0 0 auto;
+    order: 0;
+  }
+}
+</style>

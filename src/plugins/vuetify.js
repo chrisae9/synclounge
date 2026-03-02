@@ -13,7 +13,12 @@ export default createVuetify({
     themes: {
       dark: {
         colors: {
+          background: '#000000',
+          surface: '#0A0A0A',
+          'surface-variant': '#141414',
           primary: '#e5a00d',
+          'on-background': '#E0E0E0',
+          'on-surface': '#E0E0E0',
         },
       },
     },

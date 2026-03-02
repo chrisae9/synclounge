@@ -6,16 +6,17 @@
       </template>
     </PlexOnDeck>
 
-    <v-divider />
-
-    <v-list-subheader>
+    <v-list-subheader class="mt-4">
       Browse
       <v-btn
-        size="x-small"
+        size="small"
         icon
+        variant="text"
         @click="FETCH_PLEX_DEVICES"
       >
-        <v-icon>refresh</v-icon>
+        <v-icon size="small">
+          refresh
+        </v-icon>
       </v-btn>
     </v-list-subheader>
 
@@ -41,10 +42,9 @@
           :to="IS_PLEX_SERVER_ENABLED(server.clientIdentifier)
             ? linkWithRoom({ name: 'PlexServer', params: { machineIdentifier: server.clientIdentifier } })
             : undefined"
-          :style="{
-            background: 'rgb(0 0 0 / 60%)',
-            opacity: IS_PLEX_SERVER_ENABLED(server.clientIdentifier) ? 1 : 0.4,
-          }"
+          rounded="lg"
+          class="server-card"
+          :class="{ 'server-card--disabled': !IS_PLEX_SERVER_ENABLED(server.clientIdentifier) }"
         >
           <v-container class="fill-height">
             <v-row
@@ -71,7 +71,7 @@
 
                     <v-btn
                       :icon="IS_PLEX_SERVER_ENABLED(server.clientIdentifier) ? 'visibility' : 'visibility_off'"
-                      size="x-small"
+                      size="small"
                       variant="text"
                       :color="IS_PLEX_SERVER_ENABLED(server.clientIdentifier) ? 'primary' : 'grey'"
                       @click.prevent.stop="TOGGLE_SERVER_ENABLED(server.clientIdentifier)"
@@ -82,13 +82,13 @@
                     v{{ server.productVersion }}
                   </div>
 
-                  <div class="text-subtitle-2">
+                  <div class="text-subtitle-2 text-medium-emphasis">
                     Owned by {{ ownerOfServer(server) }}
                   </div>
 
                   <div
                     v-if="!server.chosenConnection"
-                    class="text-error"
+                    class="text-error text-caption"
                   >
                     Unable to connect.
                     Try disabling your adblocker
@@ -98,7 +98,7 @@
                     v-if="!IS_PLEX_SERVER_ENABLED(server.clientIdentifier)"
                     class="text-caption text-medium-emphasis"
                   >
-                    Disabled — not included in search
+                    Disabled
                   </div>
                 </div>
               </v-col>
@@ -202,3 +202,20 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.server-card {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.server-card:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(229, 160, 13, 0.4);
+}
+
+.server-card--disabled {
+  opacity: 0.4;
+}
+</style>

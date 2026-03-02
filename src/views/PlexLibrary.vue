@@ -110,7 +110,7 @@
 
             <v-chip
               v-else
-              color="yellow"
+              color="primary"
               pill
               class="pa-2"
               style="height: auto;"
@@ -473,10 +473,13 @@ export default {
 
       try {
         await this.fetchMoreContentCriticalSection(controller.signal);
-        this.childrenAbortController = null;
       } catch (e) {
         if (!controller.signal.aborted) {
           throw e;
+        }
+      } finally {
+        if (this.childrenAbortController === controller) {
+          this.childrenAbortController = null;
         }
       }
     },

@@ -1,8 +1,7 @@
 <template>
   <v-breadcrumbs
-    :items="crumbs"
-    class="text-left"
-    style="justify-content: left; flex: 1 1 0; min-width: 0; overflow: hidden; flex-wrap: nowrap; white-space: nowrap;"
+    :items="displayCrumbs"
+    class="text-left breadcrumbs-truncate"
   >
     <template #divider>
       <v-icon>chevron_right</v-icon>
@@ -12,6 +11,7 @@
       <v-breadcrumbs-item
         :to="props.item.to"
         :exact="true"
+        class="breadcrumb-item"
       >
         {{ props.item.title }}
       </v-breadcrumbs-item>
@@ -124,6 +124,24 @@ export default {
 
       return data;
     },
+
+    displayCrumbs() {
+      return this.crumbs;
+    },
   },
 };
 </script>
+
+<style scoped>
+.breadcrumbs-truncate {
+  flex: 1 1 0;
+  min-width: 0;
+  flex-wrap: wrap;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.breadcrumb-item {
+  white-space: nowrap;
+}
+</style>

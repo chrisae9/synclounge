@@ -72,6 +72,7 @@ export default {
   SET_USER_PLAYER_STATE: (state, {
     id, state: playerState, time, duration, playbackRate,
   }) => {
+    if (!state.users[id]) return;
     state.users[id].state = playerState;
     state.users[id].time = time;
     state.users[id].duration = duration;
@@ -80,10 +81,12 @@ export default {
   },
 
   SET_USER_MEDIA: (state, { id, media }) => {
+    if (!state.users[id]) return;
     state.users[id].media = media;
   },
 
   SET_USER_SYNC_FLEXIBILITY: (state, { id, syncFlexibility }) => {
+    if (!state.users[id]) return;
     state.users[id].syncFlexibility = syncFlexibility;
   },
 

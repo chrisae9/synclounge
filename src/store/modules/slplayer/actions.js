@@ -120,28 +120,29 @@ export default {
     commit('SET_IS_CHANGING_SOURCE', true);
 
     try {
-      await dispatch('SEND_PLEX_DECISION_REQUEST');
-      await dispatch('LOAD_PLAYER_SRC');
-    } catch (e) {
-      if (getters.GET_FORCE_TRANSCODE) {
-        commit('SET_IS_CHANGING_SOURCE', false);
-        throw e;
+      try {
+        await dispatch('SEND_PLEX_DECISION_REQUEST');
+        await dispatch('LOAD_PLAYER_SRC');
+      } catch (e) {
+        if (getters.GET_FORCE_TRANSCODE) {
+          throw e;
+        }
+        console.warn('Error loading stream from plex. Retrying with forced transcoding', e);
+
+        // Try again with forced transcoding
+        commit('SET_FORCE_TRANSCODE_RETRY', true);
+        await dispatch('SEND_PLEX_DECISION_REQUEST');
+        await dispatch('LOAD_PLAYER_SRC');
       }
-      console.warn('Error loading stream from plex. Retrying with forced transcoding', e);
 
-      // Try again with forced transcoding
-      commit('SET_FORCE_TRANSCODE_RETRY', true);
-      await dispatch('SEND_PLEX_DECISION_REQUEST');
-      await dispatch('LOAD_PLAYER_SRC');
-    }
+      await dispatch('CHANGE_SUBTITLES');
 
-    await dispatch('CHANGE_SUBTITLES');
-
-    commit('SET_IS_CHANGING_SOURCE', false);
-
-    // TODO: potentially avoid sending updates on media change since we already do that
-    if (getters.GET_MASK_PLAYER_STATE) {
-      commit('SET_MASK_PLAYER_STATE', false);
+      // TODO: potentially avoid sending updates on media change since we already do that
+      if (getters.GET_MASK_PLAYER_STATE) {
+        commit('SET_MASK_PLAYER_STATE', false);
+      }
+    } finally {
+      commit('SET_IS_CHANGING_SOURCE', false);
     }
   },
 
@@ -379,7 +380,7 @@ export default {
         yield CAF.delay(signal, rootGetters.GET_CONFIG.slplayer_plex_timeline_update_interval);
 
         try {
-          yield dispatch('SEND_PLEX_TIMELINE_UPDATE', signal);
+          yield dispatch('SEND_PLEX_TIMELINE_UPDATE', { signal });
         } catch (e) {
           console.error(e);
         }
@@ -453,6 +454,13 @@ export default {
 
       // Purposefully not awaited
       dispatch('START_PERIODIC_PLEX_TIMELINE_UPDATE');
+
+      if (getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE) {
+        getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE.resolve();
+        commit('SET_PLAYER_INITIALIZED_DEFERRED_PROMISE', null);
+      }
+
+      commit('SET_IS_PLAYER_INITIALIZED', true);
     } catch (e) {
       console.error('INIT_PLAYER_STATE: failed during initialization:', e);
       if (getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE) {
@@ -461,13 +469,6 @@ export default {
         commit('SET_PLAYER_INITIALIZED_DEFERRED_PROMISE', null);
       }
     }
-
-    if (getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE) {
-      getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE.resolve();
-      commit('SET_PLAYER_INITIALIZED_DEFERRED_PROMISE', null);
-    }
-
-    commit('SET_IS_PLAYER_INITIALIZED', true);
   },
 
   CANCEL_PERIODIC_PLEX_TIMELINE_UPDATE: ({ getters, commit }) => {

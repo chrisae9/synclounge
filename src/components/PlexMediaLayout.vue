@@ -6,33 +6,31 @@
           :img="artUrl"
         >
           <v-container
-            style="background: rgb(0 0 0 / 70%);"
+            class="media-layout-overlay"
             fluid
           >
-            <v-row no-gutters>
+            <v-row
+              no-gutters
+              class="flex-nowrap"
+            >
               <v-col
                 cols="auto"
-                order="last"
-                order-md="first"
-                class="mr-3"
+                class="mr-3 flex-shrink-0"
               >
                 <v-img
                   :src="thumbUrl"
-                  :width="$vuetify.display.smAndDown ? 120 : 200"
+                  :width="$vuetify.display.smAndDown ? 100 : 200"
                   :aspect-ratio="2 / 3"
                 />
 
                 <slot name="belowImage" />
               </v-col>
 
-              <v-col
-                cols="12"
-                md=""
-              >
+              <v-col class="min-width-0">
                 <v-container>
                   <v-row dense>
                     <v-col
-                      class="text-h4"
+                      class="text-h4 font-weight-bold"
                     >
                       {{ title }}
                     </v-col>
@@ -41,7 +39,7 @@
 
                     <v-col
                       cols="12"
-                      class="text-subtitle-1"
+                      class="text-subtitle-1 text-medium-emphasis"
                     >
                       {{ secondaryTitle }}
                     </v-col>
@@ -57,7 +55,8 @@
                     <v-col
                       v-if="secondarySubtitle"
                       cols="12"
-                      class="text-caption text-medium-emphasis"
+                      class="text-caption"
+                      style="opacity: 0.5;"
                     >
                       {{ secondarySubtitle }}
                     </v-col>
@@ -73,6 +72,8 @@
         </v-card>
       </v-col>
     </v-row>
+
+    <slot name="actions" />
 
     <template v-if="children.length">
       <v-list-subheader>{{ childrenHeader }}</v-list-subheader>
@@ -211,3 +212,15 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.media-layout-overlay {
+  background: linear-gradient(
+    to top,
+    #000000 0%,
+    rgba(0, 0, 0, 0.85) 30%,
+    rgba(0, 0, 0, 0.6) 60%,
+    rgba(0, 0, 0, 0.4) 100%
+  );
+}
+</style>

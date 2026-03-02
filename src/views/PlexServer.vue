@@ -7,63 +7,45 @@
       Libraries
     </v-list-subheader>
 
-    <v-row>
+    <v-row dense>
       <v-col
         v-for="library in libraries"
         :key="library.name"
-        cols="12"
+        cols="6"
         sm="6"
         md="3"
         lg="2"
       >
-        <v-tooltip
-          location="bottom"
+        <v-card
+          variant="flat"
+          rounded="lg"
+          class="library-card"
+          :to="linkWithRoom({
+            name: 'PlexLibrary',
+            params: {
+              machineIdentifier: machineIdentifier,
+              sectionId: library.key,
+            },
+          })"
         >
-          <template #activator="{ props }">
-            <v-card
-              v-bind="props"
-              variant="flat"
-              rounded="lg"
-              class="library-card"
-              :to="linkWithRoom({
-                name: 'PlexLibrary',
-                params: {
-                  machineIdentifier: machineIdentifier,
-                  sectionId: library.key,
-                },
-              })"
+          <div class="library-card-content">
+            <v-icon
+              size="32"
+              color="primary"
             >
-              <v-img
-                :src="getComposite(library)"
-                :aspect-ratio="16/9"
-                cover
-                class="library-card-img"
-              >
-                <div class="library-card-overlay d-flex align-end pa-3">
-                  <v-icon
-                    class="mr-2"
-                    size="24"
-                    color="primary"
-                  >
-                    {{ libraryIcon(library.type) }}
-                  </v-icon>
-                  <span class="text-subtitle-1 font-weight-medium">
-                    {{ library.title }}
-                  </span>
-                  <v-spacer />
-                  <span
-                    v-if="library.size"
-                    class="text-caption text-medium-emphasis"
-                  >
-                    {{ library.size }}
-                  </span>
-                </div>
-              </v-img>
-            </v-card>
-          </template>
-
-          <span>{{ library.title }}</span>
-        </v-tooltip>
+              {{ libraryIcon(library.type) }}
+            </v-icon>
+            <div class="text-subtitle-1 font-weight-medium mt-2">
+              {{ library.title }}
+            </div>
+            <div
+              v-if="library.size"
+              class="text-caption text-medium-emphasis"
+            >
+              {{ library.size }} items
+            </div>
+          </div>
+        </v-card>
       </v-col>
     </v-row>
 
@@ -88,7 +70,6 @@
 <script>
 import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters, mapMutations } from 'vuex';
-import { getAppWidth } from '@/utils/sizing';
 import linkWithRoom from '@/mixins/linkwithroom';
 
 export default {
@@ -116,7 +97,6 @@ export default {
 
   computed: {
     ...mapGetters('plexservers', [
-      'GET_MEDIA_IMAGE_URL',
       'GET_PLEX_SERVER',
     ]),
 
@@ -176,15 +156,6 @@ export default {
       return icons[type] || 'video_library';
     },
 
-    getComposite(library) {
-      return this.GET_MEDIA_IMAGE_URL({
-        machineIdentifier: this.machineIdentifier,
-        mediaUrl: library.composite,
-        width: Math.round(getAppWidth() / 3),
-        height: Math.round(getAppWidth() / 3 * (9 / 16)),
-      });
-    },
-
     async fetchRandomBackgroundCriticalSection(signal) {
       await this.FETCH_AND_SET_RANDOM_BACKGROUND_IMAGE({
         machineIdentifier: this.machineIdentifier,
@@ -214,25 +185,22 @@ export default {
 .library-card {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04) !important;
 }
 
 .library-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 40%) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 40%) !important;
+  border-color: rgba(229, 160, 13, 0.3);
 }
 
-.library-card-img {
-  filter: brightness(0.85);
-  transition: filter 0.2s ease;
-}
-
-.library-card:hover .library-card-img {
-  filter: brightness(1);
-}
-
-.library-card-overlay {
-  background: linear-gradient(to top, rgb(0 0 0 / 85%) 0%, rgb(0 0 0 / 20%) 60%, transparent 100%);
-  position: absolute;
-  inset: 0;
+.library-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  text-align: center;
 }
 </style>

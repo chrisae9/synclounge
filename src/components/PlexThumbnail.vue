@@ -26,6 +26,15 @@
           </small>
 
           <div
+            v-if="showWatchedFlag && !showServer"
+            class="watched-badge"
+          >
+            <v-icon size="14">
+              check
+            </v-icon>
+          </div>
+
+          <div
             v-if="showUnwatchedFlag && !showServer"
             class="unwatched-badge"
           >
@@ -53,6 +62,7 @@
     <v-tooltip
       location="bottom"
       offset="10"
+      content-class="thumbnail-tooltip"
     >
       <template #activator="{ props }">
         <div
@@ -77,15 +87,17 @@
         </div>
       </template>
 
-      <div>{{ getTitle(content, fullTitle) }}</div>
+      <div class="text-white">
+        {{ getTitle(content, fullTitle) }}
+      </div>
 
-      <div class="text-caption text-medium-emphasis">
+      <div class="text-caption text-grey-lighten-1">
         {{ getSecondaryTitle(content, fullTitle) }}
       </div>
 
       <div
         v-if="content.reason"
-        class="text-caption text-medium-emphasis"
+        class="text-caption text-grey-lighten-1"
       >
         {{ getReasonTitle(content) }}
       </div>
@@ -221,6 +233,19 @@ export default {
       return srcSizes.join(', ');
     },
 
+    showWatchedFlag() {
+      if (this.content.type === 'movie' || this.content.type === 'episode') {
+        return this.content.viewCount > 0 && !this.showProgressBar;
+      }
+
+      if (this.content.type === 'season' || this.content.type === 'show') {
+        return this.content.leafCount > 0
+          && this.content.leafCount === this.content.viewedLeafCount;
+      }
+
+      return false;
+    },
+
     showUnwatchedFlag() {
       if (this.content.type === 'movie' || this.content.type === 'episode') {
         return (!this.content.viewCount || this.content.viewCount === 0) && !this.showProgressBar;
@@ -265,20 +290,20 @@ export default {
 
   mounted() {
     if (this.type === 'thumb') {
-      VanillaTilt.init(this.$el, {
-        reverse: true, // reverse the tilt direction
-        max: 7, // max tilt rotation (degrees)
-        perspective: 1000, // Transform perspective, the lower the more extreme the tilt gets.
-        scale: 1.01, // 2 = 200%, 1.5 = 150%, etc..
-        speed: 100, // Speed of the enter/exit transition
-        transition: true, // Set a transition on enter/exit.
-        axis: null, // What axis should be disabled. Can be X or Y.
-        reset: true, // If the tilt effect has to be reset on exit.
-        easing: 'cubic-bezier(.03,.98,.52,.99)', // Easing on enter/exit.
-        glare: false, // if it should have a "glare" effect
-        'max-glare': 0.15, // the maximum "glare" opacity (1 = 100%, 0.5 = 50%)
-        'glare-prerender': false, // false = VanillaTilt creates the glare elements for you
-      });
+      if (window.matchMedia('(hover: hover)').matches
+        && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        VanillaTilt.init(this.$el, {
+          reverse: true,
+          max: 4,
+          perspective: 1200,
+          scale: 1,
+          speed: 200,
+          transition: true,
+          reset: true,
+          easing: 'cubic-bezier(.03,.98,.52,.99)',
+          glare: false,
+        });
+      }
     }
   },
 
@@ -303,11 +328,19 @@ export default {
 
 <style scoped>
 .thumbnail-card {
-  transition: transform 0.15s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .thumbnail-card:hover {
   transform: scale(1.03);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumbnail-card:hover {
+    transform: none;
+    box-shadow: none;
+  }
 }
 
 .thumbnail-img-wrapper {
@@ -322,40 +355,57 @@ export default {
   pointer-events: none;
 }
 
-.unwatched-badge {
+.watched-badge {
   position: absolute;
-  top: 0;
-  left: 0;
+  bottom: 6px;
+  right: 6px;
   background: rgb(var(--v-theme-primary));
   color: #000;
-  font-size: 0.75rem;
-  font-weight: 600;
-  min-width: 20px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.unwatched-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: rgb(var(--v-theme-primary));
+  font-size: 0.7rem;
+  font-weight: 700;
+  min-width: 22px;
   text-align: center;
-  padding: 1px 5px;
-  border-radius: 0 0 4px 0;
+  padding: 2px 7px;
+  border-radius: 10px;
 }
 
 .multi-version-badge {
   position: absolute;
-  top: 0;
-  right: 0;
-  background: rgb(43 43 191 / 85%);
-  font-size: 0.75rem;
-  min-width: 20px;
+  top: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.7rem;
+  font-weight: 600;
+  min-width: 22px;
   text-align: center;
-  padding: 1px 5px;
-  border-radius: 0 0 0 4px;
+  padding: 2px 7px;
+  border-radius: 10px;
 }
 
 .server-name {
   position: absolute;
-  top: 0;
-  right: 0;
-  background: rgb(0 0 0 / 60%);
-  padding: 1px 6px;
-  font-size: 0.7rem;
-  border-radius: 0 0 0 4px;
+  top: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.7);
+  padding: 2px 8px;
+  font-size: 0.65rem;
+  border-radius: 10px;
 }
 
 .progress-bar {
@@ -365,3 +415,4 @@ export default {
   right: 0;
 }
 </style>
+

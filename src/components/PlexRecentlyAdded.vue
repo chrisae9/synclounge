@@ -17,7 +17,8 @@
       >
         <v-btn
           icon
-          :style="recentlyAddedDownStyle"
+          :disabled="isAtStart"
+          :aria-disabled="isAtStart"
           @click="recentlyAddedDown"
         >
           <v-icon>navigate_before</v-icon>
@@ -25,7 +26,8 @@
 
         <v-btn
           icon
-          :style="recentlyAddedUpStyle"
+          :disabled="isAtEnd"
+          :aria-disabled="isAtEnd"
           @click="recentlyAddedUp"
         >
           <v-icon>navigate_next</v-icon>
@@ -91,21 +93,13 @@ export default {
       }
     },
 
-    recentlyAddedDownStyle() {
-      return this.recentlyAddedOffset === 0
-        ? {
-          opacity: 0.5,
-        }
-        : {};
+    isAtStart() {
+      return this.recentlyAddedOffset === 0;
     },
 
-    recentlyAddedUpStyle() {
+    isAtEnd() {
       return this.recentlyAddedOffset + this.recentItemsPer
-        >= this.recentlyAdded.length
-        ? {
-          opacity: 0.5,
-        }
-        : {};
+        >= this.recentlyAdded.length;
     },
 
     subsetRecentlyAdded() {

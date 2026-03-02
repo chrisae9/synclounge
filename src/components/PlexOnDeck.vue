@@ -19,7 +19,8 @@
       >
         <v-btn
           icon
-          :style="onDeckDownStyle"
+          :disabled="isAtStart"
+          :aria-disabled="isAtStart"
           @click="onDeckDown"
         >
           <v-icon>navigate_before</v-icon>
@@ -27,7 +28,8 @@
 
         <v-btn
           icon
-          :style="onDeckUpStyle"
+          :disabled="isAtEnd"
+          :aria-disabled="isAtEnd"
           @click="onDeckUp"
         >
           <v-icon>navigate_next</v-icon>
@@ -96,20 +98,12 @@ export default {
       }
     },
 
-    onDeckUpStyle() {
-      return this.onDeckOffset + this.onDeckItemsPer >= this.onDeck.length
-        ? {
-          opacity: 0.5,
-        }
-        : {};
+    isAtEnd() {
+      return this.onDeckOffset + this.onDeckItemsPer >= this.onDeck.length;
     },
 
-    onDeckDownStyle() {
-      return this.onDeckOffset === 0
-        ? {
-          opacity: 0.5,
-        }
-        : {};
+    isAtStart() {
+      return this.onDeckOffset === 0;
     },
 
     subsetOnDeck() {

@@ -66,7 +66,7 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(
-      process.env.VERSION || '5.0.0',
+      process.env.VERSION || '6.0.0',
     ),
   },
   build: {

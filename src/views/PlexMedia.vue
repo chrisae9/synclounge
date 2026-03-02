@@ -27,7 +27,7 @@
         style="left: 50%; top: 50%;"
         :size="60"
         indeterminate
-        class="text-amber"
+        color="primary"
       />
     </v-col>
   </v-row>

@@ -3,21 +3,26 @@
     :model-value="isRightSidebarOpen"
     style="z-index: 6;"
     location="right"
-    class="pa-0"
+    class="pa-0 sidebar-blur"
     width="300"
     :temporary="$vuetify.display.mdAndDown"
     @update:model-value="SET_RIGHT_SIDEBAR_OPEN"
   >
     <template #prepend>
-      <v-list-item class="pa-1">
+      <v-list-item
+        class="pa-1"
+        density="compact"
+      >
         <template #prepend>
           <v-btn
             icon
-            size="small"
+            size="x-small"
             variant="text"
             @click="SET_RIGHT_SIDEBAR_OPEN(false)"
           >
-            <v-icon>chevron_right</v-icon>
+            <v-icon size="small">
+              chevron_right
+            </v-icon>
           </v-btn>
         </template>
 
@@ -47,11 +52,16 @@
         </template>
       </v-list-item>
 
-      <v-list-item density="compact">
+      <v-list-item
+        density="compact"
+        class="px-3 py-0 switch-item"
+      >
         <v-switch
           v-if="AM_I_HOST"
           hide-details
-          class="pa-0 ma-0"
+          density="compact"
+          class="pa-0 ma-0 sidebar-switch"
+          color="primary"
           label="Party Pausing"
           :model-value="IS_PARTY_PAUSING_ENABLED"
           @update:model-value="SEND_SET_PARTY_PAUSING_ENABLED"
@@ -67,15 +77,19 @@
       <v-tooltip
         v-if="AM_I_HOST"
         location="bottom"
+        content-class="thumbnail-tooltip"
       >
         <template #activator="{ props }">
           <v-list-item
             density="compact"
+            class="px-3 py-0 switch-item"
             v-bind="props"
           >
             <v-switch
-              class="pa-0 ma-0"
+              class="pa-0 ma-0 sidebar-switch"
               hide-details
+              density="compact"
+              color="primary"
               label="Auto Host"
               :model-value="IS_AUTO_HOST_ENABLED"
               @update:model-value="SEND_SET_AUTO_HOST_ENABLED"
@@ -93,12 +107,14 @@
       >
         <v-tooltip
           location="bottom"
-          color="rgb(44, 44, 49)"
+          content-class="thumbnail-tooltip"
         >
           <template #activator="{ props }">
             <v-btn
               v-bind="props"
+              variant="flat"
               color="primary"
+              class="text-white"
               :disabled="!IS_PARTY_PAUSING_ENABLED"
               @click="sendPartyPause(GET_HOST_USER.state === 'playing')"
             >
@@ -187,5 +203,35 @@ export default {
 .participant-count {
   font-size: 0.8em;
   color: rgb(255 255 255 / 70%);
+}
+
+.switch-item :deep(.v-list-item__content) {
+  overflow: visible;
+}
+
+.sidebar-switch :deep(.v-selection-control) {
+  min-height: 28px;
+}
+
+.sidebar-switch :deep(.v-switch__track) {
+  width: 30px;
+  height: 14px;
+}
+
+.sidebar-switch :deep(.v-switch__thumb) {
+  width: 18px;
+  height: 18px;
+}
+
+.sidebar-switch :deep(.v-label) {
+  font-size: 0.8rem;
+  opacity: 0.85;
+  padding-inline-start: 8px;
+}
+
+.sidebar-blur {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(0, 0, 0, 0.85) !important;
 }
 </style>

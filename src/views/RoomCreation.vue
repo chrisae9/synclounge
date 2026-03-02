@@ -9,6 +9,8 @@
           class="mx-auto"
           max-width="550"
           :loading="loading"
+          variant="outlined"
+          color="rgba(255, 255, 255, 0.12)"
         >
           <v-card-title>
             <v-img
@@ -34,6 +36,8 @@
               </v-col>
               <v-col class="shrink">
                 <v-btn
+                  variant="outlined"
+                  color="white"
                   @click="fetchServersHealth"
                 >
                   Refresh
@@ -42,9 +46,12 @@
             </v-row>
           </v-alert>
 
-          <v-card-actions class="mt-2">
+          <v-card-actions class="mt-2 justify-center flex-column ga-2">
             <v-btn
+              variant="flat"
               color="primary"
+              class="text-white"
+              block
               :disabled="!GET_SERVERS_HEALTH || Object.keys(GET_SERVERS_HEALTH).length === 0
                 || loading"
               @click="createRoom"
@@ -52,9 +59,11 @@
               Connect
             </v-btn>
 
-            <v-spacer />
-
-            <v-btn :to="{ name: 'AdvancedRoomJoin' }">
+            <v-btn
+              variant="outlined"
+              color="primary"
+              :to="{ name: 'AdvancedRoomJoin' }"
+            >
               Advanced
             </v-btn>
           </v-card-actions>
@@ -68,6 +77,7 @@
 import { mapActions, mapGetters } from 'vuex';
 import linkWithRoom from '@/mixins/linkwithroom';
 import { getRandomRoomId } from '@/utils/random';
+import mapErrorMessage from '@/utils/errorutils';
 
 export default {
   name: 'RoomCreation',
@@ -132,7 +142,7 @@ export default {
         this.DISCONNECT_IF_CONNECTED();
         console.error(e);
 
-        this.error = e.message;
+        this.error = mapErrorMessage(e);
         await this.fetchServersHealth();
       }
 

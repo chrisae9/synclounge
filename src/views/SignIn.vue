@@ -9,6 +9,8 @@
           class="mx-auto"
           max-width="550"
           :loading="loading"
+          variant="outlined"
+          color="rgba(255, 255, 255, 0.12)"
         >
           <v-alert
             v-if="GET_PLEX_AUTH_TOKEN && IS_USER_AUTHORIZED === false"
@@ -28,6 +30,8 @@
               color="primary"
               size="x-large"
               variant="flat"
+              class="text-white"
+              block
               :disabled="allowSignIn"
               @click="signIn"
             >
@@ -113,8 +117,11 @@ export default {
 
     async fetchInitialAuthCode() {
       this.loading = true;
-      this.plexAuthResponse = await this.FETCH_PLEX_INIT_AUTH();
-      this.loading = false;
+      try {
+        this.plexAuthResponse = await this.FETCH_PLEX_INIT_AUTH();
+      } finally {
+        this.loading = false;
+      }
     },
 
     signIn() {
@@ -157,11 +164,12 @@ export default {
         this.redirect();
         await this.FETCH_PLEX_DEVICES_IF_NEEDED();
         this.FETCH_AND_SET_RANDOM_BACKGROUND_IMAGE();
-        this.loading = false;
       } catch (e) {
         console.error(e);
         this.SET_PLEX_AUTH_TOKEN(null);
         await this.fetchInitialAuthCode();
+      } finally {
+        this.loading = false;
       }
     },
 

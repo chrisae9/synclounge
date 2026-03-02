@@ -32,7 +32,7 @@ describe('server', () => {
     const { spawn } = require('node:child_process');
     serverProcess = spawn('node', ['server.js'], {
       cwd: __dirname + '/..',
-      env: { ...process.env, PORT: '18088' },
+      env: { ...process.env, PORT: '18088', SL_METADATA_RATE_LIMIT: '0', SL_POSTER_RATE_LIMIT: '0' },
       stdio: 'pipe',
     });
     serverProcess.stderr.on('data', (d) => process.stderr.write(d));

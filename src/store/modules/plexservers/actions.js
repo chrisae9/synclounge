@@ -247,7 +247,7 @@ export default {
 
     return Object.fromEntries(
       await Promise.all(
-        Directory.map(async (library) => [
+        (Directory || []).map(async (library) => [
           library.key,
           {
             ...library,
@@ -375,7 +375,7 @@ export default {
   FETCH_LIBRARY_CONTENTS: async ({ dispatch }, params) => {
     const { librarySectionID, Metadata } = await dispatch('FETCH_LIBRARY_ALL', params);
 
-    return Metadata.map((child) => ({
+    return (Metadata || []).map((child) => ({
       librarySectionID,
       machineIdentifier: params.machineIdentifier,
       ...child,
@@ -484,7 +484,7 @@ export default {
       signal,
     });
 
-    return Hub.filter(({ Metadata, type }) => Metadata && searchHubs.includes(type)).map(
+    return (Hub || []).filter(({ Metadata, type }) => Metadata && searchHubs.includes(type)).map(
       ({ Metadata, ...rest }) => ({
         ...rest,
         Metadata: Metadata.map((item) => ({

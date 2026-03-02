@@ -111,8 +111,11 @@ export default {
       commit('SET_DEVICE_FETCH_PROMISE', fetchPromise);
     }
 
-    await getters.GET_DEVICE_FETCH_PROMISE;
-    commit('SET_DEVICE_FETCH_PROMISE', null);
+    try {
+      await getters.GET_DEVICE_FETCH_PROMISE;
+    } finally {
+      commit('SET_DEVICE_FETCH_PROMISE', null);
+    }
   },
 
   // Use this to trigger a fetch if you don't need the devices refreshed

@@ -125,7 +125,9 @@ export default {
     await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
   },
 
-  DISCONNECT: async ({ commit }) => {
+  DISCONNECT: async ({ commit, dispatch }) => {
+    await dispatch('CANCEL_IN_PROGRESS_SYNC');
+    await dispatch('CANCEL_UPNEXT');
     close();
     commit('SET_IS_IN_ROOM', false);
     commit('SET_USERS', {});
@@ -140,6 +142,10 @@ export default {
   },
 
   SEND_MESSAGE: async ({ dispatch, getters }, msg) => {
+    if (!isConnected()) {
+      throw new Error('Cannot send message: not connected');
+    }
+
     await dispatch('ADD_MESSAGE_AND_CACHE', {
       senderId: getters.GET_SOCKET_ID,
       text: msg,
@@ -308,15 +314,12 @@ export default {
       } else if (playerState.state === 'playing') {
         await dispatch('SCHEDULE_UPNEXT', playerState);
       }
-
-      commit('SET_UP_NEXT_TRIGGERED', false);
-    } else if (getters.GET_UP_NEXT_TRIGGERED) {
-      commit('SET_UP_NEXT_TRIGGERED', false);
     }
   },
 
   PROCESS_PLAYER_STATE_UPDATE: async ({ getters, dispatch, commit }, noSync) => {
-    // TODO: only send message if in room, check in room
+    if (!getters.IS_IN_ROOM || !isConnected()) return;
+
     const playerState = await dispatch(
       'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE',
       null,
@@ -343,7 +346,8 @@ export default {
   PROCESS_MEDIA_UPDATE: async ({
     dispatch, getters, commit, rootGetters,
   }, userInitiated) => {
-    // TODO: only send message if in room, check in room
+    if (!getters.IS_IN_ROOM || !isConnected()) return;
+
     const playerState = await dispatch(
       'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE',
       null,
@@ -460,10 +464,14 @@ export default {
         offset,
       }, { root: true });
     } catch (e) {
-      console.warn('Error caught in sync logic', e);
+      if (!token.signal.aborted) {
+        console.error('Error in manual sync:', e);
+      }
     }
 
-    commit('SET_SYNC_CANCEL_TOKEN', null);
+    if (getters.GET_SYNC_CANCEL_TOKEN === token) {
+      commit('SET_SYNC_CANCEL_TOKEN', null);
+    }
   },
 
   SYNC_MEDIA_AND_PLAYER_STATE: async ({ getters, commit, dispatch }) => {
@@ -487,10 +495,14 @@ export default {
     try {
       await dispatch('_SYNC_MEDIA_AND_PLAYER_STATE', token.signal);
     } catch (e) {
-      console.warn('Error caught in sync media logic:', e);
+      if (!token.signal.aborted) {
+        console.error('Error in sync media logic:', e);
+      }
     }
 
-    commit('SET_SYNC_CANCEL_TOKEN', null);
+    if (getters.GET_SYNC_CANCEL_TOKEN === token) {
+      commit('SET_SYNC_CANCEL_TOKEN', null);
+    }
   },
 
   // Interal action without lock. Use the one with the lock to stop multiple syncs from happening
@@ -562,10 +574,14 @@ export default {
     try {
       await dispatch('_SYNC_PLAYER_STATE', token.signal);
     } catch (e) {
-      console.warn('Error caught in sync player logic:', e);
+      if (!token.signal.aborted) {
+        console.error('Error in sync player logic:', e);
+      }
     }
 
-    commit('SET_SYNC_CANCEL_TOKEN', null);
+    if (getters.GET_SYNC_CANCEL_TOKEN === token) {
+      commit('SET_SYNC_CANCEL_TOKEN', null);
+    }
   },
 
   // Private version without lock. Please use the locking version unless you know what you are doing

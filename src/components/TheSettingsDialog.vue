@@ -11,7 +11,10 @@
       />
     </template>
 
-    <v-card>
+    <v-card
+      color="rgb(18, 18, 18)"
+      class="settings-card"
+    >
       <v-toolbar
         v-if="$vuetify.display.smAndDown"
         density="compact"
@@ -41,6 +44,7 @@
           <template #append>
             <v-switch
               hide-details
+              color="primary"
               :model-value="GET_AUTO_SKIP_INTRO"
               @update:model-value="SET_AUTO_SKIP_INTRO"
               @click.stop
@@ -59,6 +63,7 @@
           <template #append>
             <v-switch
               hide-details
+              color="primary"
               :model-value="allowDirectPlay"
               @update:model-value="SET_ALLOW_DIRECT_PLAY"
               @click.stop
@@ -77,6 +82,7 @@
           <template #append>
             <v-switch
               hide-details
+              color="primary"
               :model-value="GET_SLPLAYERFORCETRANSCODE"
               @update:model-value="SET_SLPLAYERFORCETRANSCODE"
               @click.stop
@@ -95,6 +101,7 @@
           <template #append>
             <v-switch
               hide-details
+              color="primary"
               :model-value="forceBurnSubtitles"
               @update:model-value="SET_FORCE_BURN_SUBTITLES"
               @click.stop
@@ -137,6 +144,7 @@
           <template #append>
             <v-switch
               hide-details
+              color="primary"
               :model-value="ARE_NOTIFICATIONS_ENABLED && isSecureContext"
               :disabled="!isSecureContext"
               @update:model-value="CHANGE_NOTIFICATIONS_ENABLED"
@@ -146,6 +154,7 @@
             <v-tooltip
               v-if="!isSecureContext"
               location="bottom"
+              content-class="thumbnail-tooltip"
             >
               <template #activator="{ props }">
                 <v-icon
@@ -175,6 +184,7 @@
           <template #append>
             <v-switch
               hide-details
+              color="primary"
               :model-value="ARE_SOUND_NOTIFICATIONS_ENABLED"
               @update:model-value="SET_ARE_SOUND_NOTIFICATIONS_ENABLED"
               @click.stop
@@ -213,6 +223,7 @@
           <template #append>
             <v-switch
               hide-details
+              color="primary"
               :model-value="GET_AUTOPLAY"
               @update:model-value="SET_AUTOPLAY"
               @click.stop
@@ -228,6 +239,7 @@
 
           <v-slider
             hide-details
+            color="primary"
             :model-value="GET_SYNCFLEXIBILITY"
             :min="0"
             :max="10000"
@@ -268,6 +280,7 @@
 
           <v-slider
             hide-details
+            color="primary"
             :model-value="GET_CLIENTPOLLINTERVAL"
             :min="100"
             :max="10000"
@@ -420,3 +433,17 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.settings-card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settings-card :deep(.v-list-subheader__text) {
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+}
+</style>

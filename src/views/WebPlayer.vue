@@ -33,7 +33,9 @@
           <v-btn
             v-show="shouldShowSkipIntroButton"
             size="large"
-            class="skip-intro"
+            variant="flat"
+            color="primary"
+            class="skip-intro text-white"
             :style="skipIntroButtonStyle"
             @click="SKIP_INTRO"
           >
@@ -109,7 +111,9 @@
           <v-col v-if="!AM_I_HOST">
             <v-btn
               block
-              color="blue"
+              variant="flat"
+              color="primary"
+              class="text-white"
               @click="MANUAL_SYNC"
             >
               Manual sync
@@ -119,6 +123,7 @@
           <v-col>
             <v-btn
               block
+              variant="flat"
               color="error"
               @click="PRESS_STOP"
             >
@@ -137,7 +142,9 @@ import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters, mapState } from 'vuex';
 
 import initialize from '@/player/init';
-import { getControlsOffset } from '@/player';
+import {
+  getControlsOffset, getCurrentTimeMs, setCurrentTimeMs, getVolume, setVolume,
+} from '@/player';
 import linkWithRoom from '@/mixins/linkwithroom';
 
 import 'shaka-player/dist/controls.css';
@@ -286,13 +293,13 @@ export default {
     await this.INIT_PLAYER_STATE();
     console.debug('WebPlayer: player initialized successfully');
 
-    window.addEventListener('keyup', this.onKeyUp);
+    window.addEventListener('keydown', this.onKeyUp);
     window.addEventListener('resize', this.RERENDER_SUBTITLE_CONTAINER);
     this.controlsOffset = getControlsOffset(this.$refs?.videoPlayerContainer?.offsetHeight);
   },
 
   beforeUnmount() {
-    window.removeEventListener('keyup', this.onKeyUp);
+    window.removeEventListener('keydown', this.onKeyUp);
     window.removeEventListener('resize', this.RERENDER_SUBTITLE_CONTAINER);
     this.DESTROY_PLAYER_STATE();
   },
@@ -347,6 +354,8 @@ export default {
 
           'spacer',
 
+          'audio',
+          'subtitle',
           'cast',
           'overflow_menu',
           'fullscreen',
@@ -355,9 +364,7 @@ export default {
         overflowMenuButtons: [
           'media',
           'bitrate',
-          'audio',
 
-          'subtitle',
           'subtitleoffset',
           'subtitlesize',
           'subtitleposition',
@@ -370,19 +377,65 @@ export default {
       };
     },
 
+    isTyping() {
+      const { activeElement } = document;
+      if (!activeElement) return false;
+      const { tagName } = activeElement;
+      return tagName === 'INPUT' || tagName === 'TEXTAREA'
+        || activeElement.closest('[contenteditable]');
+    },
+
     onKeyUp(event) {
+      if (this.isTyping()) return;
+
       const { activeElement } = document;
       const isSeekBar = activeElement && activeElement.classList
         && activeElement.classList.contains('shaka-seek-bar');
 
-      if (event.key === ' ' && activeElement.tagName !== 'INPUT'
-        && activeElement.tagName !== 'BUTTON') {
-        if (!isSeekBar) {
-          // Make spacebar trigger play/pause in locations shaka normally doesn't
-          this.PLAY_PAUSE_VIDEO();
-        }
+      switch (event.key) {
+        case ' ':
+          if (activeElement.tagName !== 'BUTTON') {
+            if (!isSeekBar) {
+              this.PLAY_PAUSE_VIDEO();
+            }
+            this.SEND_PARTY_PLAY_PAUSE();
+          }
+          break;
 
-        this.SEND_PARTY_PLAY_PAUSE();
+        case 'f':
+          if (document.fullscreenElement) {
+            document.exitFullscreen();
+          } else {
+            this.$refs.videoPlayerContainer?.requestFullscreen();
+          }
+          break;
+
+        case 'm':
+          this.$refs.videoPlayer.muted = !this.$refs.videoPlayer.muted;
+          break;
+
+        case 'ArrowLeft':
+          event.preventDefault();
+          setCurrentTimeMs(Math.max(0, getCurrentTimeMs() - 10000));
+          break;
+
+        case 'ArrowRight':
+          event.preventDefault();
+          setCurrentTimeMs(getCurrentTimeMs() + 10000);
+          break;
+
+        case 'ArrowUp':
+          event.preventDefault();
+          setVolume(Math.min(1, getVolume() + 0.1));
+          break;
+
+        case 'ArrowDown':
+          event.preventDefault();
+          setVolume(Math.max(0, getVolume() - 0.1));
+          break;
+
+        default:
+          break;
       }
     },
 

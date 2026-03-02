@@ -68,10 +68,10 @@ export default {
 
   HANDLE_RECONNECT: async ({ dispatch, commit }) => {
     console.debug('HANDLE_RECONNECT: attempting to rejoin room');
-    await waitForEvent('slPing');
-    commit('SET_SOCKET_ID', getId());
 
     try {
+      await waitForEvent('slPing', 15000);
+      commit('SET_SOCKET_ID', getId());
       await dispatch('JOIN_ROOM_AND_INIT');
     } catch (e) {
       const text = `Error reconnecting: ${e.message}`;
@@ -80,7 +80,7 @@ export default {
         text,
         color: 'error',
       }, { root: true });
-      await dispatch('NAVIGATE_HOME', null, { root: true });
+      await dispatch('DISCONNECT_AND_NAVIGATE_HOME');
     }
   },
 

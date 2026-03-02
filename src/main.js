@@ -4,6 +4,7 @@ import vuetify from './plugins/vuetify';
 import App from './App.vue';
 import router from './router';
 import store from './store';
+import mapErrorMessage from './utils/errorutils';
 
 const vChatScroll = {
   mounted(el) {
@@ -35,12 +36,12 @@ app.config.errorHandler = (err) => {
     return;
   }
 
+  console.error(err);
+
   store.dispatch('DISPLAY_NOTIFICATION', {
-    text: err.message,
+    text: mapErrorMessage(err),
     color: 'error',
   });
-
-  console.error(err);
 };
 
 const isEqualIfExpectedTrue = (expected, got) => (expected
@@ -55,7 +56,7 @@ router.beforeEach(async (to, from, next) => {
     await store.dispatch('FETCH_CONFIG');
 
     // This will only happen once per refresh of the page
-    if (store.getters.GET_CONFIG.autojoin) {
+    if (store.getters.GET_CONFIG?.autojoin) {
       next({
         name: 'RoomJoin',
         params: store.getters.GET_CONFIG.autojoin,

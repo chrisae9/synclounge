@@ -5,6 +5,7 @@
     <v-progress-linear
       :active="loading"
       :indeterminate="true"
+      color="primary"
     />
 
     <div
@@ -144,6 +145,7 @@ export default {
         await this.searchServersCriticalSection(controller.signal);
       } catch (e) {
         if (!controller.signal.aborted) {
+          this.loading = false;
           throw e;
         }
       }

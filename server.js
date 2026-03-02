@@ -10,7 +10,13 @@ const { createCache } = require('./cache');
 
 const blockList = Object.keys(syncloungeServer.defaultConfig);
 const appConfig = config.get(null, blockList);
-console.log(appConfig);
+
+// Log config with sensitive values redacted
+const SENSITIVE_RE = /secret|password|token|key/i;
+const safeConfig = Object.fromEntries(
+  Object.entries(appConfig).map(([k, v]) => [k, SENSITIVE_RE.test(k) ? '[REDACTED]' : v]),
+);
+console.log(safeConfig);
 
 const { setMetadata, getMetadata } = createCache();
 
@@ -19,9 +25,13 @@ function isPrivateUrl(urlStr) {
   let parsed;
   try { parsed = new URL(urlStr); } catch { return true; }
   if (!['http:', 'https:'].includes(parsed.protocol)) return true;
-  const host = parsed.hostname;
-  if (host === 'localhost' || host === '::1' || host === '0.0.0.0') return true;
-  if (/^(127\.|10\.|192\.168\.|169\.254\.)/.test(host)) return true;
+  // Strip IPv6 brackets for hostname comparison
+  const host = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (host === 'localhost' || host === '0.0.0.0') return true;
+  // IPv6 loopback and IPv4-mapped loopback
+  if (host === '::1' || host === '::ffff:127.0.0.1') return true;
+  if (/^0+:0+:0+:0+:0+:0+:0+:0*1$/.test(host)) return true; // expanded ::1
+  if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host)) return true;
   if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
   return false;
 }
@@ -30,7 +40,7 @@ function isPrivateUrl(urlStr) {
 function escapeHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    .replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 // --- Read index.html once at startup ---
@@ -71,6 +81,36 @@ function injectOgTags(html, meta) {
   return cleaned.replace('</head>', `    ${tags}\n  </head>`);
 }
 
+// --- In-memory rate limiter (sliding window, no external deps) ---
+// Limits configurable via env vars; set to 0 to disable (e.g. in tests)
+const METADATA_RATE_LIMIT = parseInt(process.env.SL_METADATA_RATE_LIMIT || '30', 10);
+const POSTER_RATE_LIMIT = parseInt(process.env.SL_POSTER_RATE_LIMIT || '60', 10);
+
+function createRateLimiter(maxRequests, windowMs) {
+  if (maxRequests <= 0) return (req, res, next) => next();
+  const hits = new Map(); // ip -> [timestamp, ...]
+  return (req, res, next) => {
+    const ip = req.ip;
+    const now = Date.now();
+    const cutoff = now - windowMs;
+    let timestamps = hits.get(ip);
+    if (timestamps) {
+      timestamps = timestamps.filter((t) => t > cutoff);
+    } else {
+      timestamps = [];
+    }
+    if (timestamps.length >= maxRequests) {
+      return res.status(429).json({ error: 'Too many requests' });
+    }
+    timestamps.push(now);
+    hits.set(ip, timestamps);
+    return next();
+  };
+}
+
+const metadataLimiter = createRateLimiter(METADATA_RATE_LIMIT, 60 * 1000);
+const posterLimiter = createRateLimiter(POSTER_RATE_LIMIT, 60 * 1000);
+
 // --- File extension check for SPA fallback ---
 const STATIC_EXT_RE = /\.\w{2,}$/;
 
@@ -81,14 +121,38 @@ const preStaticInjection = (router) => {
   });
 
   // --- POST /api/metadata: receive metadata from client ---
-  router.post('/api/metadata', express.json(), (req, res) => {
+  router.post('/api/metadata', express.json(), metadataLimiter, (req, res) => {
     const {
       title, year, summary, type, posterUrl, machineIdentifier, ratingKey,
-      grandparentTitle, parentIndex, index,
+      grandparentTitle, parentIndex, index, room,
     } = req.body;
 
     if (!machineIdentifier || !ratingKey) {
       return res.status(400).json({ error: 'machineIdentifier and ratingKey are required' });
+    }
+
+    // Validate string fields have correct types and reasonable lengths
+    const MAX_LEN = 500;
+    const stringFields = { title, summary, type, posterUrl, grandparentTitle };
+    for (const [name, val] of Object.entries(stringFields)) {
+      if (val != null && (typeof val !== 'string' || val.length > MAX_LEN)) {
+        return res.status(400).json({ error: `${name} must be a string of at most ${MAX_LEN} characters` });
+      }
+    }
+    // machineIdentifier and ratingKey can be string or number (coerced via template literals)
+    for (const [name, val] of Object.entries({ machineIdentifier, ratingKey })) {
+      if (val != null && typeof val !== 'string' && typeof val !== 'number') {
+        return res.status(400).json({ error: `${name} must be a string or number` });
+      }
+      if (typeof val === 'string' && val.length > MAX_LEN) {
+        return res.status(400).json({ error: `${name} must be at most ${MAX_LEN} characters` });
+      }
+    }
+    if (year != null && (typeof year !== 'string' && typeof year !== 'number')) {
+      return res.status(400).json({ error: 'year must be a string or number' });
+    }
+    if (room != null && (typeof room !== 'string' || room.length > MAX_LEN)) {
+      return res.status(400).json({ error: 'room must be a string of at most 500 characters' });
     }
 
     const key = `${machineIdentifier}\0${ratingKey}`;
@@ -100,15 +164,15 @@ const preStaticInjection = (router) => {
     setMetadata(key, meta);
 
     // Also index by room code so /join/:room gets OG tags
-    if (req.body.room) {
-      setMetadata(`room\0${req.body.room}`, meta);
+    if (room) {
+      setMetadata(`room\0${room}`, meta);
     }
 
     return res.json({ ok: true });
   });
 
   // --- GET /share/poster/:machineIdentifier/:ratingKey: proxy poster images ---
-  router.get('/share/poster/:machineIdentifier/:ratingKey', async (req, res) => {
+  router.get('/share/poster/:machineIdentifier/:ratingKey', posterLimiter, async (req, res) => {
     const key = `${req.params.machineIdentifier}\0${req.params.ratingKey}`;
     const meta = getMetadata(key);
 
@@ -121,7 +185,10 @@ const preStaticInjection = (router) => {
     }
 
     try {
-      const response = await fetch(meta.posterUrl);
+      const response = await fetch(meta.posterUrl, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(10000),
+      });
       if (!response.ok) {
         return res.status(502).send('Failed to fetch poster');
       }

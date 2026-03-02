@@ -15,39 +15,51 @@
     :child-md="childMd"
     :child-xl="childXl"
   >
-    <template #belowImage>
-      <template v-if="isPlaying">
-        <v-row style="max-width: 200px;">
-          <v-col
-            cols="auto"
-            class="text-medium-emphasis text-subtitle-2"
-          >
-            Now playing on {{ GET_CHOSEN_CLIENT.name }} from {{ server.name }}
-          </v-col>
-        </v-row>
-
-        <v-row>
-          <v-col>
-            <v-btn
-              block
-              color="error"
-              @click="PRESS_STOP"
-            >
-              <v-icon>stop</v-icon>
-            </v-btn>
-          </v-col>
-        </v-row>
-
-        <v-btn
-          v-if="!AM_I_HOST"
-          color="blue"
-          @click="MANUAL_SYNC"
+    <template #actions>
+      <v-row
+        v-if="isPlaying"
+        class="my-2"
+        align="center"
+      >
+        <v-col
+          cols="auto"
+          class="text-medium-emphasis text-subtitle-2"
         >
-          Manual sync
-        </v-btn>
-      </template>
+          Now playing on {{ GET_CHOSEN_CLIENT.name }} from {{ server.name }}
+        </v-col>
 
-      <template v-else>
+        <v-col cols="auto">
+          <v-btn
+            variant="flat"
+            color="error"
+            @click="PRESS_STOP"
+          >
+            <v-icon start>
+              stop
+            </v-icon>
+            Stop
+          </v-btn>
+        </v-col>
+
+        <v-col
+          v-if="!AM_I_HOST"
+          cols="auto"
+        >
+          <v-btn
+            variant="flat"
+            color="primary"
+            class="text-white"
+            @click="MANUAL_SYNC"
+          >
+            Manual sync
+          </v-btn>
+        </v-col>
+      </v-row>
+
+      <v-row
+        v-else
+        class="my-2"
+      >
         <v-col>
           <PlexMediaPlayDialog
             v-if="metadata.Media.length > 1 || metadata.viewOffset"
@@ -58,22 +70,34 @@
             <v-btn
               v-bind="props"
               block
+              variant="flat"
               color="primary"
+              class="text-white"
+              size="large"
             >
-              <v-icon>play_arrow</v-icon>
+              <v-icon start>
+                play_arrow
+              </v-icon>
+              Play
             </v-btn>
           </PlexMediaPlayDialog>
 
           <v-btn
             v-else
             block
+            variant="flat"
             color="primary"
+            class="text-white"
+            size="large"
             @click="playMedia(metadata, 0, 0)"
           >
-            <v-icon>play_arrow</v-icon>
+            <v-icon start>
+              play_arrow
+            </v-icon>
+            Play
           </v-btn>
         </v-col>
-      </template>
+      </v-row>
     </template>
 
     <template #postTitle>
@@ -119,6 +143,7 @@
           <template #activator="{ props }">
             <v-btn
               icon
+              variant="text"
               v-bind="props"
             >
               <v-icon>more_vert</v-icon>
@@ -156,8 +181,28 @@
             :key="combinedKey"
             :hide="!metadata.viewCount"
           >
-            {{ metadata.summary }}
+            <div :class="{ 'summary-clamped': !summaryExpanded }">
+              {{ metadata.summary }}
+            </div>
           </SpoilerText>
+          <v-btn
+            v-if="summaryIsLong && !summaryExpanded"
+            variant="text"
+            size="small"
+            class="px-0 mt-1 text-medium-emphasis"
+            @click="summaryExpanded = true"
+          >
+            Show more
+          </v-btn>
+          <v-btn
+            v-else-if="summaryExpanded"
+            variant="text"
+            size="small"
+            class="px-0 mt-1 text-medium-emphasis"
+            @click="summaryExpanded = false"
+          >
+            Show less
+          </v-btn>
         </v-col>
       </v-row>
 
@@ -259,6 +304,7 @@ export default {
     dialog: false,
     children: [],
     abortController: null,
+    summaryExpanded: false,
   }),
 
   computed: {
@@ -345,6 +391,10 @@ export default {
       return this.GET_PLEX_SERVER(this.metadata.machineIdentifier);
     },
 
+    summaryIsLong() {
+      return this.metadata.summary && this.metadata.summary.length > 120;
+    },
+
     isPlaying() {
       return this.GET_ACTIVE_MEDIA_METADATA?.machineIdentifier === this.metadata.machineIdentifier
       && this.GET_ACTIVE_MEDIA_METADATA?.ratingKey === this.metadata.ratingKey;
@@ -355,6 +405,7 @@ export default {
     combinedKey: {
       handler() {
         this.dialog = false;
+        this.summaryExpanded = false;
         return this.fetchRelated();
       },
       immediate: true,
@@ -433,3 +484,12 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.summary-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+</style>

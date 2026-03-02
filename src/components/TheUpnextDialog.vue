@@ -63,6 +63,7 @@
                 >
                   <v-btn
                     icon
+                    variant="text"
                     class="align-self-end"
                     @click="cancelPressed"
                   >
@@ -71,13 +72,17 @@
 
                   <div class="text-right">
                     <v-btn
+                      variant="flat"
                       color="primary"
+                      class="text-white"
                       @click="playPressed"
                     >
                       Play Now
                     </v-btn>
 
                     <v-btn
+                      variant="text"
+                      color="white"
                       @click="cancelPressed"
                     >
                       Cancel

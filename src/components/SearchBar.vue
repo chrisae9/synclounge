@@ -15,7 +15,7 @@
         prepend-inner-icon="search"
         placeholder="Search..."
         hide-details
-        variant="solo"
+        variant="solo-filled"
         clearable
         :loading="loading"
         @click:clear="clear"
@@ -263,6 +263,7 @@ export default {
         await this.searchServersDebounced(controller.signal);
       } catch (e) {
         if (!controller.signal.aborted) {
+          this.loading = false;
           throw e;
         }
       }

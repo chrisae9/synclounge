@@ -159,7 +159,7 @@ export default {
   FETCH_METADATA_OF_PLAY_QUEUE_ITEM: ({ getters, dispatch }, playQueueItem) => {
     if (playQueueItem.source) {
       const regex = /^server:\/\/(\w+)\//;
-      const machineIdentifier = playQueueItem.source.match(regex)[1];
+      const machineIdentifier = playQueueItem.source.match(regex)?.[1];
 
       return dispatch('plexservers/FETCH_PLEX_METADATA', {
         machineIdentifier,

@@ -1,10 +1,15 @@
-- get rid of plex player support, we confirmed that this is no longer a feature that works. [DONE]
-- simplify server connections, enable/disable servers, by default all should be searchable. 
-- look through PRs/issues and closed/unclosed and find improvements that people made that would benefit the app (big one) I think i saw an emoji feature etc
-- add discord preview embed now that the code has een changed (thought this was already a thing)
-- support mobile, lots of things dont render right on mobile. 
-- update readme this is not really a fork but a continuation at this point, make sure that we include the differences and the fact that we paid $5 for a stupid chromecast dev client
-- add proper icons for movies and tv etc in libraries section
-- make it clearer that the movies/tv pages lazy load
-- add abc...xyz to the libraries for easier searching. support general filters and sorting like plex does
-- create release pipeline and enable docker image pushing to repo
+- [x] on the left sidebar add a version tag this should match the dev tag or the release tag on git
+      → Added version from VITE_APP_VERSION (set in vite.config.js) to bottom of left sidebar
+- [x] on the join page, the join button should be centered
+      → Made Connect and Join Invite buttons full-width (block) and centered in card actions
+- [x] the search bar blends in too much with the background, so do the servers
+      → Changed search bar variant from "solo" to "solo-filled" for more visible background
+      → Increased server card background opacity (0.04→0.07) and border visibility (0.06→0.1)
+- [x] when you select a movie/tv show and it asks you to resume the play button should be the same yellow color as the first play button
+      → Play button in resume dialog already uses color="primary" (yellow). Added surface color to dialog card for better contrast.
+- [x] the chat window is a bit too big and bulky it is a small area and there is too much padding, this includes text messages, and the settings above it.
+      → Added density="compact" to sidebar header, switches, and list items. Reduced padding with py-0 on switch rows. Shrunk close button.
+- [x] all toggle switches look ugly the toggle circle is too giant and there should be a yellow plex color to signify that something is enabled.
+      → Added density="compact" to shrink switches, added color="primary" so enabled state shows yellow/amber
+- [x] when down the tree of movies/tv ex home -> rooday east -> 3 (0 rock) the parenthesis show the part that gets cut off, this is bad ui
+      → Breadcrumb items now truncate with ellipsis (max-width: 150px) instead of raw overflow clipping

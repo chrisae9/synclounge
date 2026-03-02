@@ -8,8 +8,8 @@
     </v-list-subheader>
 
     <MessageItem
-      v-for="(msg, index) in GET_MESSAGES"
-      :key="index"
+      v-for="msg in GET_MESSAGES"
+      :key="`${msg.senderId}-${msg.time}`"
       :message="msg"
     />
   </v-list>
