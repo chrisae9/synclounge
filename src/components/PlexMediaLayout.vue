@@ -132,12 +132,12 @@ export default {
 
     art: {
       type: String,
-      required: true,
+      default: null,
     },
 
     thumb: {
       type: String,
-      required: true,
+      default: null,
     },
 
     title: {
@@ -189,6 +189,7 @@ export default {
     ]),
 
     artUrl() {
+      if (!this.art) return null;
       return this.GET_MEDIA_IMAGE_URL({
         machineIdentifier: this.machineIdentifier,
         mediaUrl: this.art,
@@ -199,6 +200,7 @@ export default {
     },
 
     thumbUrl() {
+      if (!this.thumb) return null;
       return this.GET_MEDIA_IMAGE_URL({
         machineIdentifier: this.machineIdentifier,
         mediaUrl: this.thumb,

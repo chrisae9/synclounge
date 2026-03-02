@@ -1,7 +1,7 @@
 <template>
   <PlexMediaLayout
     :machine-identifier="metadata.machineIdentifier"
-    :art="metadata.banner || metadata.art"
+    :art="metadata.banner || metadata.art || metadata.thumb"
     :thumb="metadata.thumb"
     :title="metadata.title"
     :secondary-title="secondaryTitle"

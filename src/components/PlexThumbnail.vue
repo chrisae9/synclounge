@@ -167,10 +167,11 @@ export default {
     ]),
 
     mediaUrl() {
-      return (!this.hovering && this.spoilerFilter && !this.content.viewCount)
-      || this.type === 'art'
-        ? this.content.art
-        : this.content.thumb;
+      const preferArt = (!this.hovering && this.spoilerFilter && !this.content.viewCount)
+        || this.type === 'art';
+      return preferArt
+        ? (this.content.art || this.content.thumb)
+        : (this.content.thumb || this.content.art);
     },
 
     // 1 / aspect ratio
