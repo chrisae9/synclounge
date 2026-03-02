@@ -65,13 +65,9 @@ export default {
     }
   },
 
-  FETCH_TIMELINE_POLL_DATA_CACHE: ({ dispatch }) => dispatch(
-    'slplayer/FETCH_TIMELINE_POLL_DATA', null, { root: true },
-  ),
+  FETCH_TIMELINE_POLL_DATA_CACHE: ({ dispatch }) => dispatch('slplayer/FETCH_TIMELINE_POLL_DATA', null, { root: true }),
 
-  FETCH_TIMELINE_POLL_DATA: ({ dispatch }) => dispatch(
-    'slplayer/FETCH_TIMELINE_POLL_DATA', null, { root: true },
-  ),
+  FETCH_TIMELINE_POLL_DATA: ({ dispatch }) => dispatch('slplayer/FETCH_TIMELINE_POLL_DATA', null, { root: true }),
 
   FETCH_JOIN_PLAYER_DATA: async ({ getters, dispatch }) => ({
     ...await dispatch('FETCH_TIMELINE_POLL_DATA'),

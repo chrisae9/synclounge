@@ -230,7 +230,9 @@ export default {
     await dispatch('CHANGE_SUBTITLES');
   },
 
-  HANDLE_CAST_STATUS_CHANGE: async ({ state, commit, getters, dispatch }) => {
+  HANDLE_CAST_STATUS_CHANGE: async ({
+    state, commit, getters, dispatch,
+  }) => {
     const casting = isCasting();
     if (casting === state.isCasting) {
       return;
