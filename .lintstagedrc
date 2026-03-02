@@ -1,5 +1,0 @@
-{
-  "*.{js,jsx,vue}": [
-    "npm run lint -- --fix"
-  ]
-}
