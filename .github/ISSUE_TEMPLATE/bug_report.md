@@ -5,8 +5,6 @@ labels: bug-report,needs-triage
 
 ---
 
-If you haven't already, be sure to check the **How-to Report an Issue page** before reporting an issue: https://docs.synclounge.tv/how-tos/report-an-issue/
-
 Please complete the following when reporting a bug/an issue.
 
 ### Web App

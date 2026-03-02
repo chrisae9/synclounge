@@ -2,35 +2,24 @@
 node_modules/
 dist/
 npm-debug.log
-test/unit/coverage
-test/e2e/reports
-selenium-debug.log
 .idea/
-ptinvites.json
-db.sqlite
-.tmp
 .vscode
+.tmp
 
-# local env files
 .env.local
 .env.*.local
-
-# Optional npm cache directory
 .npm
 
 .git
 .gitignore
 .github
-.travis.yml
-Dockerfile
-Dockerfile.web
+.browserslistrc
+.editorconfig
+.eslintrc.js
 .dockerignore
+Dockerfile
+screenshots/
 **/README.md
 **/LICENSE
-.releaserc
-.editorconfig
-.commitlintrc.js
-.huskyrc
-.lintstagedrc
 
 public/config.json

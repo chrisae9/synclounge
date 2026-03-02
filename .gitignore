@@ -2,20 +2,12 @@
 node_modules/
 dist/
 npm-debug.log
-test/unit/coverage
-test/e2e/reports
-selenium-debug.log
 .idea/
-ptinvites.json
-db.sqlite
-.tmp
 .vscode
+.tmp
 
-# local env files
 .env.local
 .env.*.local
-
-# Optional npm cache directory
 .npm
 
 public/config.json

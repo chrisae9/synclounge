@@ -1,8 +1,8 @@
 {
   "name": "synclounge",
-  "version": "0.0.0-semantically-released",
+  "version": "6.0.0",
   "description": "Synced playback of Plex content",
-  "author": "samcm",
+  "author": "Chris Alves",
   "bin": "./server.js",
   "files": [
     "dist",
@@ -14,10 +14,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src/",
-    "lint:style": "stylelint 'src/**/*.{vue,scss,css}'",
     "test": "node --test test/*.test.js",
-    "test:client": "vitest run",
-    "test:client:watch": "vitest",
     "prepare": "if-env SKIP_BUILD=true && echo 'Skipping build' || npm run build"
   },
   "dependencies": {
@@ -25,8 +22,6 @@
     "syncloungeserver": "^8.0.88"
   },
   "devDependencies": {
-    "@commitlint/cli": "^19.8.1",
-    "@commitlint/config-conventional": "^19.8.1",
     "@delucis/if-env": "^1.1.2",
     "@vitejs/plugin-vue": "^5.2.0",
     "@vue/test-utils": "^2.4.6",
@@ -40,17 +35,11 @@
     "eslint-plugin-vue": "^9.32.0",
     "fast-xml-parser": "^4.5.3",
     "happy-dom": "^20.7.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^15.5.2",
     "mux.js": "^6.3.0",
-    "postcss-html": "^1.8.0",
-    "postcss-sass": "^0.5.0",
     "sass": "^1.93.2",
     "shaka-player": "^4.16.13",
     "socket.io-client": "^4.8.3",
     "string-similarity": "^4.0.4",
-    "stylelint": "^14.16.1",
-    "stylelint-config-standard": "^29.0.0",
     "synclounge-libjass": "^1.0.0",
     "vanilla-tilt": "^1.8.1",
     "vite": "^6.0.0",
@@ -63,15 +52,15 @@
     "vuex-persistedstate": "^4.1.0"
   },
   "bugs": {
-    "url": "https://github.com/synclounge/synclounge/issues"
+    "url": "https://github.com/chrisae9/synclounge/issues"
   },
-  "homepage": "https://synclounge.tv",
+  "homepage": "https://lounge.chis.dev",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/synclounge/synclounge.git"
+    "url": "https://github.com/chrisae9/synclounge.git"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   }
 }
