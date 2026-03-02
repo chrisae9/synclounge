@@ -1,70 +1,88 @@
 <template>
-  <v-autocomplete
-    density="compact"
-    :items="items"
-    :loading="loading"
-    v-model:search="query"
-    prepend-icon="search"
-    no-filter
-    clearable
-    hide-details
-    variant="solo"
-    :item-title="getItemDisplayTitle"
-    no-data-text=""
-    :menu-props="{ maxHeight: '80vh', maxWidth: '500px' }"
+  <v-menu
+    v-model="menuOpen"
+    :close-on-content-click="false"
+    location="bottom start"
+    offset="5"
+    scroll-strategy="reposition"
+    min-width="300"
   >
-    <template
-      v-if="query"
-      #prepend-item
-    >
-      <v-list-item
+    <template #activator="{ props }">
+      <v-text-field
+        v-bind="props"
+        v-model="query"
         density="compact"
-        :to="linkWithRoom({ name: 'PlexSearch', params: { query } })"
-      >
-        <v-list-subheader>
-          Search all sources...
-        </v-list-subheader>
-      </v-list-item>
+        prepend-inner-icon="search"
+        placeholder="Search..."
+        hide-details
+        variant="solo"
+        clearable
+        :loading="loading"
+        @click:clear="clear"
+      />
     </template>
 
-    <template #item="{ item, props }">
-      <template v-if="item.raw.serverHeader">
-        <v-list-subheader
-          class="bg-secondary search-header"
-        >
-          {{ item.raw.serverHeader }}
-        </v-list-subheader>
-      </template>
+    <v-list
+      v-if="query || items.length"
+      density="compact"
+      class="py-0"
+      style="max-height: 80vh; max-width: 500px; overflow-y: auto;"
+    >
+      <v-list-item
+        v-if="query"
+        :to="linkWithRoom({ name: 'PlexSearch', params: { query } })"
+        @click="menuOpen = false"
+      >
+        <v-list-item-title class="text-caption text-disabled">
+          Search all sources...
+        </v-list-item-title>
+      </v-list-item>
 
-      <template v-else-if="item.raw.hubHeader">
+      <v-divider v-if="query && items.length" />
+
+      <template
+        v-for="(item, index) in items"
+        :key="index"
+      >
         <v-list-subheader
+          v-if="item.serverHeader"
+          class="search-header text-uppercase font-weight-bold"
+        >
+          {{ item.serverHeader }}
+        </v-list-subheader>
+
+        <v-list-subheader
+          v-else-if="item.hubHeader"
           class="text-overline search-header"
         >
-          {{ item.raw.hubHeader }}
+          {{ item.hubHeader }}
         </v-list-subheader>
-      </template>
 
-      <template v-else>
         <v-list-item
-          density="compact"
-          v-bind="props"
-          :to="contentLink(item.raw)"
+          v-else
+          :to="contentLink(item)"
           @click="clear"
         >
           <template #prepend>
-            <v-avatar size="42" rounded="0">
+            <v-avatar
+              rounded="0"
+              width="28"
+              height="42"
+              class="mr-3"
+            >
               <v-img
-                :src="getImgUrl(item.raw)"
+                :src="getImgUrl(item)"
+                cover
               />
             </v-avatar>
           </template>
 
-          <v-list-item-title> {{ getTitle(item.raw) }} </v-list-item-title>
-          <v-list-item-subtitle> {{ getItemSecondaryTitle(item.raw) }} </v-list-item-subtitle>
+          <v-list-item-title> {{ getTitle(item) }} </v-list-item-title>
+          <v-list-item-subtitle> {{ getItemSecondaryTitle(item) }} </v-list-item-subtitle>
         </v-list-item>
       </template>
-    </template>
-  </v-autocomplete>
+    </v-list>
+  </v-menu>
 </template>
 
 <script>
@@ -102,6 +120,7 @@ export default {
     items: [],
     query: null,
     abortController: null,
+    menuOpen: false,
   }),
 
   computed: {
@@ -128,7 +147,12 @@ export default {
   },
 
   watch: {
-    query() {
+    query(newVal) {
+      if (newVal && newVal.length > 0) {
+        this.menuOpen = true;
+      } else {
+        this.menuOpen = false;
+      }
       return this.searchServers();
     },
   },
@@ -141,12 +165,6 @@ export default {
     ...mapActions('plexservers', [
       'SEARCH_PLEX_SERVER_HUB',
     ]),
-
-    getItemDisplayTitle(item) {
-      if (item.serverHeader) return item.serverHeader;
-      if (item.hubHeader) return item.hubHeader;
-      return item.title || '';
-    },
 
     getItemSecondaryTitle(item) {
       return item.reason
@@ -192,6 +210,7 @@ export default {
       this.query = null;
       this.items = [];
       this.loading = false;
+      this.menuOpen = false;
     },
 
     async searchServersCriticalSection(signal) {
@@ -256,6 +275,6 @@ export default {
 .v-list-item.search-header,
 .v-list-subheader.search-header {
   height: unset;
-  min-height: unset;
+  min-height: 32px;
 }
 </style>
