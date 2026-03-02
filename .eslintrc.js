@@ -8,18 +8,25 @@ module.exports = {
   },
   extends: ['plugin:vue/vue3-recommended', 'airbnb-base'],
   parserOptions: {
-    ecmaVersion: 2020,
+    ecmaVersion: 'latest',
     sourceType: 'module',
   },
   rules: {
     'max-len': [
       'error',
       {
-        code: 100,
+        code: 120,
       },
     ],
 
     'no-console': 'off',
+    'no-param-reassign': ['error', {
+      props: true,
+      ignorePropertyModificationsFor: ['state', 'el'],
+    }],
+    'no-restricted-syntax': 'off',
+    'no-underscore-dangle': 'off',
+    'class-methods-use-this': 'off',
     'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
     'vuejs-accessibility/alt-text': 'off',
     'vuejs-accessibility/mouse-events-have-key-events': 'off',

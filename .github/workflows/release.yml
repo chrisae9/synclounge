@@ -28,6 +28,8 @@ jobs:
         env:
           SKIP_BUILD: true
 
+      - run: npm run build
+
       - run: npm test
 
   release:

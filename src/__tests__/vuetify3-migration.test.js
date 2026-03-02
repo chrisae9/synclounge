@@ -1,10 +1,13 @@
+/* eslint-disable max-classes-per-file */
 /**
  * Vuetify 3 migration tests
  *
  * Verifies that the Vue 2 → Vue 3 + Vuetify 2 → Vuetify 3 migration
  * did not break key behaviors across the application.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  describe, it, expect, vi, beforeEach,
+} from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 import { createStore } from 'vuex';
 import { createVuetify } from 'vuetify';
@@ -242,7 +245,9 @@ function mountOptions(store, extraOpts = {}) {
         RouterView: true,
       },
       mocks: {
-        $route: { name: 'Test', params: {}, query: {}, fullPath: '/', matched: [] },
+        $route: {
+          name: 'Test', params: {}, query: {}, fullPath: '/', matched: [],
+        },
         $router: { push: vi.fn() },
       },
     },
@@ -904,7 +909,7 @@ describe('TheSettingsDialog Form Controls', () => {
     for (const match of selectMatches) {
       const tag = match[0];
       const usesModelValue = tag.includes(':model-value') || tag.includes('v-model');
-      expect(usesModelValue, `v-select uses old :value binding`).toBe(true);
+      expect(usesModelValue, 'v-select uses old :value binding').toBe(true);
     }
   });
 
@@ -951,4 +956,3 @@ describe('Expansion Panel Migration', () => {
     }
   });
 });
-

@@ -460,9 +460,12 @@ export default {
 
   FETCH_AND_SET_RANDOM_BACKGROUND_IMAGE: async ({ dispatch, getters }, params) => {
     await dispatch('plex/FETCH_PLEX_DEVICES_IF_NEEDED', null, { root: true });
-    if (!getters.GET_CONNECTABLE_PLEX_SERVER_IDS.length) return;
+    if (!getters.GET_CONNECTABLE_PLEX_SERVER_IDS.length) {
+      return;
+    }
+
     const item = await dispatch('FETCH_RANDOM_ITEM', params);
-    return dispatch('SET_MEDIA_AS_BACKGROUND', item);
+    await dispatch('SET_MEDIA_AS_BACKGROUND', item);
   },
 
   SEARCH_PLEX_SERVER_HUB: async ({ dispatch }, {
