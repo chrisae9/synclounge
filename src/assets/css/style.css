@@ -10,6 +10,7 @@ h4 {
 main {
   background: #2b5876;
   background: linear-gradient(to bottom, #1f1c2c, #182848);
+  background-attachment: fixed;
 }
 
 .pt-content-progress {
@@ -17,7 +18,13 @@ main {
   background: white;
 }
 
-/* Scrollbar */
+/* Scrollbar — Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(229 160 13 / 60%) #353e58;
+}
+
+/* Scrollbar — WebKit */
 ::-webkit-scrollbar {
   /* remove scrollbar space */
   background: transparent;

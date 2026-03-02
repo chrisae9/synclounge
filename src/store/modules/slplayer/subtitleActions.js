@@ -63,6 +63,7 @@ export default {
     const libjass = await import('synclounge-libjass');
 
     if (!videoClock) {
+      console.debug('GET_OR_MAKE_VIDEO_CLOCK: creating new VideoClock');
       videoClock = new VideoClock(
         getMediaElement(),
         new libjass.renderers.AutoClock(() => Math.max(getCurrentTime()
@@ -158,21 +159,26 @@ export default {
   },
 
   MAKE_ASS: async ({ getters }) => {
-    console.debug('MAKE_ASS');
+    const subtitleUrl = makeUrl(
+      getters.GET_SUBTITLE_BASE_URL,
+      getters.GET_DECISION_AND_START_PARAMS,
+    );
+    console.debug('MAKE_ASS: fetching subtitles from:', subtitleUrl);
+
     const libjass = await import('synclounge-libjass');
+
     assAbortController = new AbortController();
 
     const stream = resiliantStreamFactory(
-      makeUrl(
-        getters.GET_SUBTITLE_BASE_URL,
-        getters.GET_DECISION_AND_START_PARAMS,
-      ),
+      subtitleUrl,
       assAbortController.signal,
     );
 
     const useSrtParser = getters.CAN_DIRECT_PLAY_SUBTITLES
       && (getters.GET_SUBTITLE_STREAM.codec === 'srt'
         || getters.GET_SELECTED_SUBTITLE_STREAM.codec === 'srt');
+
+    console.debug('MAKE_ASS: parser:', useSrtParser ? 'SRT' : 'ASS');
 
     const parser = useSrtParser
       ? new libjass.parser.SrtStreamParser(stream)
@@ -203,30 +209,37 @@ export default {
   },
 
   SET_SUBTITLE_URL: async ({ dispatch }) => {
+    console.debug('SET_SUBTITLE_URL: starting');
     await dispatch('DESTROY_ASS');
 
     try {
       const ass = await dispatch('MAKE_ASS');
 
       if (subtitleRenderer) {
+        console.debug('SET_SUBTITLE_URL: updating existing renderer');
         // eslint-disable-next-line no-underscore-dangle
         subtitleRenderer._ass = ass;
       } else {
+        console.debug('SET_SUBTITLE_URL: creating new renderer');
         await dispatch('INIT_SUBTITLE_RENDERER', ass);
       }
 
       await dispatch('PUBLISH_SUBTITLE_SIZE');
       await dispatch('RERENDER_SUBTITLE_CONTAINER');
+      console.debug('SET_SUBTITLE_URL: complete');
     } catch (e) {
       if (assAbortController) {
         // If there is no abort controller, we have just aborted
         // If there is one, then something went wrong
+        console.warn('SET_SUBTITLE_URL: error loading subtitles:', e.message);
         throw e;
       }
+      console.debug('SET_SUBTITLE_URL: aborted (intentional)');
     }
   },
 
   DESTROY_SUBTITLES: async ({ dispatch }) => {
+    console.debug('DESTROY_SUBTITLES');
     if (videoClock) {
     // eslint-disable-next-line no-underscore-dangle
       videoClock._autoClock._manualClock._eventListeners.clear();

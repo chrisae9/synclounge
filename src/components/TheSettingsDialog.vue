@@ -1,5 +1,10 @@
 <template>
-  <v-dialog max-width="400">
+  <v-dialog
+    v-model="dialogOpen"
+    max-width="400"
+    :fullscreen="$vuetify.display.smAndDown"
+    scrollable
+  >
     <template #activator="{ props }">
       <slot
         :props="props"
@@ -7,6 +12,21 @@
     </template>
 
     <v-card>
+      <v-toolbar
+        v-if="$vuetify.display.smAndDown"
+        density="compact"
+        color="surface"
+      >
+        <v-toolbar-title>Settings</v-toolbar-title>
+        <v-spacer />
+        <v-btn
+          icon
+          @click="dialogOpen = false"
+        >
+          <v-icon>close</v-icon>
+        </v-btn>
+      </v-toolbar>
+
       <v-list>
         <v-list-subheader>Web Player</v-list-subheader>
 
@@ -257,10 +277,10 @@
         </v-list-item>
 
         <v-list-item>
-          <v-list-item-title>Blocked Servers</v-list-item-title>
+          <v-list-item-title>Disabled Servers</v-list-item-title>
 
           <v-list-item-subtitle>
-            Prevent searching certain servers when attempting to autoplay content
+            Disabled servers are excluded from search and autoplay
           </v-list-item-subtitle>
 
           <v-select
@@ -268,7 +288,7 @@
             density="compact"
             hide-details
             multiple
-            placeholder="None"
+            placeholder="None (all enabled)"
             :items="localServersList"
             item-value="id"
             item-title="name"
@@ -298,6 +318,8 @@ export default {
   name: 'TheSettingsDialog',
 
   data: () => ({
+    dialogOpen: false,
+
     syncMethods: [
       { title: 'Clean Seek', value: 'cleanseek' },
       { title: 'Skip Ahead', value: 'skipahead' },

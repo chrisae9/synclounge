@@ -23,12 +23,12 @@
             />
           </v-card-title>
 
-          <v-card-actions>
+          <v-card-actions class="justify-center pa-4">
             <v-btn
               color="primary"
               target="_blank"
               size="x-large"
-              variant="text"
+              variant="flat"
               :disabled="allowSignIn"
               :href="plexAuthUrl"
               @click="authenticate"

@@ -77,27 +77,34 @@ const getH265Mime = ({ profile, level }) => {
 
 export const isVideoSupported = (videoStream) => {
   const { codec } = videoStream;
-  console.log('Videostream codec:', codec);
+  let mime;
   switch (codec) {
     case 'h264': {
-      return MediaSource.isTypeSupported(getH264Mime(videoStream));
+      mime = getH264Mime(videoStream);
+      break;
     }
 
     case 'h265':
     case 'hev1':
     case 'hevc': {
-      return MediaSource.isTypeSupported(getH265Mime(videoStream));
+      mime = getH265Mime(videoStream);
+      break;
     }
 
     case 'av1': {
       // TODO: replace with proper AV1 mime type forming
-      return MediaSource.isTypeSupported('video/mp4; codecs="av01.0.00M.08"');
+      mime = 'video/mp4; codecs="av01.0.00M.08"';
+      break;
     }
 
     default: {
-      return MediaSource.isTypeSupported(`video/mp4; codecs="${codec}`);
+      mime = `video/mp4; codecs="${codec}"`;
+      break;
     }
   }
+  const supported = MediaSource.isTypeSupported(mime);
+  console.debug(`isVideoSupported: ${codec} → ${mime} → ${supported}`);
+  return supported;
 };
 
 const aacProfiles = {
@@ -117,23 +124,35 @@ const getAACMime = (profile) => {
 };
 
 export const isAudioSupported = ({ codec, profile }) => {
-  console.log('isAudioSupported', codec);
+  let mime;
   switch (codec) {
     case 'aac': {
-      return MediaSource.isTypeSupported(getAACMime(profile));
+      mime = getAACMime(profile);
+      break;
     }
 
     default: {
-      return MediaSource.isTypeSupported(`audio/mp4; codecs="${codec}`);
+      mime = `audio/mp4; codecs="${codec}"`;
+      break;
     }
   }
+  const supported = MediaSource.isTypeSupported(mime);
+  console.debug(`isAudioSupported: ${codec} → ${mime} → ${supported}`);
+  return supported;
 };
 
 const supportedContainers = [
   'mp4',
+  'mkv',
   'webm',
   'ogg',
   'wav',
 ];
 
-export const isContainerSupported = ({ container }) => supportedContainers.includes(container);
+export const isContainerSupported = ({ container }) => {
+  const supported = supportedContainers.includes(container);
+  if (!supported) {
+    console.debug(`isContainerSupported: '${container}' not in [${supportedContainers}]`);
+  }
+  return supported;
+};

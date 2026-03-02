@@ -17,12 +17,19 @@ shaka.polyfill.installAll();
 const initialize = async ({
   mediaElement, playerConfig, videoContainer, overlayConfig,
 }) => {
-  setPlayer(new shaka.Player());
-  await getPlayer().attach(mediaElement, false);
-  getPlayer().configure(playerConfig);
+  console.debug('Shaka player initializing');
+  try {
+    setPlayer(new shaka.Player());
+    await getPlayer().attach(mediaElement, false);
+    getPlayer().configure(playerConfig);
 
-  setOverlay(new shaka.ui.Overlay(getPlayer(), videoContainer, mediaElement));
-  getOverlay().configure(overlayConfig);
+    setOverlay(new shaka.ui.Overlay(getPlayer(), videoContainer, mediaElement));
+    getOverlay().configure(overlayConfig);
+    console.debug('Shaka player initialized, version:', shaka.Player.version);
+  } catch (e) {
+    console.error('Shaka player initialization failed:', e);
+    throw e;
+  }
 };
 
 export default initialize;

@@ -5,10 +5,22 @@
     location="right"
     class="pa-0"
     width="300"
+    :temporary="$vuetify.display.mdAndDown"
     @update:model-value="SET_RIGHT_SIDEBAR_OPEN"
   >
     <template #prepend>
-      <v-list-item>
+      <v-list-item class="pa-1">
+        <template #prepend>
+          <v-btn
+            icon
+            size="small"
+            variant="text"
+            @click="SET_RIGHT_SIDEBAR_OPEN(false)"
+          >
+            <v-icon>chevron_right</v-icon>
+          </v-btn>
+        </template>
+
         <v-list-item-subtitle
           v-if="Object.keys(GET_USERS).length != 1"
           class="participant-count"
@@ -26,6 +38,8 @@
         <template #append>
           <v-btn
             icon
+            size="small"
+            variant="text"
             @click="DISCONNECT_AND_NAVIGATE_HOME"
           >
             <v-icon>exit_to_app</v-icon>
@@ -73,7 +87,7 @@
       </v-tooltip>
 
       <v-list-item
-        v-if="(!AM_I_HOST || usingPlexClient)
+        v-if="!AM_I_HOST
           && GET_HOST_USER && GET_HOST_USER.state !== 'stopped'"
         density="compact"
       >
@@ -128,8 +142,6 @@ import {
   mapActions, mapGetters, mapMutations, mapState,
 } from 'vuex';
 
-import { slPlayerClientId } from '@/player/constants';
-
 export default {
   name: 'TheSidebarRight',
 
@@ -142,10 +154,6 @@ export default {
   computed: {
     ...mapState(['isRightSidebarOpen']),
 
-    ...mapGetters('plexclients', [
-      'GET_CHOSEN_CLIENT_ID',
-    ]),
-
     ...mapGetters('synclounge', [
       'IS_PARTY_PAUSING_ENABLED',
       'IS_AUTO_HOST_ENABLED',
@@ -153,10 +161,6 @@ export default {
       'GET_HOST_USER',
       'AM_I_HOST',
     ]),
-
-    usingPlexClient() {
-      return this.GET_CHOSEN_CLIENT_ID !== slPlayerClientId;
-    },
   },
 
   methods: {

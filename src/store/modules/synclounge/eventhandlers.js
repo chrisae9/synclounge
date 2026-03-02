@@ -59,7 +59,7 @@ export default {
   },
 
   HANDLE_DISCONNECT: async ({ dispatch }) => {
-    console.log('disconnect');
+    console.warn('HANDLE_DISCONNECT: lost connection to SyncLounge server');
     await dispatch('DISPLAY_NOTIFICATION', {
       text: 'Disconnected from the SyncLounge server',
       color: 'info',
@@ -67,7 +67,7 @@ export default {
   },
 
   HANDLE_RECONNECT: async ({ dispatch, commit }) => {
-    console.log('Rejoining');
+    console.debug('HANDLE_RECONNECT: attempting to rejoin room');
     await waitForEvent('slPing');
     commit('SET_SOCKET_ID', getId());
 
@@ -92,11 +92,43 @@ export default {
   },
 
   HANDLE_PLAYER_STATE_UPDATE: async ({ getters, dispatch, commit }, data) => {
+    console.debug('HANDLE_PLAYER_STATE_UPDATE:', {
+      from: data.id, isHost: data.id === getters.GET_HOST_ID, state: data.state, time: data.time,
+    });
+
+    const previousUser = getters.GET_USER(data.id);
+    const previousState = previousUser?.state;
+    const previousTime = previousUser?.time;
     commit('SET_USER_PLAYER_STATE', data);
+
+    if (data.state === 'buffering' && previousState !== 'buffering'
+      && data.id !== getters.GET_SOCKET_ID) {
+      const user = getters.GET_USER(data.id);
+      if (user) {
+        dispatch('DISPLAY_NOTIFICATION', {
+          text: `${user.username} is buffering...`,
+          color: 'info',
+        }, { root: true });
+      }
+    }
 
     if (data.id === getters.GET_HOST_ID) {
       await dispatch('CANCEL_IN_PROGRESS_SYNC');
       await dispatch('SYNC_PLAYER_STATE');
+    } else if (data.id !== getters.GET_SOCKET_ID && getters.AM_I_HOST
+      && previousTime != null && Math.abs(data.time - previousTime) > 5000
+      && data.state !== 'buffering') {
+      // Non-host user seeked (time jump > 5s) — follow their seek
+      const user = getters.GET_USER(data.id);
+      console.debug('Non-host seek detected from', user?.username, 'seeking to', data.time);
+      await dispatch('DISPLAY_NOTIFICATION', {
+        text: `${user?.username} seeked`,
+        color: 'info',
+      }, { root: true });
+      await dispatch('CANCEL_IN_PROGRESS_SYNC');
+      await dispatch('plexclients/SEEK_TO', {
+        offset: data.time,
+      }, { root: true });
     }
   },
 
@@ -105,6 +137,9 @@ export default {
   }, {
     id, state, time, duration, media, makeHost,
   }) => {
+    console.debug('HANDLE_MEDIA_UPDATE:', {
+      from: id, isHost: id === getters.GET_HOST_ID, title: media?.title, state, makeHost,
+    });
     commit('SET_USER_PLAYER_STATE', {
       id,
       state,

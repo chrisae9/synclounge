@@ -22,6 +22,8 @@ const state = () => ({
   // before the media is loaded
   maskPlayerState: false,
   isInPictureInPicture: false,
+  isCasting: false,
+  castStatusListener: null,
 
   // Subtitle state
   originalSubtitleResolutionXCache: null,
@@ -32,6 +34,7 @@ const state = () => ({
   subtitleColor: subtitleColors.White,
   subtitleOffset: 0,
   streamingProtocol: 'dash',
+  isChangingSource: false,
   forceTranscodeRetry: false,
   forceBurnSubtitles: false,
   allowDirectPlay: true,

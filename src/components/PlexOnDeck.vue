@@ -39,7 +39,7 @@
       <v-col
         v-for="content in subsetOnDeck"
         :key="content.key"
-        cols="12"
+        cols="6"
         sm="4"
         md="3"
         xl="2"
@@ -47,7 +47,7 @@
         <PlexThumbnail
           :content="content"
           type="art"
-          cols="12"
+          cols="6"
           sm="4"
           md="3"
           xl="2"
@@ -85,7 +85,7 @@ export default {
     onDeckItemsPer() {
       switch (this.$vuetify.display.name) {
         case 'xs':
-          return 1;
+          return 2;
         case 'sm':
           return 3;
         case 'md':
@@ -152,7 +152,7 @@ export default {
       if (this.onDeckOffset - this.onDeckItemsPer < 0) {
         this.onDeckOffset = 0;
       } else {
-        this.onDeckOffset -= 4;
+        this.onDeckOffset -= this.onDeckItemsPer;
       }
     },
 

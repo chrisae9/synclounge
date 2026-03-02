@@ -4,6 +4,79 @@
     fluid
   >
     <v-row
+      v-if="!IS_LIBRARY_LIST_VIEW"
+      no-gutters
+      align="center"
+      class="mb-2 px-1"
+    >
+      <v-col cols="auto">
+        <v-select
+          v-model="gridSort"
+          density="compact"
+          hide-details
+          variant="outlined"
+          :items="sortOptions[library.type] || sortOptions.movie"
+          item-title="title"
+          item-value="value"
+          style="min-width: 160px;"
+        />
+      </v-col>
+
+      <v-col
+        cols="auto"
+        class="ml-2"
+      >
+        <v-btn
+          :icon="gridSortDesc ? 'arrow_downward' : 'arrow_upward'"
+          size="small"
+          variant="text"
+          @click="gridSortDesc = !gridSortDesc"
+        />
+      </v-col>
+
+      <v-spacer />
+
+      <v-col
+        cols="auto"
+        class="d-none d-sm-block"
+      >
+        <div class="d-flex align-center flex-wrap">
+          <v-btn
+            size="x-small"
+            variant="text"
+            :color="!activeFirstCharacter ? 'primary' : undefined"
+            class="letter-btn"
+            @click="setFirstCharacter(null)"
+          >
+            All
+          </v-btn>
+
+          <v-btn
+            size="x-small"
+            variant="text"
+            :color="activeFirstCharacter === '#' ? 'primary' : undefined"
+            class="letter-btn"
+            @click="setFirstCharacter('#')"
+          >
+            #
+          </v-btn>
+
+          <v-btn
+            v-for="letter in alphabet"
+            :key="letter"
+            size="x-small"
+            variant="text"
+            :color="activeFirstCharacter === letter ? 'primary' : undefined"
+            class="letter-btn"
+            @click="setFirstCharacter(letter)"
+          >
+            {{ letter }}
+          </v-btn>
+        </div>
+      </v-col>
+    </v-row>
+
+    <v-row
       v-if="IS_LIBRARY_LIST_VIEW"
       no-gutters
       class="ma-n3"
@@ -67,12 +140,33 @@
           xl="1"
         />
       </v-col>
+
+      <template v-if="childrenAbortController">
+        <v-col
+          v-for="n in 6"
+          :key="`skeleton-${n}`"
+          cols="4"
+          sm="3"
+          md="2"
+          xl="1"
+        >
+          <v-skeleton-loader type="image, text" />
+        </v-col>
+      </template>
     </v-row>
 
     <v-row
       v-if="!stopNewContent"
       v-intersect="onIntersect"
-    />
+      justify="center"
+      class="py-4"
+    >
+      <v-progress-circular
+        v-if="childrenAbortController"
+        indeterminate
+        color="primary"
+      />
+    </v-row>
   </v-container>
 </template>
 
@@ -113,6 +207,28 @@ export default {
     sortByArray: [],
     backgroundAbortController: null,
     childrenAbortController: null,
+    gridSort: 'titleSort',
+    gridSortDesc: false,
+    activeFirstCharacter: null,
+    alphabet: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
+
+    sortOptions: {
+      movie: [
+        { title: 'Title', value: 'titleSort' },
+        { title: 'Year', value: 'year' },
+        { title: 'Date Added', value: 'addedAt' },
+        { title: 'Rating', value: 'rating' },
+        { title: 'Duration', value: 'duration' },
+      ],
+
+      show: [
+        { title: 'Title', value: 'titleSort' },
+        { title: 'Year', value: 'year' },
+        { title: 'Date Added', value: 'addedAt' },
+        { title: 'Rating', value: 'rating' },
+        { title: 'Unplayed', value: 'unviewedLeafCount' },
+      ],
+    },
 
     headers: {
       show: [
@@ -153,6 +269,9 @@ export default {
     combinedSortKey() {
       return {
         sortByArray: this.sortByArray,
+        gridSort: this.gridSort,
+        gridSortDesc: this.gridSortDesc,
+        activeFirstCharacter: this.activeFirstCharacter,
       };
     },
 
@@ -166,20 +285,18 @@ export default {
     },
 
     sortParam() {
-      if (this.sortByArray.length > 0) {
-        const sortField = this.sortByArray[0].key === 'viewedLeafCount'
-          ? 'unviewedLeafCount'
-          : this.sortByArray[0].key;
-        const isDesc = this.sortByArray[0].order === 'desc';
-
-        const sortOption = isDesc
-          ? ':desc'
-          : '';
-
-        return `${sortField}${sortOption}`;
+      if (this.IS_LIBRARY_LIST_VIEW) {
+        if (this.sortByArray.length > 0) {
+          const sortField = this.sortByArray[0].key === 'viewedLeafCount'
+            ? 'unviewedLeafCount'
+            : this.sortByArray[0].key;
+          const isDesc = this.sortByArray[0].order === 'desc';
+          return `${sortField}${isDesc ? ':desc' : ''}`;
+        }
+        return '';
       }
 
-      return '';
+      return `${this.gridSort}${this.gridSortDesc ? ':desc' : ''}`;
     },
 
     library() {
@@ -201,6 +318,9 @@ export default {
         this.stopNewContent = false;
         this.contents = [];
         this.itemsPerPage = 0;
+        this.activeFirstCharacter = null;
+        this.gridSort = 'titleSort';
+        this.gridSortDesc = false;
         this.setupCrumbs();
         return this.fetchRandomBackground();
       },
@@ -219,6 +339,9 @@ export default {
       this.contents = [];
       this.itemsPerPage = 0;
       this.sortByArray = [];
+      this.gridSort = 'titleSort';
+      this.gridSortDesc = false;
+      this.activeFirstCharacter = null;
       this.abortChildrenRequests();
     },
   },
@@ -275,6 +398,10 @@ export default {
       this.$router.push(this.contentLink(item));
     },
 
+    setFirstCharacter(char) {
+      this.activeFirstCharacter = char;
+    },
+
     abortBackgroundRequests() {
       if (this.backgroundAbortController) {
         // Cancel outstanding request
@@ -308,6 +435,7 @@ export default {
         start: this.itemsPerPage,
         size: this.batchSize,
         sort: this.sortParam,
+        firstCharacter: this.activeFirstCharacter,
         signal,
       });
 
@@ -376,5 +504,10 @@ export default {
 
 .v-data-table :deep(.v-data-table__wrapper) {
   overflow: unset;
+}
+
+.letter-btn {
+  min-width: 28px !important;
+  padding: 0 2px !important;
 }
 </style>

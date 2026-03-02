@@ -1,7 +1,6 @@
 import promiseutils from '@/utils/promiseutils';
 import { fetchJson, queryFetch } from '@/utils/fetchutils';
 import { difference } from '@/utils/lightlodash';
-import { slPlayerClientId } from '@/player/constants';
 
 export default {
   FETCH_PLEX_INIT_AUTH: async ({ getters }, signal) => fetchJson(
@@ -49,10 +48,6 @@ export default {
   _FETCH_PLEX_DEVICES: async ({
     state: { areDevicesCached }, commit, dispatch, getters, rootGetters,
   }) => {
-    // Store old list of server/client ids, to be able to take difference after the update and
-    // find devices that weren't updated and remove them
-    const oldClientIds = rootGetters['plexclients/GET_PLEX_CLIENT_IDS']
-      .filter((clientId) => clientId !== slPlayerClientId);
     const oldServersIds = rootGetters['plexservers/GET_PLEX_SERVER_IDS'];
 
     const devices = await fetchJson('https://plex.tv/api/v2/resources', {
@@ -62,12 +57,7 @@ export default {
     });
 
     await Promise.allSettled(devices.map(async (device) => {
-      if (device.provides.indexOf('player') !== -1) {
-        // This is a Client
-        commit('plexclients/ADD_PLEX_CLIENT', device, { root: true });
-      } else if (device.provides.indexOf('server') !== -1) {
-        // This is a Server
-        // TODO: potentially find connections async and not hold up the fetch devices
+      if (device.provides.indexOf('server') !== -1) {
         try {
           const chosenConnection = await dispatch('FIND_WORKING_CONNECTION_PREFERRED', {
             name: device.name,
@@ -99,16 +89,6 @@ export default {
       }
     }));
 
-    // Find devices that weren't updated
-    const staleClientIds = difference([
-      oldClientIds,
-      rootGetters['plexclients/GET_PLEX_CLIENT_IDS'],
-    ]);
-
-    staleClientIds.forEach((clientId) => {
-      commit('plexclients/DELETE_PLEX_CLIENT', clientId, { root: true });
-    });
-
     const staleServerIds = difference([
       oldServersIds,
       rootGetters['plexservers/GET_PLEX_SERVER_IDS'],
@@ -117,8 +97,6 @@ export default {
     staleServerIds.forEach((serverId) => {
       commit('plexservers/DELETE_PLEX_SERVER', serverId, { root: true });
     });
-
-    commit('plexclients/UPDATE_SLPLAYER_LAST_SEEN_TO_NOW', null, { root: true });
 
     if (!areDevicesCached) {
       commit('SET_ARE_DEVICES_CACHED', true);

@@ -125,7 +125,7 @@ export default {
 
   computed: {
     ...mapGetters('plexservers', [
-      'GET_CONNECTABLE_PLEX_SERVER_IDS',
+      'GET_ENABLED_PLEX_SERVER_IDS',
       'GET_PLEX_SERVER',
       'GET_MEDIA_IMAGE_URL',
     ]),
@@ -133,7 +133,7 @@ export default {
     servers() {
       return this.machineIdentifier
         ? [this.machineIdentifier]
-        : this.GET_CONNECTABLE_PLEX_SERVER_IDS;
+        : this.GET_ENABLED_PLEX_SERVER_IDS;
     },
 
     searchParams() {

@@ -9,7 +9,9 @@ export const makeUrl = (url, params) => {
 const safeFetch = async (...args) => {
   const response = await fetch(...args);
   if (!response.ok) {
-    throw new Error(response.statusText);
+    const url = typeof args[0] === 'string' ? args[0] : args[0]?.url;
+    console.warn(`HTTP ${response.status} ${response.statusText}: ${url}`);
+    throw new Error(`${response.status} ${response.statusText}`);
   }
 
   return response;

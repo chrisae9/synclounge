@@ -15,6 +15,7 @@ const makeReaderDecoder = (encoding, reader) => {
 
 // https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read
 async function* fetchLineGenerator(url, signal) {
+  console.debug('fetchLineGenerator: starting stream from:', url);
   const reader = await fetchBodyReader(url, null, { signal });
 
   const readerDecoder = makeReaderDecoder('utf-8', reader);
@@ -53,6 +54,9 @@ const extractValue = async (nextPromise) => {
       ? null
       : value;
   } catch (e) {
+    if (e.name !== 'AbortError') {
+      console.warn('Subtitle stream error:', e.message);
+    }
     return null;
   }
 };

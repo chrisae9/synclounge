@@ -23,36 +23,6 @@
         </v-col>
       </v-row>
 
-      <v-stepper
-        v-model="e1"
-        style="background: rgb(0 0 0 / 30%);"
-        class="ma-4"
-      >
-        <v-stepper-header>
-          <v-stepper-item
-            value="1"
-            :complete="true"
-          >
-            Select a client
-          </v-stepper-item>
-
-          <v-divider />
-
-          <v-stepper-item
-            value="2"
-            :complete="false"
-          >
-            Join a server
-          </v-stepper-item>
-
-          <v-divider />
-
-          <v-stepper-item value="3">
-            Sync
-          </v-stepper-item>
-        </v-stepper-header>
-      </v-stepper>
-
       <v-row
         justify="center"
       >
@@ -209,21 +179,17 @@ import {
   mapActions, mapGetters, mapMutations, mapState,
 } from 'vuex';
 import { getRandomRoomId } from '@/utils/random';
-import redirection from '@/mixins/redirection';
 import linkWithRoom from '@/mixins/linkwithroom';
-import { slPlayerClientId } from '@/player/constants';
 
 export default {
   name: 'AdvancedRoomJoin',
 
   mixins: [
-    redirection,
     linkWithRoom,
   ],
 
   data: () => ({
     serverError: null,
-    e1: 2,
     connectionPending: false,
     testConnectionInterval: null,
   }),
@@ -231,11 +197,6 @@ export default {
   computed: {
     ...mapGetters([
       'GET_CONFIG',
-    ]),
-
-    ...mapGetters('plexclients', [
-      'GET_CHOSEN_CLIENT_ID',
-      'GET_ACTIVE_MEDIA_METADATA',
     ]),
 
     ...mapGetters('synclounge', [
@@ -254,7 +215,6 @@ export default {
   async created() {
     await this.FETCH_SERVERS_HEALTH();
 
-    // TODO: rewrite this with a generator
     this.testConnectionInterval = setInterval(
       () => this.FETCH_SERVERS_HEALTH(),
       5000,
@@ -309,11 +269,7 @@ export default {
         });
 
         if (this.$route.name === 'AdvancedRoomJoin') {
-          if (this.GET_CHOSEN_CLIENT_ID === slPlayerClientId || !this.GET_ACTIVE_MEDIA_METADATA) {
-            this.$router.push(this.linkWithRoom({ name: 'PlexHome' }));
-          } else {
-            this.redirectToMediaPage();
-          }
+          this.$router.push(this.linkWithRoom({ name: 'PlexHome' }));
         }
       } catch (e) {
         this.DISCONNECT_IF_CONNECTED();

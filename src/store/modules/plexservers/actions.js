@@ -164,8 +164,8 @@ export default {
     };
   },
 
-  SEARCH_UNBLOCKED_PLEX_SERVERS: ({ getters, dispatch }, query) => Promise.allSettled(
-    getters.GET_UNBLOCKED_PLEX_SERVER_IDS.map((machineIdentifier) => dispatch(
+  SEARCH_ENABLED_PLEX_SERVERS: ({ getters, dispatch }, query) => Promise.allSettled(
+    getters.GET_ENABLED_PLEX_SERVER_IDS.map((machineIdentifier) => dispatch(
       'SEARCH_PLEX_SERVER',
       {
         machineIdentifier,
@@ -176,7 +176,7 @@ export default {
 
   FIND_BEST_MEDIA_MATCH: async ({ getters, dispatch }, hostTimeline) => {
     // If we have access the same server, play same content
-    if (getters.IS_PLEX_SERVER_UNBLOCKED(hostTimeline.machineIdentifier)) {
+    if (getters.IS_PLEX_SERVER_ENABLED(hostTimeline.machineIdentifier)) {
       try {
         const metadata = await dispatch('FETCH_PLEX_METADATA', {
           ratingKey: hostTimeline.ratingKey,
@@ -192,7 +192,7 @@ export default {
       }
     }
 
-    const results = await dispatch('SEARCH_UNBLOCKED_PLEX_SERVERS', hostTimeline.title);
+    const results = await dispatch('SEARCH_ENABLED_PLEX_SERVERS', hostTimeline.title);
     if (results.length <= 0) {
       return null;
     }
@@ -347,7 +347,7 @@ export default {
   FETCH_LIBRARY_ALL: async (
     { dispatch },
     {
-      machineIdentifier, sectionId, start, size, sort, signal, ...rest
+      machineIdentifier, sectionId, start, size, sort, firstCharacter, signal, ...rest
     },
   ) => {
     const { MediaContainer } = await dispatch('FETCH_PLEX_SERVER', {
@@ -357,6 +357,7 @@ export default {
         'X-Plex-Container-Start': start,
         'X-Plex-Container-Size': size,
         ...(sort && { sort }),
+        ...(firstCharacter && { firstCharacter }),
         includeCollections: 0,
         includeAdvanced: 1,
         includeMeta: 1,

@@ -7,7 +7,8 @@ import {
   isMediaElementAttached, isPlaying, isPresentationPaused, isBuffering, getVolume, isPaused,
   waitForMediaElementEvent, destroy, cancelTrickPlay, load, setPlaybackRate, getPlaybackRate,
   setCurrentTimeMs, setVolume, addEventListener, removeEventListener, areControlsShown,
-  getSmallPlayButton, getBigPlayButton, unload,
+  getSmallPlayButton, getBigPlayButton, unload, isCasting,
+  addCastStatusListener, removeCastStatusListener,
 } from '@/player';
 import Deferred from '@/utils/deferredpromise';
 import subtitleActions from './subtitleActions';
@@ -31,7 +32,18 @@ export default {
     : getCurrentTimeMs() || getters.GET_OFFSET_MS),
 
   SEND_PLEX_DECISION_REQUEST: async ({ getters, commit }) => {
+    console.debug('SEND_PLEX_DECISION_REQUEST:', getters.GET_DECISION_URL);
     const data = await fetchJson(getters.GET_DECISION_URL, getters.GET_DECISION_AND_START_PARAMS);
+    const meta = data?.MediaContainer?.Metadata?.[0];
+    const part = meta?.Media?.[0]?.Part?.[0];
+    console.debug('Plex decision:', {
+      directPlayCode: data?.MediaContainer?.directPlayDecisionCode,
+      transcodeCode: data?.MediaContainer?.transcodeDecisionCode,
+      partDecision: part?.decision,
+      videoDecision: part?.Stream?.find((s) => s.streamType === 1)?.decision,
+      audioDecision: part?.Stream?.find((s) => s.streamType === 2)?.decision,
+      subtitleStream: part?.Stream?.find((s) => s.streamType === 3 && s.selected),
+    });
     commit('SET_PLEX_DECISION', data);
     commit('SET_SUBTITLE_OFFSET', parseInt(getters.GET_SUBTITLE_STREAM?.offset || 0, 10));
   },
@@ -42,6 +54,7 @@ export default {
   },
 
   CHANGE_AUDIO_STREAM: async ({ getters, dispatch }, audioStreamID) => {
+    console.debug('CHANGE_AUDIO_STREAM:', audioStreamID);
     await queryFetch(getters.GET_PART_URL, {
       audioStreamID,
       ...getters.GET_PART_PARAMS,
@@ -54,6 +67,7 @@ export default {
   },
 
   CHANGE_SUBTITLE_STREAM: async ({ getters, dispatch }, subtitleStreamID) => {
+    console.debug('CHANGE_SUBTITLE_STREAM:', subtitleStreamID);
     await queryFetch(getters.GET_PART_URL, {
       subtitleStreamID,
       ...getters.GET_PART_PARAMS,
@@ -77,6 +91,11 @@ export default {
   },
 
   CHANGE_SUBTITLES: async ({ getters, dispatch }) => {
+    console.debug('CHANGE_SUBTITLES:', {
+      isUsingNative: getters.IS_USING_NATIVE_SUBTITLES,
+      subtitleStreamId: getters.GET_SUBTITLE_STREAM_ID,
+      canDirectPlaySubs: getters.CAN_DIRECT_PLAY_SUBTITLES,
+    });
     if (getters.IS_USING_NATIVE_SUBTITLES) {
       await dispatch('SET_SUBTITLE_URL');
     } else {
@@ -96,11 +115,16 @@ export default {
 
     commit('SET_SESSION', getRandomPlexId());
 
+    // Suppress seeking/seeked event handlers during source change to prevent them
+    // from aborting the subtitle fetch that CHANGE_SUBTITLES starts below.
+    commit('SET_IS_CHANGING_SOURCE', true);
+
     try {
       await dispatch('SEND_PLEX_DECISION_REQUEST');
       await dispatch('LOAD_PLAYER_SRC');
     } catch (e) {
       if (getters.GET_FORCE_TRANSCODE) {
+        commit('SET_IS_CHANGING_SOURCE', false);
         throw e;
       }
       console.warn('Error loading stream from plex. Retrying with forced transcoding', e);
@@ -112,6 +136,8 @@ export default {
     }
 
     await dispatch('CHANGE_SUBTITLES');
+
+    commit('SET_IS_CHANGING_SOURCE', false);
 
     // TODO: potentially avoid sending updates on media change since we already do that
     if (getters.GET_MASK_PLAYER_STATE) {
@@ -169,6 +195,7 @@ export default {
   },
 
   HANDLE_PLAYER_BUFFERING: async ({ dispatch }, event) => {
+    console.debug('HANDLE_PLAYER_BUFFERING:', event.buffering ? 'started' : 'ended');
     if (event.buffering) {
       await dispatch('CHANGE_PLAYER_STATE', 'buffering');
     } else {
@@ -187,14 +214,35 @@ export default {
     }
   },
 
-  HANDLE_SEEKING: async ({ dispatch }) => {
+  HANDLE_SEEKING: async ({ state, dispatch }) => {
+    if (state.isChangingSource) {
+      return;
+    }
     console.debug('HANDLE_SEEKING');
     await dispatch('DESTROY_ASS');
   },
 
-  HANDLE_SEEKED: async ({ dispatch }) => {
+  HANDLE_SEEKED: async ({ state, dispatch }) => {
+    if (state.isChangingSource) {
+      return;
+    }
     console.debug('HANDLE_SEEKED');
     await dispatch('CHANGE_SUBTITLES');
+  },
+
+  HANDLE_CAST_STATUS_CHANGE: async ({ state, commit, getters, dispatch }) => {
+    const casting = isCasting();
+    if (casting === state.isCasting) {
+      return;
+    }
+
+    commit('SET_IS_CASTING', casting);
+    console.debug('Cast state changed:', casting);
+
+    // Reload stream with correct params (burn subtitles + transcode when casting)
+    if (getters.IS_PLAYER_INITIALIZED) {
+      await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME');
+    }
   },
 
   HANDLE_PICTURE_IN_PICTURE_CHANGE: async ({ getters, commit, dispatch }) => {
@@ -207,7 +255,7 @@ export default {
   },
 
   HANDLE_ERROR: ({ dispatch }, e) => {
-    console.error(e);
+    console.error('HANDLE_ERROR: player error, restarting source:', e.detail || e);
     // Restart source
     return dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME');
   },
@@ -363,8 +411,10 @@ export default {
   LOAD_PLAYER_SRC: async ({ getters }) => {
     // TODO: potentailly unload if already loaded to avoid load interrupted errors
     // However, while its loading, potentially   reporting the old time...
+    console.debug('LOAD_PLAYER_SRC:', getters.GET_SRC_URL);
     await unload();
     await load(getters.GET_SRC_URL);
+    console.debug('LOAD_PLAYER_SRC: loaded, offset:', getters.GET_OFFSET_MS);
 
     if (getters.GET_OFFSET_MS > 0) {
       setCurrentTimeMs(getters.GET_OFFSET_MS);
@@ -402,6 +452,7 @@ export default {
       // Purposefully not awaited
       dispatch('START_PERIODIC_PLEX_TIMELINE_UPDATE');
     } catch (e) {
+      console.error('INIT_PLAYER_STATE: failed during initialization:', e);
       if (getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE) {
         // TODO: potentially close player
         getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE.reject(e);
@@ -440,6 +491,7 @@ export default {
     // Leaving play queue around for possible upnext
     commit('SET_IS_PLAYER_INITIALIZED', false);
     commit('SET_IS_IN_PICTURE_IN_PICTURE', false);
+    commit('SET_IS_CASTING', false);
     await dispatch('DESTROY_SUBTITLES');
     commit('SET_SUBTITLE_OFFSET', 0);
     await destroy();
@@ -462,9 +514,13 @@ export default {
     const errorListener = (e) => dispatch('HANDLE_ERROR', e);
     addEventListener('error', errorListener);
     commit('SET_ERROR_EVENT_LISTENER', errorListener);
+
+    const castStatusListener = () => dispatch('HANDLE_CAST_STATUS_CHANGE');
+    addCastStatusListener(castStatusListener);
+    commit('SET_CAST_STATUS_LISTENER', castStatusListener);
   },
 
-  UNREGISTER_PLAYER_EVENTS: ({ getters, commit }) => {
+  UNREGISTER_PLAYER_EVENTS: ({ state, getters, commit }) => {
     removeEventListener('buffering', getters.GET_BUFFERING_EVENT_LISTENER);
     commit('SET_BUFFERING_EVENT_LISTENER', null);
 
@@ -472,8 +528,11 @@ export default {
     getBigPlayButton().removeEventListener('click', getters.GET_CLICK_EVENT_LISTENER);
     commit('SET_CLICK_EVENT_LISTENER', null);
 
-    removeEventListener('buffering', getters.GET_ERROR_EVENT_LISTENER);
+    removeEventListener('error', getters.GET_ERROR_EVENT_LISTENER);
     commit('SET_ERROR_EVENT_LISTENER', null);
+
+    removeCastStatusListener(state.castStatusListener);
+    commit('SET_CAST_STATUS_LISTENER', null);
   },
 
   PLAY_PAUSE_VIDEO: async ({ dispatch }) => {

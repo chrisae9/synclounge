@@ -42,30 +42,11 @@
             </v-row>
           </v-alert>
 
-          <v-expansion-panels
-            multiple
-          >
-            <v-expansion-panel
-              :readonly="GET_CONFIG.force_slplayer"
-            >
-              <v-expansion-panel-title>
-                Player: {{ GET_CHOSEN_CLIENT.name }}
-              </v-expansion-panel-title>
-
-              <v-expansion-panel-text>
-                <PlexClientPicker
-                  @loading-change="loading = $event"
-                  @client-connectable-change="clientConnectable = $event"
-                />
-              </v-expansion-panel-text>
-            </v-expansion-panel>
-          </v-expansion-panels>
-
           <v-card-actions class="mt-2">
             <v-btn
               color="primary"
               :disabled="!GET_SERVERS_HEALTH || Object.keys(GET_SERVERS_HEALTH).length === 0
-                || !clientConnectable || loading"
+                || loading"
               @click="createRoom"
             >
               Connect
@@ -73,7 +54,7 @@
 
             <v-spacer />
 
-            <v-btn :to="{ name: 'AdvancedRoomWalkthrough' }">
+            <v-btn :to="{ name: 'AdvancedRoomJoin' }">
               Advanced
             </v-btn>
           </v-card-actions>
@@ -84,22 +65,14 @@
 </template>
 
 <script>
-import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters } from 'vuex';
-import redirection from '@/mixins/redirection';
-import { slPlayerClientId } from '@/player/constants';
-import { getRandomRoomId } from '@/utils/random';
 import linkWithRoom from '@/mixins/linkwithroom';
+import { getRandomRoomId } from '@/utils/random';
 
 export default {
   name: 'RoomCreation',
 
-  components: {
-    PlexClientPicker: defineAsyncComponent(() => import('@/components/PlexClientPicker.vue')),
-  },
-
   mixins: [
-    redirection,
     linkWithRoom,
   ],
 
@@ -107,21 +80,12 @@ export default {
     return {
       loading: false,
       error: null,
-
-      // Default true because default client is slplayer
-      clientConnectable: true,
     };
   },
 
   computed: {
     ...mapGetters([
       'GET_CONFIG',
-    ]),
-
-    ...mapGetters('plexclients', [
-      'GET_CHOSEN_CLIENT_ID',
-      'GET_ACTIVE_MEDIA_METADATA',
-      'GET_CHOSEN_CLIENT',
     ]),
 
     ...mapGetters('synclounge', [
@@ -162,11 +126,7 @@ export default {
         });
 
         if (this.$route.name === 'RoomCreation') {
-          if (this.GET_CHOSEN_CLIENT_ID === slPlayerClientId || !this.GET_ACTIVE_MEDIA_METADATA) {
-            this.$router.push(this.linkWithRoom({ name: 'PlexHome' }));
-          } else {
-            this.redirectToMediaPage();
-          }
+          this.$router.push(this.linkWithRoom({ name: 'PlexHome' }));
         }
       } catch (e) {
         this.DISCONNECT_IF_CONNECTED();

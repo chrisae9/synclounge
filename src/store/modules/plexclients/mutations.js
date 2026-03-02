@@ -1,25 +1,8 @@
-import { slPlayerClientId } from '@/player/constants';
 import stateFactory from './state';
 
 export default {
   RESET: (state) => {
     Object.assign(state, stateFactory());
-  },
-
-  ADD_PLEX_CLIENT: (state, client) => {
-    state.clients[client.clientIdentifier] = client;
-  },
-
-  DELETE_PLEX_CLIENT: (state, clientId) => {
-    delete state.clients[clientId];
-  },
-
-  SET_CHOSEN_CLIENT_ID: (state, id) => {
-    state.chosenClientId = id;
-  },
-
-  SET_PLEX_CLIENT_TIMELINE: (state, timeline) => {
-    state.plexClientTimeline = timeline;
   },
 
   SET_ACTIVE_MEDIA_METADATA: (state, metadata) => {
@@ -28,26 +11,6 @@ export default {
 
   SET_ACTIVE_SERVER_ID: (state, id) => {
     state.activeServerId = id;
-  },
-
-  SET_COMMAND_ID: (state, id) => {
-    state.commandId = id;
-  },
-
-  INCREMENT_COMMAND_ID: (state) => {
-    state.commandId += 1;
-  },
-
-  SET_PREVIOUS_SYNC_TIMELINE_COMMAND_ID: (state, commandId) => {
-    state.previousSyncTimelineCommandId = commandId;
-  },
-
-  SET_CLIENT_CHOSEN_CONNECTION: (state, { clientIdentifier, chosenConnection }) => {
-    state.clients[clientIdentifier].chosenConnection = chosenConnection;
-  },
-
-  SET_PLEX_CLIENT_TIMELINE_COMMAND_ID: (state, id) => {
-    state.plexClientTimelineCommmandId = id;
   },
 
   SET_ACTIVE_PLAY_QUEUE: (state, queue) => {
@@ -64,21 +27,5 @@ export default {
 
   DECREMENT_ACTIVE_PLAY_QUEUE_SELECTED_ITEM_OFFSET: (state) => {
     state.activePlayQueue.playQueueSelectedItemOffset -= 1;
-  },
-
-  SET_CLIENT_POLLER_CANCEL_TOKEN: (state, token) => {
-    state.clientPollerCancelToken = token;
-  },
-
-  SET_LAST_PLAY_MEDIA_COMMAND_ID: (state, id) => {
-    state.lastPlayMediaCommandId = id;
-  },
-
-  SET_LATENCY: (state, latency) => {
-    state.latency = latency;
-  },
-
-  UPDATE_SLPLAYER_LAST_SEEN_TO_NOW: (state) => {
-    state.clients[slPlayerClientId].lastSeenAt = new Date().toISOString();
   },
 };

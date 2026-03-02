@@ -65,7 +65,10 @@ function injectOgTags(html, meta) {
     '<meta name="theme-color" content="#E5A00D" />',
   ].filter(Boolean).join('\n    ');
 
-  return html.replace('</head>', `    ${tags}\n  </head>`);
+  // Remove existing OG/Twitter meta tags from the static HTML so we replace rather than duplicate
+  let cleaned = html.replace(/<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*"|name="theme-color")[^>]*\/?\s*>\s*\n?/g, '');
+
+  return cleaned.replace('</head>', `    ${tags}\n  </head>`);
 }
 
 // --- File extension check for SPA fallback ---
@@ -89,11 +92,17 @@ const preStaticInjection = (router) => {
     }
 
     const key = `${machineIdentifier}\0${ratingKey}`;
-    setMetadata(key, {
+    const meta = {
       title, year, summary, type, posterUrl,
       machineIdentifier, ratingKey,
       grandparentTitle, parentIndex, index,
-    });
+    };
+    setMetadata(key, meta);
+
+    // Also index by room code so /join/:room gets OG tags
+    if (req.body.room) {
+      setMetadata(`room\0${req.body.room}`, meta);
+    }
 
     return res.json({ ok: true });
   });
@@ -148,7 +157,7 @@ const preStaticInjection = (router) => {
       return res.status(500).send('index.html not available');
     }
 
-    // Check if this is a media route we can inject OG tags for
+    // Check if this is a media browse route we can inject OG tags for
     const mediaMatch = req.path.match(
       /^\/room\/[^/]+\/browse\/server\/([^/]+)\/ratingKey\/([^/]+)/,
     );
@@ -172,9 +181,37 @@ const preStaticInjection = (router) => {
       }
     }
 
-    // Serve plain index.html for all other SPA routes
+    // Check if this is a room invite link — inject OG tags for current room media
+    const roomMatch = req.path.match(/^\/join\/([^/]+)/);
+    if (roomMatch) {
+      const [, roomCode] = roomMatch;
+      const meta = getMetadata(`room\0${roomCode}`);
+
+      if (meta) {
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.headers['x-forwarded-host'] || req.get('host');
+        const baseUrl = `${protocol}://${host}`;
+        const posterProxyUrl = meta.posterUrl
+          ? `${baseUrl}/share/poster/${meta.machineIdentifier}/${meta.ratingKey}`
+          : null;
+
+        const html = injectOgTags(indexHtml, { ...meta, posterProxyUrl });
+        res.set('Content-Type', 'text/html');
+        return res.send(html);
+      }
+    }
+
+    // Serve index.html with default OG tags for all other SPA routes
+    const defaultOg = [
+      '<meta property="og:title" content="SyncLounge" />',
+      '<meta property="og:description" content="Watch Plex together with your friends" />',
+      '<meta property="og:type" content="website" />',
+      '<meta property="og:site_name" content="SyncLounge" />',
+      '<meta name="theme-color" content="#E5A00D" />',
+    ].join('\n    ');
+    const html = indexHtml.replace('</head>', `    ${defaultOg}\n  </head>`);
     res.set('Content-Type', 'text/html');
-    return res.send(indexHtml);
+    return res.send(html);
   });
 };
 

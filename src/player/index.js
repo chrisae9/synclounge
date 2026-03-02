@@ -1,5 +1,5 @@
 import {
-  getPlayer, setPlayer, getOverlay, setOverlay,
+  getPlayer, getRawPlayer, setPlayer, getOverlay, setOverlay, isCasting,
 } from './state';
 
 let cachedDuration = 0;
@@ -9,7 +9,7 @@ export const areControlsShown = () => !getOverlay() || (getOverlay()?.getControl
     && (getOverlay()?.getControls().getControlsContainer().getAttribute('shown') != null
       || getOverlay()?.getControls().getControlsContainer().getAttribute('casting') != null));
 
-export const getControlsOffset = (fallbackHeight) => (getPlayer()?.getMediaElement()?.offsetHeight
+export const getControlsOffset = (fallbackHeight) => (getRawPlayer()?.getMediaElement()?.offsetHeight
   || fallbackHeight) * 0.025 + 48 || 0;
 
 export const getControlsOffsetWithVisibility = (fallbackHeight) => (areControlsShown()
@@ -57,17 +57,17 @@ export const isTimeInBufferedRange = (timeMs) => {
   return false;
 };
 
-export const isMediaElementAttached = () => getPlayer()?.getMediaElement != null;
+export const isMediaElementAttached = () => getRawPlayer()?.getMediaElement != null;
 
-export const addEventListener = (...args) => getPlayer().addEventListener(...args);
+export const addEventListener = (...args) => getRawPlayer().addEventListener(...args);
 
-export const removeEventListener = (...args) => getPlayer().removeEventListener(...args);
+export const removeEventListener = (...args) => getRawPlayer().removeEventListener(...args);
 
-const addMediaElementEventListener = (...args) => getPlayer()
+const addMediaElementEventListener = (...args) => getRawPlayer()
   .getMediaElement()
   .addEventListener(...args);
 
-const removeMediaElementEventListener = (...args) => getPlayer()
+const removeMediaElementEventListener = (...args) => getRawPlayer()
   .getMediaElement()
   .removeEventListener(...args);
 
@@ -108,7 +108,7 @@ export const getBigPlayButton = () => getOverlay().getControls().getControlsCont
 export const getDimensions = () => {
   const {
     videoWidth, videoHeight, offsetWidth, offsetHeight,
-  } = getPlayer().getMediaElement();
+  } = getRawPlayer().getMediaElement();
 
   return {
     videoWidth,
@@ -119,12 +119,31 @@ export const getDimensions = () => {
 };
 
 export const insertElementBeforeVideo = (element) => {
-  const parent = getPlayer().getMediaElement().parentNode;
+  const parent = getRawPlayer().getMediaElement().parentNode;
 
-  parent.insertBefore(element, getPlayer().getMediaElement());
+  parent.insertBefore(element, getRawPlayer().getMediaElement());
 };
 
-export const getMediaElement = () => getPlayer().getMediaElement();
+export const getMediaElement = () => getRawPlayer().getMediaElement();
+
+export { isCasting };
+
+export const addCastStatusListener = (callback) => {
+  const castProxy = getOverlay()?.getControls()?.getCastProxy();
+  if (castProxy) {
+    castProxy.addEventListener('caststatuschanged', callback);
+    console.debug('Cast status listener registered');
+  } else {
+    console.debug('Cast proxy not available, cast status listener not registered');
+  }
+};
+
+export const removeCastStatusListener = (callback) => {
+  const castProxy = getOverlay()?.getControls()?.getCastProxy();
+  if (castProxy) {
+    castProxy.removeEventListener('caststatuschanged', callback);
+  }
+};
 
 export const destroy = async () => {
   const savedOverlay = getOverlay();

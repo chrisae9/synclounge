@@ -228,11 +228,13 @@ describe('server', () => {
       assert.ok(html.includes('video.other'));
     });
 
-    it('does not inject OG tags for uncached media', async () => {
+    it('falls back to default OG tags for uncached media', async () => {
       const res = await request('/room/test/browse/server/unknown/ratingKey/999');
       assert.equal(res.status, 200);
       const html = await res.text();
-      assert.ok(!html.includes('og:title'));
+      // Should have default SyncLounge OG tags, not media-specific ones
+      assert.ok(html.includes('content="SyncLounge"'));
+      assert.ok(!html.includes('content="unknown"'));
     });
 
     it('uses poster proxy URL in og:image, not the raw Plex URL', async () => {
@@ -247,6 +249,88 @@ describe('server', () => {
       const html = await res.text();
       assert.ok(html.includes('<div id="app">'));
       assert.ok(html.includes('og:title'));
+    });
+  });
+
+  // --- Room-based OG injection (invite links) ---
+
+  describe('room-based OG injection', () => {
+    before(async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Room Movie',
+          year: 2024,
+          summary: 'Currently playing in the room.',
+          type: 'movie',
+          posterUrl: 'https://example.com/room-poster.jpg',
+          machineIdentifier: 'room-machine',
+          ratingKey: '1000',
+          room: 'abc123',
+        },
+      });
+    });
+
+    it('injects OG tags for /join/:room when room has cached metadata', async () => {
+      const res = await request('/join/abc123');
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes('og:title'));
+      assert.ok(html.includes('Room Movie (2024)'));
+      assert.ok(html.includes('og:description'));
+      assert.ok(html.includes('Currently playing in the room.'));
+      assert.ok(html.includes('og:image'));
+      assert.ok(html.includes('/share/poster/room-machine/1000'));
+    });
+
+    it('falls back to default OG tags for /join/:room with no cached metadata', async () => {
+      const res = await request('/join/unknown-room');
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes('content="SyncLounge"'));
+      assert.ok(!html.includes('Room Movie'));
+    });
+
+    it('updates room metadata when new media is browsed', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'New Movie',
+          year: 2025,
+          type: 'movie',
+          machineIdentifier: 'room-machine',
+          ratingKey: '1001',
+          room: 'abc123',
+        },
+      });
+
+      const res = await request('/join/abc123');
+      const html = await res.text();
+      assert.ok(html.includes('New Movie (2025)'));
+      assert.ok(!html.includes('Room Movie'));
+    });
+
+    it('injects episode OG tags for room invite links', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'The Rains of Castamere',
+          type: 'episode',
+          grandparentTitle: 'Game of Thrones',
+          parentIndex: 3,
+          index: 9,
+          machineIdentifier: 'room-machine',
+          ratingKey: '1002',
+          room: 'got-room',
+        },
+      });
+
+      const res = await request('/join/got-room');
+      const html = await res.text();
+      assert.ok(html.includes('Game of Thrones - S03E09 The Rains of Castamere'));
     });
   });
 

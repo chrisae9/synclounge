@@ -8,6 +8,21 @@ import { createRequire } from 'module';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
+// synclounge-libjass uses `var global = this` in its IIFE wrapper.
+// In ESM strict mode, `this` is undefined, so `global` becomes undefined
+// and the library crashes accessing `global.Set`. Patch it at build time.
+function patchLibjassPlugin() {
+  return {
+    name: 'patch-libjass',
+    transform(code, id) {
+      if (id.includes('synclounge-libjass')) {
+        return code.replace('var global = this;', 'var global = globalThis;');
+      }
+      return undefined;
+    },
+  };
+}
+
 function generateConfigPlugin() {
   return {
     name: 'generate-config',
@@ -25,6 +40,7 @@ const pkg = require('./package.json');
 
 export default defineConfig({
   plugins: [
+    patchLibjassPlugin(),
     generateConfigPlugin(),
     vue({
       template: {
@@ -50,7 +66,7 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(
-      process.env.VERSION || pkg.version,
+      process.env.VERSION || '5.0.0',
     ),
   },
   build: {

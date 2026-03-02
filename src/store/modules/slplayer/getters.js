@@ -17,11 +17,15 @@ export default {
     && rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']
       ?.Media?.[getters.GET_MEDIA_INDEX]?.bitrate > buggyChromeBitrate,
 
-  // TODO: Remove this hack when this issue is fixed
-  // https://forums.plex.tv/t/plex-skipping-forward-by-a-few-seconds-on-web-player/402112
-  GET_STREAMING_PROTOCOL: (state, getters) => (getters.IS_IN_BUGGY_CHROME_STATE
-    ? 'hls'
-    : state.streamingProtocol),
+  // iOS/iPadOS: Plex rejects DASH transcode requests for iOS platform, force HLS
+  // Chrome high-bitrate bug: https://forums.plex.tv/t/plex-skipping-forward-by-a-few-seconds-on-web-player/402112
+  GET_STREAMING_PROTOCOL: (state, getters, rootState, rootGetters) => {
+    const os = rootGetters.GET_BROWSER?.os;
+    if (os === 'iOS' || os === 'iPadOS') {
+      return 'hls';
+    }
+    return getters.IS_IN_BUGGY_CHROME_STATE ? 'hls' : state.streamingProtocol;
+  },
 
   GET_PLEX_SERVER: (state, getters, rootState, rootGetters) => rootGetters[
     'plexservers/GET_PLEX_SERVER'](rootGetters['plexclients/GET_ACTIVE_SERVER_ID']),
@@ -87,7 +91,12 @@ export default {
       return false;
     }
 
-    const { key, codec } = getters.GET_SELECTED_SUBTITLE_STREAM;
+    const stream = getters.GET_SELECTED_SUBTITLE_STREAM;
+    if (!stream) {
+      return false;
+    }
+
+    const { key, codec } = stream;
     // TODO: examine if I can only direct play with sidecar subtitles
     return key && (codec === 'srt' || codec === 'ass');
   },
@@ -242,22 +251,19 @@ export default {
   },
 
   SHOULD_FORCE_BURN_SUBTITLES: (state, getters) => getters.IS_IN_PICTURE_IN_PICTURE
-    || state.forceBurnSubtitles,
+    || state.forceBurnSubtitles
+    || state.isCasting,
 
   GET_SUBTITLE_PARAMS: (state, getters) => {
-    if (!getters.GET_SELECTED_SUBTITLE_STREAM || getters.CAN_DIRECT_PLAY
-      || getters.CAN_DIRECT_PLAY_SUBTITLES) {
-      return {
-        subtitles: 'none',
-      };
-    }
-
-    if (getters.SHOULD_FORCE_BURN_SUBTITLES) {
+    if (getters.SHOULD_FORCE_BURN_SUBTITLES && getters.GET_SELECTED_SUBTITLE_STREAM) {
       return {
         subtitles: 'burn',
       };
     }
 
+    // Always use 'auto' so Plex includes subtitle auto-selection in the decision.
+    // When direct playing, Plex will still direct play/stream and provide subtitle
+    // info separately rather than burning.
     return {
       subtitles: 'auto',
       advancedSubtitles: 'text',

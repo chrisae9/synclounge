@@ -2,7 +2,6 @@ import { CAF } from 'caf';
 import eventhandlers from '@/store/modules/synclounge/eventhandlers';
 import { combineUrl, combineRelativeUrlParts } from '@/utils/combineurl';
 import { fetchJson } from '@/utils/fetchutils';
-import { slPlayerClientId } from '@/player/constants';
 import {
   open, close, on, waitForEvent, isConnected, emit,
 } from '@/socket';
@@ -119,8 +118,6 @@ export default {
     commit('SET_IS_AUTO_HOST_ENABLED', isAutoHostEnabled);
     commit('SET_IS_IN_ROOM', true);
 
-    // Purposefully not awaited
-    dispatch('plexclients/START_CLIENT_POLLER_IF_NEEDED', null, { root: true });
     await dispatch('DISPLAY_NOTIFICATION', {
       text: 'Joined room',
       color: 'success',
@@ -128,10 +125,7 @@ export default {
     await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
   },
 
-  DISCONNECT: async ({ commit, dispatch }) => {
-    // Cancel poller
-    await dispatch('plexclients/CANCEL_CLIENT_POLLER_IF_NEEDED', null, { root: true });
-
+  DISCONNECT: async ({ commit }) => {
     close();
     commit('SET_IS_IN_ROOM', false);
     commit('SET_USERS', {});
@@ -178,10 +172,8 @@ export default {
     });
   },
 
-  sendPartyPause: ({ getters, rootGetters }, isPause) => {
-    if ((!getters.AM_I_HOST
-      || rootGetters['plexclients/GET_CHOSEN_CLIENT_ID'] !== slPlayerClientId)
-      && getters.IS_PARTY_PAUSING_ENABLED) {
+  sendPartyPause: ({ getters }, isPause) => {
+    if (!getters.AM_I_HOST && getters.IS_PARTY_PAUSING_ENABLED) {
       emit({
         eventName: 'partyPause',
         data: isPause,
@@ -452,17 +444,12 @@ export default {
   },
 
   MANUAL_SYNC: async ({
-    getters, rootGetters, dispatch, commit,
+    getters, dispatch, commit,
   }) => {
     console.debug('MANUAL_SYNC');
     await dispatch('CANCEL_IN_PROGRESS_SYNC');
 
-    const adjustedHostTime = getters.GET_ADJUSTED_HOST_TIME();
-    // Adjust seek time by the time it takes to send a request to the client
-    const offset = rootGetters['plexclients/GET_CHOSEN_CLIENT_ID'] !== slPlayerClientId
-        && getters.GET_HOST_USER.state === 'playing'
-      ? adjustedHostTime + rootGetters['plexclients/GET_LATENCY']
-      : adjustedHostTime;
+    const offset = getters.GET_ADJUSTED_HOST_TIME();
 
     // eslint-disable-next-line new-cap
     const token = new CAF.cancelToken();
@@ -500,7 +487,7 @@ export default {
     try {
       await dispatch('_SYNC_MEDIA_AND_PLAYER_STATE', token.signal);
     } catch (e) {
-      console.log('Error caught in sync logic', e);
+      console.warn('Error caught in sync media logic:', e);
     }
 
     commit('SET_SYNC_CANCEL_TOKEN', null);
@@ -510,17 +497,11 @@ export default {
   // at once
   _SYNC_MEDIA_AND_PLAYER_STATE: async ({ getters, dispatch, rootGetters }, cancelSignal) => {
     console.debug('_SYNC_MEDIA_AND_PLAYER_STATE');
-    // TODO: potentailly don't do anythign if we have no timeline data yet
     const timeline = await dispatch(
       'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE',
       null,
       { root: true },
     );
-
-    if (rootGetters['plexclients/ALREADY_SYNCED_ON_CURRENT_TIMELINE']) {
-    // TODO: examine if I should throw error or handle it another way
-      throw new Error('Already synced with this timeline. Need to wait for new one to sync again');
-    }
 
     if (getters.GET_HOST_USER.state === 'stopped') {
       // First, decide if we should stop playback
@@ -543,6 +524,11 @@ export default {
         getters.GET_HOST_USER.media,
         { root: true },
       );
+      console.debug('_SYNC_MEDIA_AND_PLAYER_STATE: match result:', {
+        hostMedia: getters.GET_HOST_USER.media?.title,
+        bestMatch: bestMatch ? { title: bestMatch.title, ratingKey: bestMatch.ratingKey } : null,
+        alreadyPlaying: bestMatch ? rootGetters['plexclients/IS_THIS_MEDIA_PLAYING'](bestMatch) : false,
+      });
       if (bestMatch) {
         if (!rootGetters['plexclients/IS_THIS_MEDIA_PLAYING'](bestMatch)) {
           // If we aren't playing the best match, play it
@@ -576,7 +562,7 @@ export default {
     try {
       await dispatch('_SYNC_PLAYER_STATE', token.signal);
     } catch (e) {
-      console.log('Error caught in sync logic', e);
+      console.warn('Error caught in sync player logic:', e);
     }
 
     commit('SET_SYNC_CANCEL_TOKEN', null);
@@ -584,7 +570,10 @@ export default {
 
   // Private version without lock. Please use the locking version unless you know what you are doing
   _SYNC_PLAYER_STATE: async ({ getters, dispatch }, cancelSignal) => {
-    console.debug('_SYNC_PLAYER_STATE');
+    console.debug('_SYNC_PLAYER_STATE:', {
+      hostState: getters.GET_HOST_USER.state,
+      hostTime: getters.GET_HOST_USER.time,
+    });
     const timeline = await dispatch(
       'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE',
       null,
@@ -623,16 +612,11 @@ export default {
 
     // TODO: potentially update the player state if we paused or played so we know in the sync
     await dispatch('plexclients/SYNC', cancelSignal, { root: true });
-    console.log('done sync');
+    console.debug('_SYNC_PLAYER_STATE: sync complete');
   },
 
-  PLAY_MEDIA_AND_SYNC_TIME: async ({ getters, rootGetters, dispatch }, media) => {
-    const adjustedHostTime = getters.GET_ADJUSTED_HOST_TIME();
-    // Adjust seek time by the time it takes to send a request to the client
-    const offset = rootGetters['plexclients/GET_CHOSEN_CLIENT_ID'] !== slPlayerClientId
-        && getters.GET_HOST_USER.state === 'playing'
-      ? adjustedHostTime + rootGetters['plexclients/GET_LATENCY']
-      : adjustedHostTime;
+  PLAY_MEDIA_AND_SYNC_TIME: async ({ getters, dispatch }, media) => {
+    const offset = getters.GET_ADJUSTED_HOST_TIME();
 
     await dispatch('plexclients/PLAY_MEDIA', {
       mediaIndex: media.mediaIndex || 0,

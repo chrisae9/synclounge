@@ -103,12 +103,24 @@ export default {
     state.streamingProtocol = protocol;
   },
 
+  SET_IS_CHANGING_SOURCE: (state, isChanging) => {
+    state.isChangingSource = isChanging;
+  },
+
   SET_FORCE_TRANSCODE_RETRY: (state, force) => {
     state.forceTranscodeRetry = force;
   },
 
   SET_FORCE_BURN_SUBTITLES: (state, forceBurn) => {
     state.forceBurnSubtitles = forceBurn;
+  },
+
+  SET_IS_CASTING: (state, casting) => {
+    state.isCasting = casting;
+  },
+
+  SET_CAST_STATUS_LISTENER: (state, listener) => {
+    state.castStatusListener = listener;
   },
 
   SET_ALLOW_DIRECT_PLAY: (state, allow) => {

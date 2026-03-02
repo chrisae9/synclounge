@@ -38,10 +38,13 @@
         xl="3"
       >
         <v-card
-          :to="linkWithRoom(
-            { name: 'PlexServer', params: { machineIdentifier: server.clientIdentifier } },
-          )"
-          style="background: rgb(0 0 0 / 60%);"
+          :to="IS_PLEX_SERVER_ENABLED(server.clientIdentifier)
+            ? linkWithRoom({ name: 'PlexServer', params: { machineIdentifier: server.clientIdentifier } })
+            : undefined"
+          :style="{
+            background: 'rgb(0 0 0 / 60%)',
+            opacity: IS_PLEX_SERVER_ENABLED(server.clientIdentifier) ? 1 : 0.4,
+          }"
         >
           <v-container class="fill-height">
             <v-row
@@ -61,8 +64,18 @@
                 class="pl-2"
               >
                 <div>
-                  <div class="text-truncate text-h5">
-                    {{ server.name }}
+                  <div class="d-flex align-center">
+                    <div class="text-truncate text-h5 flex-grow-1">
+                      {{ server.name }}
+                    </div>
+
+                    <v-btn
+                      :icon="IS_PLEX_SERVER_ENABLED(server.clientIdentifier) ? 'visibility' : 'visibility_off'"
+                      size="x-small"
+                      variant="text"
+                      :color="IS_PLEX_SERVER_ENABLED(server.clientIdentifier) ? 'primary' : 'grey'"
+                      @click.prevent.stop="TOGGLE_SERVER_ENABLED(server.clientIdentifier)"
+                    />
                   </div>
 
                   <div class="text-medium-emphasis text-caption">
@@ -79,6 +92,13 @@
                   >
                     Unable to connect.
                     Try disabling your adblocker
+                  </div>
+
+                  <div
+                    v-if="!IS_PLEX_SERVER_ENABLED(server.clientIdentifier)"
+                    class="text-caption text-medium-emphasis"
+                  >
+                    Disabled — not included in search
                   </div>
                 </div>
               </v-col>
@@ -115,6 +135,7 @@ export default {
       'GET_LAST_SERVER',
       'GET_LAST_SERVER_ID',
       'GET_PLEX_SERVERS',
+      'IS_PLEX_SERVER_ENABLED',
     ]),
   },
 
@@ -138,6 +159,10 @@ export default {
 
     ...mapMutations([
       'SET_ACTIVE_METADATA',
+    ]),
+
+    ...mapMutations('plexservers', [
+      'TOGGLE_SERVER_ENABLED',
     ]),
 
     abortRequests() {

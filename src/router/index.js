@@ -47,11 +47,7 @@ export default createRouter({
 
     {
       path: '/clientselect',
-      name: 'AdvancedRoomWalkthrough',
-      component: () => import('@/views/AdvancedRoomWalkthrough.vue'),
-      meta: {
-        requiresAuth: true,
-      },
+      redirect: { name: 'AdvancedRoomJoin' },
     },
 
     {

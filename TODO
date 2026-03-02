@@ -1,0 +1,10 @@
+- get rid of plex player support, we confirmed that this is no longer a feature that works. 
+- simplify server connections, enable/disable servers, by default all should be searchable. 
+- look through PRs/issues and closed/unclosed and find improvements that people made that would benefit the app (big one) I think i saw an emoji feature etc
+- add discord preview embed now that the code has een changed (thought this was already a thing)
+- support mobile, lots of things dont render right on mobile. 
+- update readme this is not really a fork but a continuation at this point, make sure that we include the differences and the fact that we paid $5 for a stupid chromecast dev client
+- add proper icons for movies and tv etc in libraries section
+- make it clearer that the movies/tv pages lazy load
+- add abc...xyz to the libraries for easier searching. support general filters and sorting like plex does
+- create release pipeline and enable docker image pushing to repo

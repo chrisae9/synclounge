@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>SyncLounge Cast Receiver</title>
+  <script src="//www.gstatic.com/cast/sdk/libs/receiver/2.0.0/cast_receiver.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/mux.js@7.0.3/dist/mux.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/shaka-player@4.16.19/dist/shaka-player.compiled.js"></script>
+  <style>
+    body { margin: 0; padding: 0; background: #000; overflow: hidden; }
+    video { width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <video id="video" autoplay></video>
+  <script>
+    window.muxjs = muxjs;
+    shaka.polyfill.installAll();
+
+    const video = document.getElementById('video');
+    const player = new shaka.Player();
+    player.attach(video).then(() => {
+      // CastReceiver auto-starts via init_() in the constructor
+      const receiver = new shaka.cast.CastReceiver(video, player);
+    });
+  </script>
+</body>
+</html>

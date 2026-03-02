@@ -128,36 +128,20 @@ function createMockStore(overrides = {}) {
               labels: [['Recommended', 'green']],
               lastSeenAt: new Date().toISOString(),
             },
-            'client-abc': {
-              clientIdentifier: 'client-abc',
-              platform: 'Android',
-              device: 'Phone',
-              product: 'Plex for Android',
-              name: 'Test Android',
-              labels: [],
-              lastSeenAt: '2024-01-01T00:00:00.000Z',
-            },
           },
           chosenClientId: 'PTPLAYER9PLUS10',
           activeMediaMetadata: null,
         }),
         getters: {
           GET_PLEX_CLIENT: (state) => (id) => state.clients[id],
-          GET_PLEX_CLIENT_IDS_SORTED_BY_LAST_SEEN: (state) => Object.values(state.clients)
-            .sort((a, b) => -a.lastSeenAt.localeCompare(b.lastSeenAt))
-            .map((c) => c.clientIdentifier),
           GET_CHOSEN_CLIENT_ID: (state) => state.chosenClientId,
+          GET_CHOSEN_CLIENT: (state) => state.clients[state.chosenClientId],
           GET_ACTIVE_MEDIA_METADATA: (state) => state.activeMediaMetadata,
           GET_ACTIVE_MEDIA_METADATA_INTRO_MARKER: () => null,
           GET_ACTIVE_SERVER_ID: () => 'server-1',
         },
         mutations: {
-          SET_CHOSEN_CLIENT_ID: (state, id) => { state.chosenClientId = id; },
           SET_ACTIVE_MEDIA_METADATA: (state, val) => { state.activeMediaMetadata = val; },
-          ADD_PLEX_CLIENT: (state, client) => {
-            state.clients[client.clientIdentifier] = client;
-          },
-          DELETE_PLEX_CLIENT: (state, id) => { delete state.clients[id]; },
         },
         actions: {
           PLAY_NEXT: vi.fn(),
@@ -270,29 +254,6 @@ function mountOptions(store, extraOpts = {}) {
 // 1. Vuex Store Reactivity (Vue.set → direct assignment)
 // ============================================================
 describe('Vuex Store Reactivity (Vue.set removal)', () => {
-  it('ADD_PLEX_CLIENT triggers reactivity with direct assignment', () => {
-    const store = createMockStore();
-    const newClient = {
-      clientIdentifier: 'new-client',
-      name: 'New Client',
-      platform: 'iOS',
-      device: 'iPad',
-      product: 'Plex for iOS',
-      labels: [],
-      lastSeenAt: new Date().toISOString(),
-    };
-    store.commit('plexclients/ADD_PLEX_CLIENT', newClient);
-    expect(store.state.plexclients.clients['new-client']).toBeDefined();
-    expect(store.state.plexclients.clients['new-client'].name).toBe('New Client');
-  });
-
-  it('DELETE_PLEX_CLIENT removes client reactively', () => {
-    const store = createMockStore();
-    expect(store.state.plexclients.clients['client-abc']).toBeDefined();
-    store.commit('plexclients/DELETE_PLEX_CLIENT', 'client-abc');
-    expect(store.state.plexclients.clients['client-abc']).toBeUndefined();
-  });
-
   it('ADD_PLEX_SERVER triggers reactivity with direct assignment', () => {
     const store = createMockStore();
     store.commit('plexservers/ADD_PLEX_SERVER', {
@@ -743,20 +704,6 @@ describe('WebPlayer Skip Intro Button', () => {
 });
 
 // ============================================================
-// 9. TheNowPlayingChip — lines="two", rounded="0"
-// ============================================================
-describe('TheNowPlayingChip Vuetify 3 props', () => {
-  const source = getSource('components/TheNowPlayingChip.vue');
-
-  it('uses lines="two" instead of two-line and rounded="0" instead of tile', () => {
-    expect(source).toContain('lines="two"');
-    expect(source).not.toMatch(/\btwo-line\b/);
-    expect(source).toContain('rounded="0"');
-    expect(source).not.toMatch(/\btile\b/);
-  });
-});
-
-// ============================================================
 // 10. Template Audit — no remaining Vuetify 2 patterns
 // ============================================================
 describe('Vuetify 2 Pattern Audit', () => {
@@ -1005,24 +952,3 @@ describe('Expansion Panel Migration', () => {
   });
 });
 
-// ============================================================
-// 14. PlexClient / AdvancedRoomWalkthrough — glob key normalization
-// ============================================================
-describe('PlexClient glob key normalization', () => {
-  it('PlexClient does not use /src/assets path for lookup', () => {
-    const source = getSource('components/PlexClient.vue');
-
-    // Should use simple key lookup, not path-based
-    expect(source).not.toContain('/src/assets/images/platforms/');
-    expect(source).toMatch(/platformImages\[this\.platform\]/);
-    expect(source).toMatch(/platformImages\.plex/);
-  });
-
-  it('AdvancedRoomWalkthrough does not use /src/assets path for lookup', () => {
-    const source = getSource('views/AdvancedRoomWalkthrough.vue');
-
-    expect(source).not.toContain('/src/assets/images/platforms/');
-    expect(source).toMatch(/platformImages\[this\.platform\]/);
-    expect(source).toMatch(/platformImages\.plex/);
-  });
-});

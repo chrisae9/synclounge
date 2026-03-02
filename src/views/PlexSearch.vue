@@ -63,7 +63,7 @@ export default {
 
   computed: {
     ...mapGetters('plexservers', [
-      'GET_CONNECTABLE_PLEX_SERVER_IDS',
+      'GET_ENABLED_PLEX_SERVER_IDS',
       'GET_PLEX_SERVER',
       'GET_MEDIA_IMAGE_URL',
     ]),
@@ -117,7 +117,7 @@ export default {
     },
 
     async searchServersCriticalSection(signal) {
-      await Promise.all(this.GET_CONNECTABLE_PLEX_SERVER_IDS.map(async (machineIdentifier) => {
+      await Promise.all(this.GET_ENABLED_PLEX_SERVER_IDS.map(async (machineIdentifier) => {
         const serverResults = await this.SEARCH_PLEX_SERVER_HUB({
           query: this.query,
           machineIdentifier,

@@ -60,10 +60,10 @@
                   >
                 </v-col>
 
-                <v-col class="pl-3">
+                <v-col class="pl-3" style="min-width: 0;">
                   <div>
-                    <h1>{{ GET_TITLE }}</h1>
-                    <h3>{{ GET_SECONDARY_TITLE }}</h3>
+                    <div class="text-h5 text-truncate">{{ GET_TITLE }}</div>
+                    <div class="text-subtitle-1 text-medium-emphasis text-truncate">{{ GET_SECONDARY_TITLE }}</div>
                     <div class="text-subtitle-2 text-primary">
                       Playing from {{ GET_PLEX_SERVER.name }}
                     </div>
@@ -76,7 +76,7 @@
       </v-fade-transition>
 
       <div
-        v-if="$vuetify.display.mdAndDown"
+        v-if="$vuetify.display.xs"
       >
         <MessageList class="messages-wrapper" />
         <MessageInput />
@@ -94,10 +94,10 @@
             >
           </v-col>
 
-          <v-col class="pl-2">
+          <v-col class="pl-2" style="min-width: 0;">
             <div>
-              <h1>{{ GET_TITLE }}</h1>
-              <h3>{{ GET_SECONDARY_TITLE }}</h3>
+              <div class="text-h6 text-truncate">{{ GET_TITLE }}</div>
+              <div class="text-subtitle-2 text-medium-emphasis text-truncate">{{ GET_SECONDARY_TITLE }}</div>
               <div class="text-subtitle-2 text-primary">
                 Playing from {{ GET_PLEX_SERVER.name }}
               </div>
@@ -269,15 +269,22 @@ export default {
 
   async mounted() {
     // TODO: monitor upnext stuff interval probably or idk state change timeugh
+    console.debug('WebPlayer: mounted, initializing Shaka player');
 
-    await initialize({
-      mediaElement: this.$refs.videoPlayer,
-      playerConfig: this.playerConfig,
-      videoContainer: this.$refs.videoPlayerContainer,
-      overlayConfig: this.getPlayerUiOptions(),
-    });
+    try {
+      await initialize({
+        mediaElement: this.$refs.videoPlayer,
+        playerConfig: this.playerConfig,
+        videoContainer: this.$refs.videoPlayerContainer,
+        overlayConfig: this.getPlayerUiOptions(),
+      });
+    } catch (e) {
+      console.error('WebPlayer: Shaka initialization failed:', e);
+      throw e;
+    }
 
     await this.INIT_PLAYER_STATE();
+    console.debug('WebPlayer: player initialized successfully');
 
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('resize', this.RERENDER_SUBTITLE_CONTAINER);
@@ -320,13 +327,6 @@ export default {
       'MANUAL_SYNC',
     ]),
 
-    getCastReceiverId() {
-      return window.chrome && window.chrome.cast && window.chrome.cast.media
-        ? window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID
-        : '';
-    },
-
-    // This is an action so it's not cached because chromecast stuff loads late
     getPlayerUiOptions() {
       return {
         addBigPlayButton: true,
@@ -347,6 +347,7 @@ export default {
 
           'spacer',
 
+          'cast',
           'overflow_menu',
           'fullscreen',
         ],
@@ -362,11 +363,10 @@ export default {
           'subtitleposition',
           'subtitlecolor',
 
-          'cast',
           'picture_in_picture',
         ],
 
-        castReceiverAppId: this.getCastReceiverId(),
+        castReceiverAppId: '21725FD3',
       };
     },
 
@@ -400,21 +400,16 @@ export default {
 </script>
 
 <style scoped>
-.slplayer-container {
-  margin-top: -12px;
-  margin-bottom: -12px;
-}
-
 .slplayer video {
   width: 100%;
   height: 100%;
 }
 
 .slplayer {
-  height: calc(100vh - 64px);
+  height: calc(100vh - var(--v-layout-top, 64px));
 }
 
-@media screen and (max-width: 1264px) {
+@media screen and (max-width: 960px) {
   div.slplayer {
     height: calc(0.5625 * 100vw);
   }
@@ -459,8 +454,9 @@ export default {
 
 <style>
 .messages-wrapper {
-  max-height: calc(100vh - (0.5625 * 100vw) - 150px);
-  overflow: scroll;
+  max-height: calc(100dvh - (0.5625 * 100vw) - 150px);
+  min-height: 100px;
+  overflow-y: auto;
 }
 
 .is-fullscreen .messages-wrapper {

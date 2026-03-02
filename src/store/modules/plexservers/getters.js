@@ -1,4 +1,4 @@
-import { difference, intersection } from '@/utils/lightlodash';
+import { intersection } from '@/utils/lightlodash';
 import { makeUrl } from '@/utils/fetchutils';
 
 export default {
@@ -9,16 +9,15 @@ export default {
   GET_PLEX_SERVER: (state) => (machineIdentifier) => state
     .servers[machineIdentifier],
 
-  GET_UNBLOCKED_PLEX_SERVER_IDS: (state, getters) => difference([
-    getters.GET_PLEX_SERVER_IDS,
-    getters.GET_BLOCKED_SERVER_IDS,
-  ]),
-
   GET_CONNECTABLE_PLEX_SERVER_IDS: (state, getters) => getters.GET_PLEX_SERVER_IDS
     .filter((id) => state.servers[id].chosenConnection),
 
-  IS_PLEX_SERVER_UNBLOCKED: (state, getters) => (machineIdentifier) => getters
-    .GET_UNBLOCKED_PLEX_SERVER_IDS.includes(machineIdentifier),
+  // Servers that are both connectable and not disabled by the user
+  GET_ENABLED_PLEX_SERVER_IDS: (state, getters) => getters.GET_CONNECTABLE_PLEX_SERVER_IDS
+    .filter((id) => !getters.GET_BLOCKED_SERVER_IDS.includes(id)),
+
+  IS_PLEX_SERVER_ENABLED: (state, getters) => (machineIdentifier) => !getters
+    .GET_BLOCKED_SERVER_IDS.includes(machineIdentifier),
 
   GET_LAST_SERVER_ID: (state, getters) => state.lastServerId || getters.GET_PLEX_SERVER_IDS?.[0],
 

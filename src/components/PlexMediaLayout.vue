@@ -11,26 +11,18 @@
           >
             <v-row no-gutters>
               <v-col
-                cols="12"
-                md="auto"
+                cols="auto"
                 order="last"
                 order-md="first"
                 class="mr-3"
               >
-                <v-container fluid>
-                  <v-row>
-                    <v-col cols="12">
-                      <v-img
-                        :src="thumbUrl"
-                        width="200"
-                        :aspect-ratio="2 / 3"
-                        class="d-none d-md-flex"
-                      />
-                    </v-col>
-                  </v-row>
+                <v-img
+                  :src="thumbUrl"
+                  :width="$vuetify.display.smAndDown ? 120 : 200"
+                  :aspect-ratio="2 / 3"
+                />
 
-                  <slot name="belowImage" />
-                </v-container>
+                <slot name="belowImage" />
               </v-col>
 
               <v-col

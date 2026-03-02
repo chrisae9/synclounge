@@ -14,6 +14,13 @@ export default {
         return 'Microsoft Edge';
       }
 
+      case 'ios': {
+        // detect-browser reports 'ios' for Safari on iOS.
+        // Plex interprets 'Ios' as a native iOS app and rejects DASH requests.
+        // Report as Safari since this is a web app running in Safari.
+        return 'Safari';
+      }
+
       default: {
         return capitalizeFirstLetter(rootGetters.GET_BROWSER.name);
       }

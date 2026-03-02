@@ -1,164 +1,80 @@
-name: release
+name: Release
 
 on:
   push:
-    branches:
-      - master
+    tags: ["v*"]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  release-test:
+  test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4.3.0
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4.4.0
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: "npm"
+          node-version: 22
+          cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
         env:
           SKIP_BUILD: true
 
-      - name: Lint
-        run: npm run lint -- --no-fix
+      - run: npm test
 
-  release-semantic:
-    needs: release-test
-
+  docker:
     runs-on: ubuntu-latest
-
-    outputs:
-      published: ${{ steps.release.outputs.published }}
-      release-version: ${{ steps.release.outputs.release-version }}
-      release-version-major: ${{ steps.release.outputs.release-version-major }}
-      release-version-minor: ${{ steps.release.outputs.release-version-minor }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4.3.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4.4.0
-        with:
-          node-version: 20
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-        env:
-          SKIP_BUILD: true
-
-      - name: Semantic release
-        id: release
-        uses: ahmadnassri/action-semantic-release@v2.2.8
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          npm_config_unsafe_perm: true
-
-  release-alias:
-    needs: release-semantic
-    if: needs.release-semantic.outputs.published == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        tag:
-          - v${{ needs.release-semantic.outputs.release-version-major }}
-          - v${{ needs.release-semantic.outputs.release-version-major }}.${{ needs.release-semantic.outputs.release-version-minor }}
-
-    steps:
-      - name: Recreate tag
-        uses: actions/github-script@v7.0.1
-        with:
-          script: |
-            const tag = 'tags/${{ matrix.tag }}';
-            const repo = {
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            };
-            await github.rest.git.deleteRef({ ...repo, ref: tag }).catch(() => {});
-            await github.rest.git.createRef({ ...repo, ref: `refs/${tag}` , sha: process.env.GITHUB_SHA });
-
-  release-docker:
-    needs: release-semantic
-    if: needs.release-semantic.outputs.published == 'true'
-    runs-on: ubuntu-latest
+    needs: test
     strategy:
       fail-fast: false
       matrix:
         include:
           - dockerfile: Dockerfile
-            docker-image: ${{ github.event.repository.full_name }}
+            image: ghcr.io/${{ github.repository }}
           - dockerfile: Dockerfile.web
-            docker-image: ${{ github.event.repository.full_name }}web
+            image: ghcr.io/${{ github.repository }}-web
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4.3.0
+      - uses: actions/checkout@v4
 
-      - name: Repo metadata
-        id: repo
-        uses: actions/github-script@v7.0.1
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
         with:
-          script: |
-            const repo = await github.rest.repos.get(context.repo)
-            return repo.data
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Prepare
-        id: prep
+      - name: Extract version from tag
+        id: version
         run: |
-          echo ::set-output name=created::$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          VERSION=${GITHUB_REF_NAME#v}
+          MAJOR=${VERSION%%.*}
+          MINOR=${VERSION#*.}
+          MINOR=${MINOR%%.*}
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
+          echo "minor=$MINOR" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v3.12.0
+      - uses: docker/build-push-action@v6
         with:
-          version: latest
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v3.6.0
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push
-        id: docker-build
-        uses: docker/build-push-action@v6.18.0
-        with:
-          push: true
-          builder: ${{ steps.buildx.outputs.name }}
           context: .
-          file: ./${{ matrix.dockerfile}}
+          file: ./${{ matrix.dockerfile }}
+          push: true
           tags: |
-            ${{ matrix.docker-image }}:latest
-            ${{ matrix.docker-image }}:${{ needs.release-semantic.outputs.release-version }}
-            ${{ matrix.docker-image }}:${{ needs.release-semantic.outputs.release-version-major }}.${{ needs.release-semantic.outputs.release-version-minor }}
-            ${{ matrix.docker-image }}:${{ needs.release-semantic.outputs.release-version-major }}
+            ${{ matrix.image }}:latest
+            ${{ matrix.image }}:${{ steps.version.outputs.version }}
+            ${{ matrix.image }}:${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}
+            ${{ matrix.image }}:${{ steps.version.outputs.major }}
           labels: |
-            org.opencontainers.image.title=${{ fromJson(steps.repo.outputs.result).name }}
-            org.opencontainers.image.description=${{ fromJson(steps.repo.outputs.result).description }}
-            org.opencontainers.image.url=${{ fromJson(steps.repo.outputs.result).html_url }}
-            org.opencontainers.image.source=${{ fromJson(steps.repo.outputs.result).clone_url }}
-            org.opencontainers.image.version=${{ needs.release-semantic.outputs.release-version }}
-            org.opencontainers.image.created=${{ steps.prep.outputs.created }}
+            org.opencontainers.image.title=synclounge
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.licenses=${{ fromJson(steps.repo.outputs.result).license.spdx_id }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            VERSION=${{ needs.release-semantic.outputs.release-version }}
-
-      # - name: Update repo description
-      #   uses: peter-evans/dockerhub-description@v2.4.1
-      #   with:
-      #     username: ${{ secrets.DOCKER_USERNAME }}
-      #     password: ${{ secrets.DOCKER_PASSWORD }}
-      #     repository: ${{ matrix.docker-image }}
+            VERSION=${{ steps.version.outputs.version }}

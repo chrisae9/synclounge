@@ -41,11 +41,17 @@
 
               <v-card-title
                 style="background: rgb(0 0 0 / 70%);"
-                class="px-3 py-1"
+                class="d-flex align-center px-3 py-1"
               >
-                <div class="text-subtitle-1">
+                <v-icon
+                  class="mr-2"
+                  size="20"
+                >
+                  {{ libraryIcon(library.type) }}
+                </v-icon>
+                <span class="text-subtitle-1">
                   {{ library.title }}
-                </div>
+                </span>
               </v-card-title>
             </v-card>
           </template>
@@ -152,6 +158,16 @@ export default {
       this.SET_ACTIVE_METADATA({
         machineIdentifier: this.machineIdentifier,
       });
+    },
+
+    libraryIcon(type) {
+      const icons = {
+        movie: 'movie',
+        show: 'tv',
+        artist: 'music_note',
+        photo: 'photo_library',
+      };
+      return icons[type] || 'folder';
     },
 
     getArtLibrary(object) {

@@ -20,4 +20,13 @@ export default {
   SET_BLOCKED_SERVER_IDS: (state, blockedIds) => {
     state.blockedServerIds = blockedIds;
   },
+
+  TOGGLE_SERVER_ENABLED: (state, serverId) => {
+    const idx = state.blockedServerIds.indexOf(serverId);
+    if (idx === -1) {
+      state.blockedServerIds.push(serverId);
+    } else {
+      state.blockedServerIds.splice(idx, 1);
+    }
+  },
 };

@@ -23,29 +23,10 @@
             {{ error }}
           </v-alert>
 
-          <v-expansion-panels
-            multiple
-          >
-            <v-expansion-panel
-              :readonly="GET_CONFIG.force_slplayer"
-            >
-              <v-expansion-panel-title>
-                Player: {{ GET_CHOSEN_CLIENT.name }}
-              </v-expansion-panel-title>
-
-              <v-expansion-panel-text>
-                <PlexClientPicker
-                  @loading-change="loading = $event"
-                  @client-connectable-change="clientConnectable = $event"
-                />
-              </v-expansion-panel-text>
-            </v-expansion-panel>
-          </v-expansion-panels>
-
           <v-card-actions class="mt-2">
             <v-btn
               color="primary"
-              :disabled="!clientConnectable"
+              :disabled="loading"
               @click="joinInvite"
             >
               Join Invite
@@ -58,21 +39,13 @@
 </template>
 
 <script>
-import { defineAsyncComponent } from 'vue';
-import { mapActions, mapGetters } from 'vuex';
-import redirection from '@/mixins/redirection';
-import { slPlayerClientId } from '@/player/constants';
+import { mapActions } from 'vuex';
 import linkWithRoom from '@/mixins/linkwithroom';
 
 export default {
   name: 'RoomJoin',
 
-  components: {
-    PlexClientPicker: defineAsyncComponent(() => import('@/components/PlexClientPicker.vue')),
-  },
-
   mixins: [
-    redirection,
     linkWithRoom,
   ],
 
@@ -91,22 +64,7 @@ export default {
   data: () => ({
     loading: false,
     error: null,
-
-    // Default true because default client is slplayer
-    clientConnectable: true,
   }),
-
-  computed: {
-    ...mapGetters([
-      'GET_CONFIG',
-    ]),
-
-    ...mapGetters('plexclients', [
-      'GET_CHOSEN_CLIENT_ID',
-      'GET_ACTIVE_MEDIA_METADATA',
-      'GET_CHOSEN_CLIENT',
-    ]),
-  },
 
   async created() {
     await this.DISCONNECT_IF_CONNECTED();
@@ -129,11 +87,7 @@ export default {
         });
 
         if (this.$route.name === 'RoomJoin') {
-          if (this.GET_CHOSEN_CLIENT_ID === slPlayerClientId || !this.GET_ACTIVE_MEDIA_METADATA) {
-            this.$router.push(this.linkWithRoom({ name: 'PlexHome' }));
-          } else {
-            this.redirectToMediaPage();
-          }
+          this.$router.push(this.linkWithRoom({ name: 'PlexHome' }));
         }
       } catch (e) {
         this.DISCONNECT_IF_CONNECTED();

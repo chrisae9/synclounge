@@ -2,7 +2,7 @@
   <v-breadcrumbs
     :items="crumbs"
     class="text-left"
-    style="justify-content: left;"
+    style="justify-content: left; flex: 1 1 0; min-width: 0; overflow: hidden; flex-wrap: nowrap; white-space: nowrap;"
   >
     <template #divider>
       <v-icon>chevron_right</v-icon>
