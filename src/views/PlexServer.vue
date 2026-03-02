@@ -21,9 +21,10 @@
         >
           <template #activator="{ props }">
             <v-card
-              :img="getArtLibrary(library)"
               v-bind="props"
-              flat
+              variant="flat"
+              rounded="lg"
+              class="library-card"
               :to="linkWithRoom({
                 name: 'PlexLibrary',
                 params: {
@@ -32,27 +33,32 @@
                 },
               })"
             >
-              <div class="d-none d-sm-flex pa-2">
-                <v-img
-                  height="75"
-                  :src="getThumb(library)"
-                />
-              </div>
-
-              <v-card-title
-                style="background: rgb(0 0 0 / 70%);"
-                class="d-flex align-center px-3 py-1"
+              <v-img
+                :src="getComposite(library)"
+                :aspect-ratio="16/9"
+                cover
+                class="library-card-img"
               >
-                <v-icon
-                  class="mr-2"
-                  size="20"
-                >
-                  {{ libraryIcon(library.type) }}
-                </v-icon>
-                <span class="text-subtitle-1">
-                  {{ library.title }}
-                </span>
-              </v-card-title>
+                <div class="library-card-overlay d-flex align-end pa-3">
+                  <v-icon
+                    class="mr-2"
+                    size="24"
+                    color="primary"
+                  >
+                    {{ libraryIcon(library.type) }}
+                  </v-icon>
+                  <span class="text-subtitle-1 font-weight-medium">
+                    {{ library.title }}
+                  </span>
+                  <v-spacer />
+                  <span
+                    v-if="library.size"
+                    class="text-caption text-medium-emphasis"
+                  >
+                    {{ library.size }}
+                  </span>
+                </div>
+              </v-img>
             </v-card>
           </template>
 
@@ -82,7 +88,7 @@
 <script>
 import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters, mapMutations } from 'vuex';
-import { getAppWidth, getAppHeight } from '@/utils/sizing';
+import { getAppWidth } from '@/utils/sizing';
 import linkWithRoom from '@/mixins/linkwithroom';
 
 export default {
@@ -162,30 +168,20 @@ export default {
 
     libraryIcon(type) {
       const icons = {
-        movie: 'movie',
-        show: 'tv',
-        artist: 'music_note',
+        movie: 'theaters',
+        show: 'live_tv',
+        artist: 'library_music',
         photo: 'photo_library',
       };
-      return icons[type] || 'folder';
+      return icons[type] || 'video_library';
     },
 
-    getArtLibrary(object) {
+    getComposite(library) {
       return this.GET_MEDIA_IMAGE_URL({
         machineIdentifier: this.machineIdentifier,
-        mediaUrl: object.art,
-        width: getAppWidth() / 4,
-        height: getAppHeight() / 4,
-        blur: 8,
-      });
-    },
-
-    getThumb(object) {
-      return this.GET_MEDIA_IMAGE_URL({
-        machineIdentifier: this.machineIdentifier,
-        mediaUrl: object.thumb,
-        width: 75,
-        height: 75,
+        mediaUrl: library.composite,
+        width: Math.round(getAppWidth() / 3),
+        height: Math.round(getAppWidth() / 3 * (9 / 16)),
       });
     },
 
@@ -213,3 +209,30 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.library-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+}
+
+.library-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 40%) !important;
+}
+
+.library-card-img {
+  filter: brightness(0.85);
+  transition: filter 0.2s ease;
+}
+
+.library-card:hover .library-card-img {
+  filter: brightness(1);
+}
+
+.library-card-overlay {
+  background: linear-gradient(to top, rgb(0 0 0 / 85%) 0%, rgb(0 0 0 / 20%) 60%, transparent 100%);
+  position: absolute;
+  inset: 0;
+}
+</style>

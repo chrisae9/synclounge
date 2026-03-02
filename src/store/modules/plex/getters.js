@@ -62,7 +62,7 @@ export default {
     'X-Plex-Provider-Version': 1.3,
   }),
 
-  GET_PLEX_AUTH_URL: (state, getters, rootState, rootGetters) => (code) => {
+  GET_PLEX_AUTH_URL: (state, getters, rootState, rootGetters) => (code, forwardUrl) => {
     const urlParams = {
       'context[device][product]': getters.GET_PLEX_PRODUCT_HEADER,
       'context[device][version]': rootState.version,
@@ -76,6 +76,7 @@ export default {
       'context[device][layout]': 'desktop',
       clientID: getters.GET_CLIENT_IDENTIFIER,
       code,
+      ...(forwardUrl && { forwardUrl }),
     };
 
     return makeUrl('https://app.plex.tv/auth#', urlParams);

@@ -122,14 +122,19 @@
       </v-col>
     </v-row>
 
-    <v-row v-else>
+    <v-row
+      v-else
+      class="px-1"
+    >
       <v-col
         v-for="content in contents"
         :key="content.ratingKey"
         cols="4"
         sm="3"
         md="2"
+        lg="2"
         xl="1"
+        class="pa-2"
       >
         <PlexThumbnail
           :content="content"
@@ -137,6 +142,7 @@
           cols="4"
           sm="3"
           md="2"
+          lg="2"
           xl="1"
         />
       </v-col>
@@ -148,9 +154,14 @@
           cols="4"
           sm="3"
           md="2"
+          lg="2"
           xl="1"
+          class="pa-2"
         >
-          <v-skeleton-loader type="image, text" />
+          <v-skeleton-loader
+            type="image, text"
+            rounded="lg"
+          />
         </v-col>
       </template>
     </v-row>

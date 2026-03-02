@@ -350,14 +350,17 @@ export default {
       machineIdentifier, sectionId, start, size, sort, firstCharacter, signal, ...rest
     },
   ) => {
+    const path = firstCharacter
+      ? `/library/sections/${sectionId}/firstCharacter/${encodeURIComponent(firstCharacter)}`
+      : `/library/sections/${sectionId}/all`;
+
     const { MediaContainer } = await dispatch('FETCH_PLEX_SERVER', {
       machineIdentifier,
-      path: `/library/sections/${sectionId}/all`,
+      path,
       params: {
         'X-Plex-Container-Start': start,
         'X-Plex-Container-Size': size,
         ...(sort && { sort }),
-        ...(firstCharacter && { firstCharacter }),
         includeCollections: 0,
         includeAdvanced: 1,
         includeMeta: 1,

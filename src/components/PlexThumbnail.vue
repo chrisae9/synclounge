@@ -2,99 +2,79 @@
   <v-card
     :to="contentLink(content)"
     variant="flat"
-    rounded="0"
+    rounded="lg"
+    class="thumbnail-card"
     color="transparent"
     @mouseover="hovering = true"
     @mouseout="hovering = false"
   >
-    <v-img
-      data-tilt
-      :aspect-ratio="1 / inverseAspectRatio"
-      style="position: relative;"
-      :src="imgUrl"
-      :srcset="srcset"
-      :sizes="sizes"
-    >
-      <v-container
-        class="pa-0 ma-0 fill-height"
-        fluid
-        style="position: relative;"
+    <div class="thumbnail-img-wrapper">
+      <v-img
+        data-tilt
+        :aspect-ratio="1 / inverseAspectRatio"
+        :src="imgUrl"
+        :srcset="srcset"
+        :sizes="sizes"
+        cover
       >
-        <v-row>
-          <v-col cols="12">
-            <small
-              v-if="showServer"
-              class="ma-1 server-name"
-            >
-              {{ GET_PLEX_SERVER(content.machineIdentifier).name }}</small>
+        <div class="thumbnail-badges">
+          <small
+            v-if="showServer"
+            class="server-name"
+          >
+            {{ GET_PLEX_SERVER(content.machineIdentifier).name }}
+          </small>
 
-            <div
-              v-if="showUnwatchedFlag && !showServer"
-              class="unwatched bg-primary pa-1 text-body-2"
-            >
-              {{ unwatchedCount }}
-            </div>
+          <div
+            v-if="showUnwatchedFlag && !showServer"
+            class="unwatched-badge"
+          >
+            {{ unwatchedCount }}
+          </div>
 
-            <div
-              v-if="content.Media && content.Media.length > 1 && !showServer"
-              style="position: absolute;
-                    top: 0;
-                    right: 0;
-                    background-color: rgb(43 43 191 / 80%);
-                    min-width: 16px;
-                    min-height: 16px;"
-              class="pa-1 text-body-2"
-            >
-              {{ content.Media.length }}
-            </div>
-          </v-col>
-        </v-row>
-      </v-container>
-    </v-img>
+          <div
+            v-if="content.Media && content.Media.length > 1 && !showServer"
+            class="multi-version-badge"
+          >
+            {{ content.Media.length }}
+          </div>
+        </div>
+      </v-img>
 
-    <v-progress-linear
-      v-if="showProgressBar"
-      rounded
-      class="pa-0 mb-0 ma-0 pt-content-progress"
-      height="4"
-      :model-value="unwatchedPercent"
-    />
+      <v-progress-linear
+        v-if="showProgressBar"
+        class="progress-bar"
+        height="3"
+        color="primary"
+        :model-value="unwatchedPercent"
+      />
+    </div>
 
     <v-tooltip
       location="bottom"
       offset="10"
     >
       <template #activator="{ props }">
-        <v-row
+        <div
           v-bind="props"
-          dense
-          no-gutters
-          align="end"
-          class="pa-1"
+          class="pt-2 pb-1 px-1"
           style="max-width: 100%;"
         >
-          <v-col
-            cols="12"
-            class="text-subtitle-2 text-truncate"
-          >
+          <div class="text-subtitle-2 text-truncate">
             {{ getTitle(content, fullTitle) }}
-          </v-col>
+          </div>
 
-          <v-col
-            cols="12"
-            class="text-caption text-truncate text-medium-emphasis"
-          >
+          <div class="text-caption text-truncate text-medium-emphasis">
             {{ getSecondaryTitle(content, fullTitle) }}
-          </v-col>
+          </div>
 
-          <v-col
+          <div
             v-if="content.reason"
-            cols="12"
             class="text-caption text-truncate text-medium-emphasis"
           >
             {{ getReasonTitle(content) }}
-          </v-col>
-        </v-row>
+          </div>
+        </div>
       </template>
 
       <div>{{ getTitle(content, fullTitle) }}</div>
@@ -321,20 +301,66 @@ export default {
 </script>
 
 <style scoped>
-.unwatched {
+.thumbnail-card {
+  transition: transform 0.15s ease;
+}
+
+.thumbnail-card:hover {
+  transform: scale(1.03);
+}
+
+.thumbnail-img-wrapper {
+  position: relative;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.thumbnail-badges {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.unwatched-badge {
   position: absolute;
   top: 0;
   left: 0;
+  background: rgb(var(--v-theme-primary));
+  color: #000;
+  font-size: 0.75rem;
+  font-weight: 600;
+  min-width: 20px;
   text-align: center;
-  min-width: 16px;
-  min-height: 16px;
+  padding: 1px 5px;
+  border-radius: 0 0 4px 0;
+}
+
+.multi-version-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: rgb(43 43 191 / 85%);
+  font-size: 0.75rem;
+  min-width: 20px;
+  text-align: center;
+  padding: 1px 5px;
+  border-radius: 0 0 0 4px;
 }
 
 .server-name {
   position: absolute;
   top: 0;
-  text-align: right;
   right: 0;
-  background: rgb(0 0 0 / 50%);
+  background: rgb(0 0 0 / 60%);
+  padding: 1px 6px;
+  font-size: 0.7rem;
+  border-radius: 0 0 0 4px;
+}
+
+.progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
 }
 </style>

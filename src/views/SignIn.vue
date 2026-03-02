@@ -26,12 +26,10 @@
           <v-card-actions class="justify-center pa-4">
             <v-btn
               color="primary"
-              target="_blank"
               size="x-large"
               variant="flat"
               :disabled="allowSignIn"
-              :href="plexAuthUrl"
-              @click="authenticate"
+              @click="signIn"
             >
               Sign in
             </v-btn>
@@ -44,9 +42,10 @@
 
 <script>
 import { mapActions, mapGetters, mapMutations } from 'vuex';
-import { CAF } from 'caf';
 
 import getCookie from '@/utils/getcookie';
+
+const PIN_STORAGE_KEY = 'plex_auth_pin';
 
 export default {
   name: 'SignIn',
@@ -54,7 +53,6 @@ export default {
   data: () => ({
     loading: false,
     plexAuthResponse: null,
-    cancelToken: null,
   }),
 
   computed: {
@@ -67,14 +65,6 @@ export default {
       'IS_USER_AUTHORIZED',
       'GET_PLEX_AUTH_TOKEN',
     ]),
-
-    plexAuthUrl() {
-      if (!this.plexAuthResponse) {
-        return '';
-      }
-
-      return this.GET_PLEX_AUTH_URL(this.plexAuthResponse.code);
-    },
 
     allowSignIn() {
       return this.loading || !this.plexAuthResponse
@@ -91,16 +81,18 @@ export default {
     const cookieToken = getCookie('mpt');
     if (cookieToken) {
       await this.cookieAuth(cookieToken);
-    } else {
-      await this.regularAuth();
+      return;
     }
-  },
 
-  beforeUnmount() {
-    if (this.cancelToken) {
-      this.cancelToken.abort();
-      this.cancelToken = null;
+    // Check if we're returning from a Plex auth redirect
+    const savedPin = sessionStorage.getItem(PIN_STORAGE_KEY);
+    if (savedPin) {
+      sessionStorage.removeItem(PIN_STORAGE_KEY);
+      await this.completeRedirectAuth(JSON.parse(savedPin));
+      return;
     }
+
+    await this.fetchInitialAuthCode();
   },
 
   methods: {
@@ -119,77 +111,62 @@ export default {
       'SET_PLEX_AUTH_TOKEN',
     ]),
 
-    async regularAuth() {
-      await this.fetchInitialAuthCode();
+    async fetchInitialAuthCode() {
+      this.loading = true;
+      this.plexAuthResponse = await this.FETCH_PLEX_INIT_AUTH();
+      this.loading = false;
+    },
+
+    signIn() {
+      if (!this.plexAuthResponse) return;
+
+      // Save the PIN so we can retrieve the token after redirect
+      sessionStorage.setItem(PIN_STORAGE_KEY, JSON.stringify({
+        id: this.plexAuthResponse.id,
+        redirect: this.$route.query.redirect || '/',
+      }));
+
+      const forwardUrl = window.location.origin + this.$route.fullPath;
+      const authUrl = this.GET_PLEX_AUTH_URL(this.plexAuthResponse.code, forwardUrl);
+
+      // Navigate to Plex auth in the same window — Plex will redirect back
+      window.location.href = authUrl;
+    },
+
+    async completeRedirectAuth(savedPin) {
+      this.loading = true;
+
+      try {
+        await this.REQUEST_PLEX_AUTH_TOKEN({ id: savedPin.id });
+        await this.FETCH_PLEX_DEVICES_IF_NEEDED();
+        this.FETCH_AND_SET_RANDOM_BACKGROUND_IMAGE();
+        this.$router.push(savedPin.redirect || '/');
+      } catch {
+        // Token not ready yet or PIN expired — start fresh
+        await this.fetchInitialAuthCode();
+      }
+
+      this.loading = false;
     },
 
     async cookieAuth(token) {
-      // Used by Organizr: https://github.com/causefx/Organizr/issues/1344
       this.loading = true;
       this.SET_PLEX_AUTH_TOKEN(token);
       try {
         await this.FETCH_PLEX_USER();
-        await this.postAuth();
+        this.redirect();
+        await this.FETCH_PLEX_DEVICES_IF_NEEDED();
+        this.FETCH_AND_SET_RANDOM_BACKGROUND_IMAGE();
         this.loading = false;
       } catch (e) {
         console.error(e);
-        // If this fails, then the auth token is probably invalid
         this.SET_PLEX_AUTH_TOKEN(null);
-        await this.regularAuth();
+        await this.fetchInitialAuthCode();
       }
-    },
-
-    async fetchInitialAuthCode() {
-      this.loading = true;
-      // eslint-disable-next-line new-cap
-      this.cancelToken = new CAF.cancelToken();
-      this.plexAuthResponse = await this.FETCH_PLEX_INIT_AUTH(this.cancelToken.signal);
-      this.cancelToken = null;
-      this.loading = false;
-    },
-
-    async authenticate() {
-      this.loading = true;
-      // eslint-disable-next-line new-cap
-      this.cancelToken = new CAF.cancelToken();
-      await this.plexAuthChecker(this.cancelToken.signal);
-
-      await this.postAuth();
-      this.loading = false;
     },
 
     redirect() {
       this.$router.push(this.$route.query.redirect || '/');
-    },
-
-    async postAuth() {
-      this.redirect();
-      await this.FETCH_PLEX_DEVICES_IF_NEEDED();
-      await this.FETCH_AND_SET_RANDOM_BACKGROUND_IMAGE();
-    },
-
-    plexAuthChecker: CAF(function* plexAuthChecker(signal) {
-      while (true) {
-        yield CAF.delay(signal, this.GET_CONFIG.plex_auth_check_interval);
-
-        const isComplete = yield this.isAuthComplete(signal);
-        if (isComplete) {
-          return;
-        }
-      }
-    }),
-
-    async isAuthComplete(signal) {
-      try {
-        await this.REQUEST_PLEX_AUTH_TOKEN({
-          signal,
-          id: this.plexAuthResponse.id,
-        });
-
-        return true;
-      } catch {
-        return false;
-      }
     },
   },
 };

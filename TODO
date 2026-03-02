@@ -1,4 +1,4 @@
-- get rid of plex player support, we confirmed that this is no longer a feature that works. 
+- get rid of plex player support, we confirmed that this is no longer a feature that works. [DONE]
 - simplify server connections, enable/disable servers, by default all should be searchable. 
 - look through PRs/issues and closed/unclosed and find improvements that people made that would benefit the app (big one) I think i saw an emoji feature etc
 - add discord preview embed now that the code has een changed (thought this was already a thing)
