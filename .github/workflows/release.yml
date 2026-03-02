@@ -89,21 +89,30 @@ jobs:
         run: |
           git fetch --tags --force
           CURRENT_TAG=${GITHUB_REF#refs/tags/}
-          TAG_MESSAGE=$(git tag -l --format='%(contents)' $CURRENT_TAG)
+          TAG_MESSAGE=$(git tag -l --format='%(contents)' $CURRENT_TAG | head -c 100000)
           PREV_TAG=$(git tag --sort=-v:refname | grep -A1 "^$CURRENT_TAG$" | tail -1)
           if [ "$PREV_TAG" != "$CURRENT_TAG" ] && [ -n "$PREV_TAG" ]; then
             CHANGELOG_LINK="**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${CURRENT_TAG}"
           else
             CHANGELOG_LINK="**Full Changelog**: https://github.com/${{ github.repository }}/commits/${CURRENT_TAG}"
           fi
-          echo "message<<EOF" >> $GITHUB_OUTPUT
-          echo "$TAG_MESSAGE" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG_LINK" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Check if tag message has real content (not just the version string)
+          STRIPPED=$(echo "$TAG_MESSAGE" | sed '/^$/d' | sed "s/^${CURRENT_TAG}$//" | sed '/^$/d')
+          if [ -n "$STRIPPED" ]; then
+            echo "has_notes=true" >> "$GITHUB_OUTPUT"
+            echo "message<<EOF" >> $GITHUB_OUTPUT
+            echo "$TAG_MESSAGE" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "$CHANGELOG_LINK" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "has_notes=false" >> "$GITHUB_OUTPUT"
+            echo "message=" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          body: ${{ steps.tag_message.outputs.message }}
+          body: ${{ steps.tag_message.outputs.has_notes == 'true' && steps.tag_message.outputs.message || '' }}
+          generate_release_notes: ${{ steps.tag_message.outputs.has_notes != 'true' }}
