@@ -53,11 +53,14 @@
         </v-list-item>
 
         <v-list-item
-          @click="SET_ALLOW_DIRECT_PLAY(!allowDirectPlay)"
+          :disabled="GET_SLPLAYERFORCETRANSCODE"
+          @click="!GET_SLPLAYERFORCETRANSCODE && SET_ALLOW_DIRECT_PLAY(!allowDirectPlay)"
         >
           <v-list-item-title>Allow Direct Play</v-list-item-title>
           <v-list-item-subtitle>
-            Allow direct play when available
+            {{ GET_SLPLAYERFORCETRANSCODE
+              ? 'Overridden by Force Transcode'
+              : 'Allow direct play when available' }}
           </v-list-item-subtitle>
 
           <template #append>
@@ -65,6 +68,7 @@
               hide-details
               color="primary"
               :model-value="allowDirectPlay"
+              :disabled="GET_SLPLAYERFORCETRANSCODE"
               @update:model-value="SET_ALLOW_DIRECT_PLAY"
               @click.stop
             />
@@ -107,6 +111,26 @@
               @click.stop
             />
           </template>
+        </v-list-item>
+
+        <v-list-item>
+          <v-list-item-title>Quality</v-list-item-title>
+
+          <v-select
+            density="compact"
+            hide-details
+            :model-value="GET_SLPLAYERQUALITY"
+            :items="qualities"
+            item-title="label"
+            item-value="maxVideoBitrate"
+            @update:model-value="SET_SLPLAYERQUALITY"
+          >
+            <template #selection="{ item }">
+              <span class="text-body-2 text-medium-emphasis">
+                {{ item.raw.label }}
+              </span>
+            </template>
+          </v-select>
         </v-list-item>
 
         <v-list-item>
@@ -326,6 +350,7 @@ import {
   mapActions, mapGetters, mapMutations, mapState,
 } from 'vuex';
 import { streamingProtocols } from '@/utils/streamingprotocols';
+import qualities from '@/store/modules/slplayer/qualities';
 
 export default {
   name: 'TheSettingsDialog',
@@ -339,6 +364,7 @@ export default {
     ],
 
     streamingProtocols,
+    qualities,
   }),
 
   computed: {
@@ -350,6 +376,7 @@ export default {
       'GET_SYNCMODE',
       'GET_AUTO_SKIP_INTRO',
       'GET_ALTUSERNAME',
+      'GET_SLPLAYERQUALITY',
     ]),
 
     ...mapGetters('slplayer', [
@@ -415,6 +442,7 @@ export default {
       'SET_AUTO_SKIP_INTRO',
       // TODO: potentially add system for announcing username changes
       'SET_ALTUSERNAME',
+      'SET_SLPLAYERQUALITY',
     ]),
 
     ...mapMutations('slplayer', [
