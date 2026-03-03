@@ -267,8 +267,12 @@ export default {
       if (!isCasting()) return;
 
       try {
-        const paused = isPaused();
-        const newState = isBuffering() ? 'buffering' : (paused ? 'paused' : 'playing');
+        let newState = 'playing';
+        if (isBuffering()) {
+          newState = 'buffering';
+        } else if (isPaused()) {
+          newState = 'paused';
+        }
 
         // Only broadcast when state actually changes to avoid triggering
         // unnecessary syncs (seeks → rebuffering) on non-host clients
