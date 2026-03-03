@@ -139,6 +139,7 @@ export default {
   flex-wrap: wrap;
   padding-top: 0;
   padding-bottom: 0;
+  padding-left: 8px;
 }
 
 .breadcrumb-item {

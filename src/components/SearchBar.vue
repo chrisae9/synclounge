@@ -33,7 +33,7 @@
         :to="linkWithRoom({ name: 'PlexSearch', params: { query } })"
         @click="menuOpen = false"
       >
-        <v-list-item-title class="text-caption text-disabled">
+        <v-list-item-title class="text-caption text-primary">
           Search all sources...
         </v-list-item-title>
       </v-list-item>

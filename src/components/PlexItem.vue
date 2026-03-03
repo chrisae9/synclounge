@@ -481,11 +481,15 @@ export default {
       }
     },
 
-    markWatched() {
-      return this.MARK_WATCHED({
-        machineIdentifier: this.metadata.machineIdentifier,
-        ratingKey: this.metadata.ratingKey,
-      });
+    async markWatched() {
+      try {
+        await this.MARK_WATCHED({
+          machineIdentifier: this.metadata.machineIdentifier,
+          ratingKey: this.metadata.ratingKey,
+        });
+      } catch (e) {
+        console.error('Error marking as watched:', e);
+      }
     },
   },
 };

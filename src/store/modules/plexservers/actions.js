@@ -430,7 +430,7 @@ export default {
     machineIdentifier,
     ratingKey,
     signal,
-  }) => dispatch('FETCH_PLEX_SERVER', {
+  }) => dispatch('QUERY_PLEX_SERVER', {
     machineIdentifier,
     path: '/:/scrobble',
     params: {

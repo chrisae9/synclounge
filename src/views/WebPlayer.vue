@@ -44,14 +44,10 @@
         </v-fade-transition>
       </div>
 
-      <v-fade-transition
-        transition="fade-transition"
+      <v-row
+        no-gutters
+        class="pa-3 d-none d-sm-flex hoverBar"
       >
-        <v-row
-          v-show="ARE_PLAYER_CONTROLS_SHOWN"
-          no-gutters
-          class="pa-3 d-none d-sm-flex hoverBar"
-        >
           <v-col>
             <v-container fluid>
               <v-row no-gutters>
@@ -75,7 +71,6 @@
             </v-container>
           </v-col>
         </v-row>
-      </v-fade-transition>
 
       <div
         v-if="$vuetify.display.xs"
@@ -470,6 +465,7 @@ export default {
 
 .hoverBar {
   position: absolute;
+  pointer-events: none;
   background:
     -webkit-gradient(
       linear,
@@ -483,6 +479,15 @@ export default {
   top: 0;
   left: 0;
   width: 100%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Show hoverBar when Shaka's controls container has the shown attribute.
+   This ties hoverBar visibility directly to Shaka's native show/hide,
+   bypassing JavaScript polling and matching the play bar's behavior exactly. */
+.slplayer:has([shown]) ~ .hoverBar {
+  opacity: 1;
 }
 
 .plex-thumb {
@@ -514,6 +519,15 @@ export default {
 
 .is-fullscreen .messages-wrapper {
   height: calc(100vh - (0.5625 * 100vw));
+}
+
+/* Shaka adds a no-cursor class to hide the cursor when controls auto-hide.
+  The cursor style change triggers a synthetic mousemove in some browsers,
+  which Shaka interprets as user interaction and re-shows controls (feedback loop).
+  Override cursor to prevent the loop while still allowing controls to auto-hide. */
+.shaka-video-container.no-cursor,
+.shaka-video-container.no-cursor * {
+  cursor: auto !important;
 }
 
 /* Having to put shaka styling here since scoped rules don't seem to apply to them

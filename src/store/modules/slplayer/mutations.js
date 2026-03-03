@@ -123,6 +123,15 @@ export default {
     state.castStatusListener = listener;
   },
 
+  SET_CAST_SYNC_INTERVAL: (state, interval) => {
+    state.castSyncInterval = interval;
+  },
+
+  CLEAR_CAST_SYNC_INTERVAL: (state) => {
+    clearInterval(state.castSyncInterval);
+    state.castSyncInterval = null;
+  },
+
   SET_ALLOW_DIRECT_PLAY: (state, allow) => {
     state.allowDirectPlay = allow;
   },

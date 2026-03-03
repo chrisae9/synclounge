@@ -18,6 +18,8 @@ export default {
       parentTitle: getters.GET_ACTIVE_MEDIA_METADATA.parentTitle,
       ratingKey: getters.GET_ACTIVE_MEDIA_METADATA.ratingKey,
       machineIdentifier: getters.GET_ACTIVE_MEDIA_METADATA.machineIdentifier,
+      parentIndex: getters.GET_ACTIVE_MEDIA_METADATA.parentIndex,
+      index: getters.GET_ACTIVE_MEDIA_METADATA.index,
     }
     : null),
 

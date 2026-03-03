@@ -9,7 +9,7 @@
       class="app-bar-blur"
       scroll-behavior="hide"
       style="z-index: 5;"
-      :extension-height="$vuetify.display.smAndDown && showAppBarExtension ? 80 : 48"
+      :extension-height="showAppBarExtension ? 80 : 0"
     >
       <v-app-bar-nav-icon @click="SET_LEFT_SIDEBAR_OPEN" />
 
@@ -282,30 +282,18 @@ export default {
 
 .extension-wrapper {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
   flex: 1;
-  align-items: center;
+  width: 100%;
+  gap: 2px;
   min-width: 0;
 }
 
 .app-bar-search {
-  max-width: 400px;
+  max-width: 600px;
   min-width: 120px;
-  flex: 0 1 400px;
-  order: 1;
-}
-
-@media (max-width: 600px) {
-  .extension-wrapper {
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
-    gap: 2px;
-  }
-
-  .app-bar-search {
-    max-width: none;
-    flex: 0 0 auto;
-    order: 0;
-  }
+  width: 100%;
+  margin: 0 auto;
 }
 </style>

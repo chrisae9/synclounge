@@ -97,10 +97,9 @@ export default {
       return dispatch('SKIP_AHEAD', { cancelSignal, offset });
     }
 
-    if (absDifference > rootGetters.GET_CONFIG.slplayer_soft_seek_threshold) {
-      return dispatch('slplayer/SOFT_SEEK', adjustedHostTime, { root: true });
-    }
-
+    // Skip soft seek — on iOS Safari, setting currentTime directly causes audio decoder resets
+    // (audible clicks/pops) and triggers buffering events that create a feedback loop.
+    // Sub-syncFlexibility differences are imperceptible to viewers.
     return 'No sync needed';
   },
 

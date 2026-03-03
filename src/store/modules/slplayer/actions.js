@@ -242,10 +242,46 @@ export default {
     commit('SET_IS_CASTING', casting);
     console.debug('Cast state changed:', casting);
 
+    // Start/stop cast sync interval BEFORE source reload so it runs even if reload fails
+    if (casting) {
+      dispatch('START_CAST_SYNC_INTERVAL');
+    } else {
+      commit('CLEAR_CAST_SYNC_INTERVAL');
+    }
+
     // Reload stream with correct params (burn subtitles + transcode when casting)
     if (getters.IS_PLAYER_INITIALIZED) {
-      await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME');
+      try {
+        await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME');
+      } catch (e) {
+        console.warn('Failed to reload source after cast status change:', e);
+      }
     }
+  },
+
+  START_CAST_SYNC_INTERVAL: ({ state, commit, dispatch }) => {
+    commit('CLEAR_CAST_SYNC_INTERVAL');
+    console.debug('Starting cast sync interval');
+
+    const interval = setInterval(async () => {
+      if (!isCasting()) return;
+
+      try {
+        const paused = isPaused();
+        const newState = isBuffering() ? 'buffering' : (paused ? 'paused' : 'playing');
+
+        // Only broadcast when state actually changes to avoid triggering
+        // unnecessary syncs (seeks → rebuffering) on non-host clients
+        if (newState !== state.playerState) {
+          console.debug('Cast state transition:', state.playerState, '->', newState);
+          await dispatch('CHANGE_PLAYER_STATE', newState);
+        }
+      } catch (e) {
+        console.warn('Cast sync interval error:', e);
+      }
+    }, 2000);
+
+    commit('SET_CAST_SYNC_INTERVAL', interval);
   },
 
   HANDLE_PICTURE_IN_PICTURE_CHANGE: async ({ getters, commit, dispatch }) => {
@@ -480,6 +516,7 @@ export default {
 
   DESTROY_PLAYER_STATE: async ({ getters, commit, dispatch }) => {
     console.debug('DESTROY_PLAYER_STATE');
+    commit('CLEAR_CAST_SYNC_INTERVAL');
     getters.GET_PLAYER_DESTROY_CANCEL_TOKEN.abort();
     commit('SET_PLAYER_DESTROY_CANCEL_TOKEN', null);
     commit('SET_FORCE_TRANSCODE_RETRY', false);

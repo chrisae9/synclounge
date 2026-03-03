@@ -1,7 +1,6 @@
 <template>
   <v-navigation-drawer
     :model-value="isRightSidebarOpen"
-    style="z-index: 6;"
     location="right"
     class="pa-0 sidebar-blur"
     width="300"
@@ -137,7 +136,7 @@
     </template>
 
     <div
-      style="height: 100%;"
+      style="height: 100%; overflow: hidden;"
       class="d-flex flex-column"
     >
       <UserList />
@@ -198,6 +197,7 @@ export default {
 .messages {
   overflow-y: auto;
   flex: 1 1 0;
+  min-height: 0;
 }
 
 .participant-count {
@@ -233,5 +233,9 @@ export default {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   background: rgba(0, 0, 0, 0.85) !important;
+}
+
+.sidebar-blur :deep(.v-navigation-drawer__content) {
+  overscroll-behavior: contain;
 }
 </style>

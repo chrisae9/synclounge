@@ -9,6 +9,11 @@ import notificationSound from '@/assets/sounds/notification_simple-01.wav';
 
 const notificationAudio = new Audio(notificationSound);
 
+// Grace period after sending a party pause — prevents sync from immediately undoing the
+// local pause/play before the message reaches the host
+let lastPartyPauseTime = 0;
+const PARTY_PAUSE_GRACE_MS = 5000;
+
 export default {
   CONNECT_AND_JOIN_ROOM: async ({ dispatch }) => {
     await dispatch('ESTABLISH_SOCKET_CONNECTION');
@@ -180,6 +185,7 @@ export default {
 
   sendPartyPause: ({ getters }, isPause) => {
     if (!getters.AM_I_HOST && getters.IS_PARTY_PAUSING_ENABLED) {
+      lastPartyPauseTime = Date.now();
       emit({
         eventName: 'partyPause',
         data: isPause,
@@ -596,17 +602,21 @@ export default {
       { root: true },
     );
 
-    // TODO: examine if we want this or not
-    if (timeline.state === 'buffering') {
-      return;
-    }
-
     // If we didn't find a good match or .... wtf??
     if (timeline.state === 'stopped') {
       return;
     }
 
-    if (getters.GET_HOST_USER.state === 'playing' && timeline.state === 'paused') {
+    // Don't override local play/pause state during party pause grace period —
+    // the party pause message needs time to reach the host and propagate back
+    const inPartyPauseGrace = (Date.now() - lastPartyPauseTime) < PARTY_PAUSE_GRACE_MS;
+
+    if (getters.GET_HOST_USER.state === 'playing'
+      && (timeline.state === 'paused' || timeline.state === 'buffering')) {
+      if (inPartyPauseGrace) {
+        console.debug('_SYNC_PLAYER_STATE: skipping resume during party pause grace period');
+        return;
+      }
       await dispatch('DISPLAY_NOTIFICATION', {
         text: 'Resuming..',
         color: 'info',
@@ -615,14 +625,21 @@ export default {
       return;
     }
 
-    if ((getters.GET_HOST_USER.state === 'paused'
-          || getters.GET_HOST_USER.state === 'buffering')
-          && timeline.state === 'playing') {
+    if (getters.GET_HOST_USER.state === 'paused' && timeline.state === 'playing') {
+      if (inPartyPauseGrace) {
+        console.debug('_SYNC_PLAYER_STATE: skipping pause during party pause grace period');
+        return;
+      }
       await dispatch('DISPLAY_NOTIFICATION', {
         text: 'Pausing..',
         color: 'info',
       }, { root: true });
       await dispatch('plexclients/PRESS_PAUSE', cancelSignal, { root: true });
+      return;
+    }
+
+    // When host is buffering, don't pause other users — just skip sync until host recovers
+    if (getters.GET_HOST_USER.state === 'buffering') {
       return;
     }
 

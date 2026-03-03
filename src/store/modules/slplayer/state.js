@@ -24,6 +24,7 @@ const state = () => ({
   isInPictureInPicture: false,
   isCasting: false,
   castStatusListener: null,
+  castSyncInterval: null,
 
   // Subtitle state
   originalSubtitleResolutionXCache: null,
