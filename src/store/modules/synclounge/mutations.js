@@ -122,6 +122,10 @@ export default {
     state.hostGracePreviousHostUsername = username;
   },
 
+  SET_HOST_GRACE_PREVIOUS_HOST_THUMB: (state, thumb) => {
+    state.hostGracePreviousHostThumb = thumb;
+  },
+
   SET_PENDING_HOST_ID: (state, id) => {
     state.pendingHostId = id;
   },

@@ -88,5 +88,6 @@ export default {
   GET_HOST_GRACE_TIMEOUT_ID: (state) => state.hostGraceTimeoutId,
   IS_HOST_GRACE_PERIOD: (state) => state.isHostGracePeriod,
   GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: (state) => state.hostGracePreviousHostUsername,
+  GET_HOST_GRACE_PREVIOUS_HOST_THUMB: (state) => state.hostGracePreviousHostThumb,
   GET_PENDING_HOST_ID: (state) => state.pendingHostId,
 };

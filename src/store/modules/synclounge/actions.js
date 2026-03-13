@@ -541,7 +541,7 @@ export default {
   },
 
   SYNC_MEDIA_AND_PLAYER_STATE: async ({ getters, commit, dispatch }) => {
-    if (getters.AM_I_HOST || getters.GET_SYNC_CANCEL_TOKEN) {
+    if (getters.AM_I_HOST || getters.GET_SYNC_CANCEL_TOKEN || getters.IS_HOST_GRACE_PERIOD) {
       return;
     }
 
@@ -579,6 +579,9 @@ export default {
   // Interal action without lock. Use the one with the lock to stop multiple syncs from happening
   // at once
   _SYNC_MEDIA_AND_PLAYER_STATE: async ({ getters, dispatch, rootGetters }, cancelSignal) => {
+    if (!getters.GET_HOST_USER) {
+      return;
+    }
     console.debug('_SYNC_MEDIA_AND_PLAYER_STATE');
     const timeline = await dispatch(
       'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE',
@@ -634,7 +637,7 @@ export default {
   },
 
   SYNC_PLAYER_STATE: async ({ dispatch, getters, commit }) => {
-    if (getters.AM_I_HOST || getters.GET_SYNC_CANCEL_TOKEN) {
+    if (getters.AM_I_HOST || getters.GET_SYNC_CANCEL_TOKEN || getters.IS_HOST_GRACE_PERIOD) {
       return;
     }
 
@@ -662,6 +665,9 @@ export default {
 
   // Private version without lock. Please use the locking version unless you know what you are doing
   _SYNC_PLAYER_STATE: async ({ getters, dispatch }, cancelSignal) => {
+    if (!getters.GET_HOST_USER) {
+      return;
+    }
     console.debug('_SYNC_PLAYER_STATE:', {
       hostState: getters.GET_HOST_USER.state,
       hostTime: getters.GET_HOST_USER.time,
@@ -784,7 +790,8 @@ export default {
     dispatch('STOP_SYNC_POLL_INTERVAL');
 
     const id = setInterval(() => {
-      if (!getters.IS_IN_ROOM || getters.AM_I_HOST || getters.GET_SYNC_CANCEL_TOKEN) {
+      if (!getters.IS_IN_ROOM || getters.AM_I_HOST || getters.GET_SYNC_CANCEL_TOKEN
+        || getters.IS_HOST_GRACE_PERIOD) {
         return;
       }
       dispatch('SYNC_PLAYER_STATE');

@@ -17,6 +17,7 @@ function createMockContext(getterOverrides = {}) {
     GET_HOST_GRACE_TIMEOUT_ID: null,
     GET_PENDING_HOST_ID: null,
     GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: null,
+    GET_HOST_GRACE_PREVIOUS_HOST_THUMB: null,
     GET_USER: (id) => ({ username: `user-${id}`, state: 'playing', time: 0 }),
     IS_JOIN_SYNC_IN_PROGRESS: false,
     AM_I_HOST: false,
@@ -108,6 +109,44 @@ describe('HANDLE_USER_JOINED', () => {
     expect(ctx.dispatch).toHaveBeenCalledWith('SYNC_MEDIA_AND_PLAYER_STATE');
   });
 
+  it('reclaims host when username matches after server suffix change', async () => {
+    const ctx = createMockContext({
+      IS_HOST_GRACE_PERIOD: true,
+      GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'Alice(2)',
+    });
+
+    await eventhandlers.HANDLE_USER_JOINED(ctx, { id: 'u1', username: 'Alice(1)' });
+
+    expect(ctx.dispatch).toHaveBeenCalledWith('CLEAR_HOST_GRACE_PERIOD');
+    expect(ctx.commit).toHaveBeenCalledWith('SET_HOST_ID', 'u1');
+  });
+
+  it('reclaims host by thumb even when username changed', async () => {
+    const ctx = createMockContext({
+      IS_HOST_GRACE_PERIOD: true,
+      GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'OldName',
+      GET_HOST_GRACE_PREVIOUS_HOST_THUMB: 'https://plex.tv/avatar/abc',
+    });
+
+    await eventhandlers.HANDLE_USER_JOINED(ctx, {
+      id: 'u1', username: 'NewName', thumb: 'https://plex.tv/avatar/abc',
+    });
+
+    expect(ctx.dispatch).toHaveBeenCalledWith('CLEAR_HOST_GRACE_PERIOD');
+    expect(ctx.commit).toHaveBeenCalledWith('SET_HOST_ID', 'u1');
+  });
+
+  it('reclaim dispatches TRANSFER_HOST to notify server', async () => {
+    const ctx = createMockContext({
+      IS_HOST_GRACE_PERIOD: true,
+      GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'Alice',
+    });
+
+    await eventhandlers.HANDLE_USER_JOINED(ctx, { id: 'u1', username: 'Alice' });
+
+    expect(ctx.dispatch).toHaveBeenCalledWith('TRANSFER_HOST', 'u1');
+  });
+
   it('catches sync error after host reclaim (Bug 4)', async () => {
     const ctx = createMockContext({
       IS_HOST_GRACE_PERIOD: true,
@@ -134,6 +173,80 @@ describe('HANDLE_NEW_HOST', () => {
     vi.useRealTimers();
   });
 
+  describe('socket-originated newHost (explicit transfer / auto-host)', () => {
+    it('accepts immediately when receiving self as host', async () => {
+      const ctx = createMockContext({
+        GET_SOCKET_ID: 'me-1',
+        IS_HOST_GRACE_PERIOD: true,
+      });
+
+      await eventhandlers.HANDLE_NEW_HOST(ctx, 'me-1');
+
+      expect(ctx.dispatch).toHaveBeenCalledWith('CLEAR_HOST_GRACE_PERIOD');
+      expect(ctx.commit).toHaveBeenCalledWith('SET_HOST_ID', 'me-1');
+      expect(ctx.dispatch).toHaveBeenCalledWith('CANCEL_IN_PROGRESS_SYNC');
+      expect(ctx.commit).not.toHaveBeenCalledWith('SET_IS_HOST_GRACE_PERIOD', true);
+    });
+
+    it('sender accepts new host immediately without grace period', async () => {
+      const ctx = createMockContext({
+        GET_SOCKET_ID: 'me-1',
+        GET_HOST_ID: 'me-1',
+        GET_USER: (id) => ({ username: `user-${id}`, state: 'playing', time: 0 }),
+      });
+
+      // Sender receives newHost for someone else (explicit transfer)
+      await eventhandlers.HANDLE_NEW_HOST(ctx, 'other-user');
+
+      expect(ctx.commit).toHaveBeenCalledWith('SET_HOST_ID', 'other-user');
+      expect(ctx.dispatch).toHaveBeenCalledWith('SYNC_MEDIA_AND_PLAYER_STATE');
+      // Must NOT enter grace period
+      expect(ctx.commit).not.toHaveBeenCalledWith('SET_IS_HOST_GRACE_PERIOD', true);
+    });
+
+    it('enters grace period when previousHostLeft even for self', async () => {
+      const ctx = createMockContext({
+        GET_SOCKET_ID: 'me-1',
+        GET_HOST_ID: 'old-host',
+        GET_USER: (id) => ({ username: `user-${id}`, state: 'playing', time: 0 }),
+      });
+
+      await eventhandlers.HANDLE_NEW_HOST(ctx, { hostId: 'me-1', previousHostLeft: true });
+
+      expect(ctx.commit).toHaveBeenCalledWith('SET_HOST_GRACE_PREVIOUS_HOST_USERNAME', 'user-old-host');
+      expect(ctx.commit).toHaveBeenCalledWith('SET_IS_HOST_GRACE_PERIOD', true);
+      expect(ctx.commit).toHaveBeenCalledWith('SET_PENDING_HOST_ID', 'me-1');
+    });
+  });
+
+  describe('duplicate guard', () => {
+    it('no-ops when hostId already matches and not in grace period', async () => {
+      const ctx = createMockContext({
+        GET_HOST_ID: 'host-1',
+        IS_HOST_GRACE_PERIOD: false,
+      });
+
+      await eventhandlers.HANDLE_NEW_HOST(ctx, 'host-1');
+
+      expect(ctx.commit).not.toHaveBeenCalledWith('SET_HOST_ID', expect.anything());
+      expect(ctx.commit).not.toHaveBeenCalledWith('SET_IS_HOST_GRACE_PERIOD', expect.anything());
+    });
+
+    it('does not no-op when hostId matches but grace period is active', async () => {
+      const ctx = createMockContext({
+        GET_HOST_ID: 'host-1',
+        IS_HOST_GRACE_PERIOD: true,
+        GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'SomeUser',
+        GET_USER: (id) => ({ username: `user-${id}`, state: 'playing', time: 0 }),
+      });
+
+      await eventhandlers.HANDLE_NEW_HOST(ctx, 'host-1');
+
+      // Should proceed past the duplicate guard (not return early)
+      expect(ctx.commit).toHaveBeenCalled();
+    });
+  });
+
   describe('reclaim', () => {
     it('original host reconnects — clears grace period, sets host, syncs', async () => {
       const ctx = createMockContext({
@@ -156,7 +269,7 @@ describe('HANDLE_NEW_HOST', () => {
         GET_USER: (id) => ({ username: id === 'bob-1' ? 'Bob' : `user-${id}`, state: 'playing', time: 0 }),
       });
 
-      await eventhandlers.HANDLE_NEW_HOST(ctx, 'bob-1');
+      await eventhandlers.HANDLE_NEW_HOST(ctx, { hostId: 'bob-1', previousHostLeft: true });
 
       expect(ctx.dispatch).not.toHaveBeenCalledWith('CLEAR_HOST_GRACE_PERIOD');
     });
@@ -172,7 +285,7 @@ describe('HANDLE_NEW_HOST', () => {
         },
       });
 
-      await eventhandlers.HANDLE_NEW_HOST(ctx, 'new-host');
+      await eventhandlers.HANDLE_NEW_HOST(ctx, { hostId: 'new-host', previousHostLeft: true });
 
       expect(ctx.commit).toHaveBeenCalledWith('SET_HOST_ID', 'new-host');
       expect(ctx.commit).not.toHaveBeenCalledWith('SET_IS_HOST_GRACE_PERIOD', true);
@@ -184,7 +297,7 @@ describe('HANDLE_NEW_HOST', () => {
         GET_USER: (id) => ({ username: `user-${id}`, state: 'playing', time: 0 }),
       });
 
-      await eventhandlers.HANDLE_NEW_HOST(ctx, 'new-host');
+      await eventhandlers.HANDLE_NEW_HOST(ctx, { hostId: 'new-host', previousHostLeft: true });
 
       expect(ctx.commit).toHaveBeenCalledWith('SET_HOST_GRACE_PREVIOUS_HOST_USERNAME', 'user-old-host');
       expect(ctx.commit).toHaveBeenCalledWith('SET_IS_HOST_GRACE_PERIOD', true);
@@ -205,7 +318,7 @@ describe('HANDLE_NEW_HOST', () => {
         GET_USER: (id) => ({ username: `user-${id}`, state: 'playing', time: 0 }),
       });
 
-      await eventhandlers.HANDLE_NEW_HOST(ctx, 'new-host-2');
+      await eventhandlers.HANDLE_NEW_HOST(ctx, { hostId: 'new-host-2', previousHostLeft: true });
 
       expect(clearSpy).toHaveBeenCalledWith(oldTimeout);
       expect(ctx.commit).toHaveBeenCalledWith('SET_HOST_GRACE_TIMEOUT_ID', null);
@@ -235,7 +348,7 @@ describe('HANDLE_NEW_HOST', () => {
         if (mutation === 'SET_HOST_GRACE_TIMEOUT_ID') timeoutId = value;
       });
 
-      await eventhandlers.HANDLE_NEW_HOST(ctx, 'new-host');
+      await eventhandlers.HANDLE_NEW_HOST(ctx, { hostId: 'new-host', previousHostLeft: true });
 
       expect(isGracePeriod).toBe(true);
       expect(pendingHostId).toBe('new-host');
@@ -262,7 +375,7 @@ describe('HANDLE_NEW_HOST', () => {
         if (mutation === 'SET_PENDING_HOST_ID') pendingHostId = value;
       });
 
-      await eventhandlers.HANDLE_NEW_HOST(ctx, 'new-host');
+      await eventhandlers.HANDLE_NEW_HOST(ctx, { hostId: 'new-host', previousHostLeft: true });
 
       // Simulate grace period resolved before timer fires
       isGracePeriod = false;
@@ -300,7 +413,7 @@ describe('HANDLE_NEW_HOST', () => {
         return Promise.resolve();
       });
 
-      await eventhandlers.HANDLE_NEW_HOST(ctx, 'new-host');
+      await eventhandlers.HANDLE_NEW_HOST(ctx, { hostId: 'new-host', previousHostLeft: true });
 
       // Should not throw when timer fires
       await vi.advanceTimersByTimeAsync(10000);

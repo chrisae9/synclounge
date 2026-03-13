@@ -81,6 +81,12 @@
 
           <span>{{ getHostActionText(id === GET_HOST_ID) }}</span>
         </v-tooltip>
+        <v-icon
+          v-else
+          style="visibility: hidden"
+        >
+          star
+        </v-icon>
 
         <v-tooltip
           v-if="id !== GET_HOST_ID && AM_I_HOST"

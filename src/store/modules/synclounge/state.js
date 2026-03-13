@@ -24,6 +24,7 @@ const state = () => ({
 
   // Host leave grace period: delays host transfer so original host can reconnect
   hostGracePreviousHostUsername: null,
+  hostGracePreviousHostThumb: null,
   isHostGracePeriod: false,
   hostGraceTimeoutId: null,
   pendingHostId: null,

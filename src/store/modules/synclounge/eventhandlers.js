@@ -1,5 +1,9 @@
 import { emit, waitForEvent, getId } from '@/socket';
 
+// Strip server-assigned dedup suffix like "(1)", "(2)" for username comparison.
+// When the same Plex user reconnects, the server may assign a different suffix.
+const stripUsernameSuffix = (name) => name?.replace(/\(\d+\)$/, '').trim();
+
 export default {
   CLEAR_HOST_GRACE_PERIOD: ({ getters, commit }) => {
     if (getters.GET_HOST_GRACE_TIMEOUT_ID != null) {
@@ -9,6 +13,7 @@ export default {
     commit('SET_IS_HOST_GRACE_PERIOD', false);
     commit('SET_PENDING_HOST_ID', null);
     commit('SET_HOST_GRACE_PREVIOUS_HOST_USERNAME', null);
+    commit('SET_HOST_GRACE_PREVIOUS_HOST_THUMB', null);
   },
 
   HANDLE_SET_PARTY_PAUSING_ENABLED: async ({ getters, dispatch, commit }, value) => {
@@ -43,12 +48,18 @@ export default {
       text: `${rest.username} joined`,
     });
 
-    // If a user joins during grace period whose username matches the previous host, reclaim
-    if (getters.IS_HOST_GRACE_PERIOD
-      && rest.username
-      && rest.username === getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME) {
+    // If a user joins during grace period whose identity matches the previous host, reclaim.
+    // Match by thumb (Plex account identity) or stripped username (fallback).
+    const thumbMatch = rest.thumb && rest.thumb === getters.GET_HOST_GRACE_PREVIOUS_HOST_THUMB;
+    const nameMatch = rest.username
+      && stripUsernameSuffix(rest.username)
+        === stripUsernameSuffix(getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME);
+    if (getters.IS_HOST_GRACE_PERIOD && (thumbMatch || nameMatch)) {
       await dispatch('CLEAR_HOST_GRACE_PERIOD');
       commit('SET_HOST_ID', id);
+
+      // Tell the server the original host is back (fire-and-forget)
+      dispatch('TRANSFER_HOST', id);
 
       await dispatch('ADD_MESSAGE_AND_CACHE_AND_NOTIFY', {
         senderId: id,
@@ -71,18 +82,46 @@ export default {
     });
 
     if (newHostId) {
-      await dispatch('HANDLE_NEW_HOST', newHostId);
+      await dispatch('HANDLE_NEW_HOST', { hostId: newHostId, previousHostLeft: true });
     }
 
     commit('DELETE_USER', id);
   },
 
-  HANDLE_NEW_HOST: async ({ getters, dispatch, commit }, hostId) => {
+  HANDLE_NEW_HOST: async ({ getters, dispatch, commit }, rawArg) => {
+    const hostId = typeof rawArg === 'object' ? rawArg.hostId : rawArg;
+    const previousHostLeft = typeof rawArg === 'object' && rawArg.previousHostLeft;
+
+    // No-op if already set to this host
+    if (hostId === getters.GET_HOST_ID && !getters.IS_HOST_GRACE_PERIOD) {
+      return;
+    }
+
+    // Socket-originated newHost (explicit transfer, auto-host, reclaim confirmation):
+    // Accept immediately — grace period only applies when previous host disconnected
+    if (!previousHostLeft) {
+      if (getters.IS_HOST_GRACE_PERIOD) {
+        await dispatch('CLEAR_HOST_GRACE_PERIOD');
+      }
+      commit('SET_HOST_ID', hostId);
+      await dispatch('CANCEL_IN_PROGRESS_SYNC');
+      if (hostId !== getters.GET_SOCKET_ID) {
+        await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+      }
+      return;
+    }
+
+    // --- From here, previousHostLeft is true (user disconnected) ---
+
     // If we're in a grace period and the original host reconnected, cancel the grace period
     // and keep the original host
-    if (getters.IS_HOST_GRACE_PERIOD
-      && getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME
-      && getters.GET_USER(hostId)?.username === getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME) {
+    const newUser = getters.GET_USER(hostId);
+    const newThumbMatch = newUser?.thumb
+      && newUser.thumb === getters.GET_HOST_GRACE_PREVIOUS_HOST_THUMB;
+    const newNameMatch = getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME
+      && stripUsernameSuffix(newUser?.username)
+        === stripUsernameSuffix(getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME);
+    if (getters.IS_HOST_GRACE_PERIOD && (newThumbMatch || newNameMatch)) {
       await dispatch('CLEAR_HOST_GRACE_PERIOD');
       commit('SET_HOST_ID', hostId);
 
@@ -117,6 +156,7 @@ export default {
         return;
       }
       commit('SET_HOST_GRACE_PREVIOUS_HOST_USERNAME', previousHost.username);
+      commit('SET_HOST_GRACE_PREVIOUS_HOST_THUMB', previousHost.thumb || null);
     }
 
     // Clear any existing timeout from a previous grace period cascade
