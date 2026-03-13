@@ -41,8 +41,8 @@
               >
                 (you)
               </span>
-              <span class="text-medium-emphasis text-tiny">
-                ({{ getTimeFromMs(getAdjustedTime(user)) }} / {{ getTimeFromMs(user.duration) }})
+              <span class="user-time">
+                {{ getTimeFromMs(getAdjustedTime(user)) }}
               </span>
             </v-list-item-title>
           </div>
@@ -271,7 +271,9 @@ export default {
   border-color: #0de47499;
 }
 
-.text-tiny {
-  font-size: 70% !important;
+.user-time {
+  font-size: 75%;
+  opacity: 0.7;
+  margin-left: 4px;
 }
 </style>
