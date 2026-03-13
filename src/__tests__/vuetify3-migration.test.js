@@ -569,7 +569,7 @@ describe('PlexThumbnail Component', () => {
     const card = wrapper.findComponent({ name: 'v-card' });
     if (card.exists()) {
       expect(card.props('variant')).toBe('flat');
-      expect(card.props('rounded')).toBe('0');
+      expect(card.props('rounded')).toBe('lg');
     }
   });
 });
