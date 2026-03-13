@@ -14,6 +14,9 @@ const notificationAudio = new Audio(notificationSound);
 let lastPartyPauseTime = 0;
 const PARTY_PAUSE_GRACE_MS = 5000;
 
+// Visibility change handler reference for cleanup in DISCONNECT
+let visibilityChangeHandler = null;
+
 export default {
   CONNECT_AND_JOIN_ROOM: async ({ dispatch }) => {
     await dispatch('ESTABLISH_SOCKET_CONNECTION');
@@ -88,7 +91,9 @@ export default {
     return rest;
   },
 
-  JOIN_ROOM_AND_INIT: async ({ rootGetters, dispatch, commit }) => {
+  JOIN_ROOM_AND_INIT: async ({
+    getters, rootGetters, dispatch, commit,
+  }) => {
     // Note: this is also called on rejoining, so be careful not to register handlers twice
     // or duplicate tasks
     const {
@@ -127,12 +132,50 @@ export default {
       text: 'Joined room',
       color: 'success',
     }, { root: true });
-    await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+
+    commit('SET_JOIN_SYNC_IN_PROGRESS', true);
+    try {
+      await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+    } finally {
+      commit('SET_JOIN_SYNC_IN_PROGRESS', false);
+    }
+
+    // Schedule a delayed re-sync to catch up after initial media load settles
+    setTimeout(() => {
+      if (getters.IS_IN_ROOM) {
+        dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+      }
+    }, 2000);
+
+    // Start periodic sync polling to correct drift during continuous playback
+    dispatch('START_SYNC_POLL_INTERVAL');
+
+    // Re-sync when the tab becomes visible again (Chrome pauses video in background tabs)
+    if (visibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', visibilityChangeHandler);
+    }
+    visibilityChangeHandler = () => {
+      if (document.visibilityState === 'visible' && getters.IS_IN_ROOM && !getters.AM_I_HOST) {
+        dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+      }
+    };
+    document.addEventListener('visibilitychange', visibilityChangeHandler);
   },
 
   DISCONNECT: async ({ commit, dispatch }) => {
     await dispatch('CANCEL_IN_PROGRESS_SYNC');
     await dispatch('CANCEL_UPNEXT');
+    await dispatch('STOP_SYNC_POLL_INTERVAL');
+
+    // Clean up visibilitychange handler
+    if (visibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', visibilityChangeHandler);
+      visibilityChangeHandler = null;
+    }
+
+    // Clean up host grace period timer
+    await dispatch('CLEAR_HOST_GRACE_PERIOD');
+
     close();
     commit('SET_IS_IN_ROOM', false);
     commit('SET_USERS', {});
@@ -344,7 +387,7 @@ export default {
 
     await dispatch('PROCESS_UPNEXT', playerState);
 
-    if (playerState.state !== 'buffering' && !noSync) {
+    if (playerState.state !== 'buffering' && !noSync && !getters.IS_JOIN_SYNC_IN_PROGRESS) {
       await dispatch('SYNC_PLAYER_STATE');
     }
   },
@@ -397,6 +440,12 @@ export default {
   },
 
   ADD_MESSAGE_AND_CACHE_AND_NOTIFY: async ({ getters, dispatch }, msg) => {
+    // Intercept force sync commands — don't display in chat, trigger sync instead
+    if (msg.text && msg.text.startsWith('!forcesync')) {
+      await dispatch('MANUAL_SYNC');
+      return;
+    }
+
     await dispatch('ADD_MESSAGE_AND_CACHE', msg);
 
     if (getters.ARE_SOUND_NOTIFICATIONS_ENABLED) {
@@ -480,6 +529,17 @@ export default {
     }
   },
 
+  FORCE_SYNC_ALL: async ({ dispatch }) => {
+    emit({
+      eventName: 'sendMessage',
+      data: '!forcesync',
+    });
+    await dispatch('DISPLAY_NOTIFICATION', {
+      text: 'Force sync sent to all users',
+      color: 'success',
+    }, { root: true });
+  },
+
   SYNC_MEDIA_AND_PLAYER_STATE: async ({ getters, commit, dispatch }) => {
     if (getters.AM_I_HOST || getters.GET_SYNC_CANCEL_TOKEN) {
       return;
@@ -504,10 +564,15 @@ export default {
       if (!token.signal.aborted) {
         console.error('Error in sync media logic:', e);
       }
-    }
-
-    if (getters.GET_SYNC_CANCEL_TOKEN === token) {
-      commit('SET_SYNC_CANCEL_TOKEN', null);
+    } finally {
+      // Always clear our token — the === check can fail if a concurrent operation
+      // overwrites the token, causing a permanent deadlock where no syncs can run
+      if (getters.GET_SYNC_CANCEL_TOKEN === token) {
+        commit('SET_SYNC_CANCEL_TOKEN', null);
+      } else if (getters.GET_SYNC_CANCEL_TOKEN) {
+        console.warn('Sync cancel token was replaced during SYNC_MEDIA_AND_PLAYER_STATE — clearing stale token');
+        commit('SET_SYNC_CANCEL_TOKEN', null);
+      }
     }
   },
 
@@ -583,10 +648,15 @@ export default {
       if (!token.signal.aborted) {
         console.error('Error in sync player logic:', e);
       }
-    }
-
-    if (getters.GET_SYNC_CANCEL_TOKEN === token) {
-      commit('SET_SYNC_CANCEL_TOKEN', null);
+    } finally {
+      // Always clear our token — the === check can fail if a concurrent operation
+      // overwrites the token, causing a permanent deadlock where no syncs can run
+      if (getters.GET_SYNC_CANCEL_TOKEN === token) {
+        commit('SET_SYNC_CANCEL_TOKEN', null);
+      } else if (getters.GET_SYNC_CANCEL_TOKEN) {
+        console.warn('Sync cancel token was replaced during SYNC_PLAYER_STATE — clearing stale token');
+        commit('SET_SYNC_CANCEL_TOKEN', null);
+      }
     }
   },
 
@@ -612,7 +682,7 @@ export default {
     const inPartyPauseGrace = (Date.now() - lastPartyPauseTime) < PARTY_PAUSE_GRACE_MS;
 
     if (getters.GET_HOST_USER.state === 'playing'
-      && (timeline.state === 'paused' || timeline.state === 'buffering')) {
+      && timeline.state === 'paused') {
       if (inPartyPauseGrace) {
         console.debug('_SYNC_PLAYER_STATE: skipping resume during party pause grace period');
         return;
@@ -622,7 +692,7 @@ export default {
         color: 'info',
       }, { root: true });
       await dispatch('plexclients/PRESS_PLAY', cancelSignal, { root: true });
-      return;
+      // Fall through to SYNC below to also seek to the correct host position
     }
 
     if (getters.GET_HOST_USER.state === 'paused' && timeline.state === 'playing') {
@@ -708,6 +778,23 @@ export default {
   DISCONNECT_AND_NAVIGATE_HOME: async ({ dispatch }) => {
     await dispatch('DISCONNECT');
     await dispatch('NAVIGATE_HOME', null, { root: true });
+  },
+
+  START_SYNC_POLL_INTERVAL: ({ getters, commit, dispatch }) => {
+    dispatch('STOP_SYNC_POLL_INTERVAL');
+
+    const id = setInterval(() => {
+      if (!getters.IS_IN_ROOM || getters.AM_I_HOST || getters.GET_SYNC_CANCEL_TOKEN) {
+        return;
+      }
+      dispatch('SYNC_PLAYER_STATE');
+    }, 5000);
+
+    commit('SET_SYNC_POLL_INTERVAL_ID', id);
+  },
+
+  STOP_SYNC_POLL_INTERVAL: ({ commit }) => {
+    commit('CLEAR_SYNC_POLL_INTERVAL');
   },
 
   ...eventhandlers,

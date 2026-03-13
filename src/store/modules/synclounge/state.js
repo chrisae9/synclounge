@@ -18,6 +18,18 @@ const state = () => ({
   upNextTriggered: false,
   areNotificationsEnabled: null,
   areSoundNotificationsEnabled: null,
+
+  // Join sync guard: prevents local sync dispatches during initial media load
+  joinSyncInProgress: false,
+
+  // Host leave grace period: delays host transfer so original host can reconnect
+  hostGracePreviousHostUsername: null,
+  isHostGracePeriod: false,
+  hostGraceTimeoutId: null,
+  pendingHostId: null,
+
+  // Periodic sync poll interval ID
+  syncPollIntervalId: null,
 });
 
 export default state;

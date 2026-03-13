@@ -105,4 +105,35 @@ export default {
   SET_ARE_SOUND_NOTIFICATIONS_ENABLED: (state, enabled) => {
     state.areSoundNotificationsEnabled = enabled;
   },
+
+  SET_JOIN_SYNC_IN_PROGRESS: (state, value) => {
+    state.joinSyncInProgress = value;
+  },
+
+  SET_HOST_GRACE_TIMEOUT_ID: (state, id) => {
+    state.hostGraceTimeoutId = id;
+  },
+
+  SET_IS_HOST_GRACE_PERIOD: (state, value) => {
+    state.isHostGracePeriod = value;
+  },
+
+  SET_HOST_GRACE_PREVIOUS_HOST_USERNAME: (state, username) => {
+    state.hostGracePreviousHostUsername = username;
+  },
+
+  SET_PENDING_HOST_ID: (state, id) => {
+    state.pendingHostId = id;
+  },
+
+  SET_SYNC_POLL_INTERVAL_ID: (state, id) => {
+    state.syncPollIntervalId = id;
+  },
+
+  CLEAR_SYNC_POLL_INTERVAL: (state) => {
+    if (state.syncPollIntervalId != null) {
+      clearInterval(state.syncPollIntervalId);
+      state.syncPollIntervalId = null;
+    }
+  },
 };

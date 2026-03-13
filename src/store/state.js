@@ -20,6 +20,7 @@ const state = () => ({
   navigateToPlayer: false,
   browser: detect(),
   navigateHome: false,
+  navigateSignIn: false,
   isLibraryListView: false,
 });
 

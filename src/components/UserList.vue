@@ -6,9 +6,10 @@
     <v-list-item
       v-for="(user, id) in GET_USERS"
       :key="id"
+      class="py-0"
     >
       <template #prepend>
-        <v-avatar size="40">
+        <v-avatar size="28">
           <img
             :src="user.thumb"
             class="avatar-img"
@@ -40,34 +41,21 @@
               >
                 (you)
               </span>
+              <span class="text-medium-emphasis text-tiny">
+                ({{ getTimeFromMs(getAdjustedTime(user)) }} / {{ getTimeFromMs(user.duration) }})
+              </span>
             </v-list-item-title>
-
-            <v-list-item-subtitle
-              class="text-medium-emphasis text-tiny"
-            >
-              {{ getTitle(user.media) }}
-            </v-list-item-subtitle>
           </div>
         </template>
 
+        {{ getTitle(user.media) }}
+        <br>
         Watching on {{ user.playerProduct || `Unknown Plex Client` }}
         <span v-if="user.media && GET_PLEX_SERVER(user.media.machineIdentifier)">
           <br>
           via {{ GET_PLEX_SERVER(user.media.machineIdentifier).name }}
         </span>
       </v-tooltip>
-
-      <div
-        class="d-flex justify-space-between text-tiny"
-      >
-        <div>
-          {{ getTimeFromMs(getAdjustedTime(user)) }}
-        </div>
-
-        <div>
-          {{ getTimeFromMs(user.duration) }}
-        </div>
-      </div>
 
       <v-progress-linear
         class="pt-content-progress"
@@ -247,11 +235,11 @@ export default {
 
 <style scoped>
 .user-list {
-  max-height: calc(50vh - 154px);
+  max-height: calc(50vh - 100px);
 }
 
 .avatar-img {
-  border: 3px solid;
+  border: 2px solid;
   border-radius: 50%;
   width: 100%;
   height: 100%;
@@ -259,7 +247,7 @@ export default {
 }
 
 .avatar-icon {
-  font-size: 26px;
+  font-size: 16px;
   opacity: 0.8;
   position: absolute;
   background-color: rgb(0 0 0 / 70%);

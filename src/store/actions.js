@@ -34,4 +34,10 @@ export default {
       commit('SET_NAVIGATE_HOME', true);
     }
   },
+
+  NAVIGATE_SIGN_IN: async ({ getters, commit }) => {
+    if (!getters.GET_NAVIGATE_SIGN_IN) {
+      commit('SET_NAVIGATE_SIGN_IN', true);
+    }
+  },
 };

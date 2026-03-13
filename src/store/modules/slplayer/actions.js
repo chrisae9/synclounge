@@ -339,28 +339,27 @@ export default {
     console.log('ms until synced: ', timeUntilSynced);
 
     const main = CAF(function* main(signal) {
+      // Register listener before setting rate — setPlaybackRate fires ratechange synchronously
+      const rateChangePromise = dispatch('PROCESS_STATE_UPDATE_ON_PLAYER_EVENT', {
+        signal,
+        type: 'ratechange',
+        noSync: true,
+      });
       setPlaybackRate(rate);
 
       try {
         yield Promise.all([
           CAF.delay(signal, timeUntilSynced),
-
-          dispatch('PROCESS_STATE_UPDATE_ON_PLAYER_EVENT', {
-            signal,
-            type: 'ratechange',
-            noSync: true,
-          }),
+          rateChangePromise,
         ]);
       } finally {
-        setPlaybackRate(1);
-
-        // TODO: not sure what to do since I need to do this cancellable task in the cleanup
+        // Register listener before resetting rate — setPlaybackRate fires ratechange synchronously
         dispatch('PROCESS_STATE_UPDATE_ON_PLAYER_EVENT', {
           signal,
           type: 'ratechange',
-          // Don't sync if aborted
           noSync: signal.aborted,
-        });
+        }).catch(() => {}); // Expected rejection when signal is already aborted
+        setPlaybackRate(1);
       }
     });
 

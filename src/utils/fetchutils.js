@@ -6,11 +6,26 @@ export const makeUrl = (url, params) => {
   return `${url}?${queryStr}`;
 };
 
+export class PlexAuthError extends Error {
+  constructor(status, statusText, url) {
+    super(`${status} ${statusText}`);
+    this.name = 'PlexAuthError';
+    this.status = status;
+    this.url = url;
+  }
+}
+
 const safeFetch = async (...args) => {
   const response = await fetch(...args);
   if (!response.ok) {
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url;
     console.warn(`HTTP ${response.status} ${response.statusText}: ${url}`);
+
+    if ((response.status === 401 || response.status === 403)
+      && url && url.includes('plex.tv')) {
+      throw new PlexAuthError(response.status, response.statusText, url);
+    }
+
     throw new Error(`${response.status} ${response.statusText}`);
   }
 

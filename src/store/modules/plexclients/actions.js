@@ -119,6 +119,13 @@ export default {
   },
 
   SKIP_AHEAD: async ({ rootGetters, dispatch }, { offset, cancelSignal }) => {
+    const timeline = await dispatch('FETCH_TIMELINE_POLL_DATA_CACHE');
+    if (timeline.state !== 'playing') {
+      // Can't do smooth skip while buffering/paused — clean seek instead
+      await dispatch('SEEK_TO', { offset, cancelSignal });
+      return;
+    }
+
     const { CAF } = await import('caf');
     const startedAt = Date.now();
     const duration = rootGetters.GET_CONFIG.skip_ahead_time;

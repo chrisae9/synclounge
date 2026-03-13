@@ -82,4 +82,11 @@ export default {
   ARE_SOUND_NOTIFICATIONS_ENABLED: (state, getters, rootState, rootGetters) => state
     .areSoundNotificationsEnabled
     ?? rootGetters.GET_CONFIG?.default_are_sound_notification_enabled,
+
+  IS_JOIN_SYNC_IN_PROGRESS: (state) => state.joinSyncInProgress,
+
+  GET_HOST_GRACE_TIMEOUT_ID: (state) => state.hostGraceTimeoutId,
+  IS_HOST_GRACE_PERIOD: (state) => state.isHostGracePeriod,
+  GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: (state) => state.hostGracePreviousHostUsername,
+  GET_PENDING_HOST_ID: (state) => state.pendingHostId,
 };

@@ -127,6 +127,7 @@ import {
 import { defineAsyncComponent } from 'vue';
 import clipboard from '@/mixins/clipboard';
 import linkWithRoom from '@/mixins/linkwithroom';
+import { PlexAuthError } from '@/utils/fetchutils';
 
 export default {
   components: {
@@ -148,6 +149,7 @@ export default {
       'GET_SNACKBAR_OPEN',
       'GET_NAVIGATE_TO_PLAYER',
       'GET_NAVIGATE_HOME',
+      'GET_NAVIGATE_SIGN_IN',
     ]),
 
     ...mapGetters('plex', [
@@ -218,6 +220,14 @@ export default {
         this.SET_NAVIGATE_HOME(false);
       }
     },
+
+    async GET_NAVIGATE_SIGN_IN(navigate) {
+      if (navigate) {
+        console.debug('NAVIGATE_SIGN_IN');
+        this.$router.push({ name: 'SignIn' });
+        this.SET_NAVIGATE_SIGN_IN(false);
+      }
+    },
   },
 
   async created() {
@@ -228,12 +238,16 @@ export default {
           this.FETCH_PLEX_DEVICES(),
         ]);
       } catch (e) {
-        // If these fail, then the auth token is probably invalid
         console.error(e);
-        await this.DISPLAY_NOTIFICATION({
-          text: 'Failed to connect to Plex API. Try logging out and back in.',
-          color: 'error',
-        });
+        if (e instanceof PlexAuthError) {
+          this.SET_PLEX_AUTH_TOKEN(null);
+          this.$router.push({ name: 'SignIn' });
+        } else {
+          await this.DISPLAY_NOTIFICATION({
+            text: 'Failed to connect to Plex API. Try logging out and back in.',
+            color: 'error',
+          });
+        }
       }
     }
   },
@@ -266,7 +280,12 @@ export default {
       'SET_SNACKBAR_OPEN',
       'SET_NAVIGATE_TO_PLAYER',
       'SET_NAVIGATE_HOME',
+      'SET_NAVIGATE_SIGN_IN',
       'SET_LEFT_SIDEBAR_OPEN',
+    ]),
+
+    ...mapMutations('plex', [
+      'SET_PLEX_AUTH_TOKEN',
     ]),
 
   },

@@ -1,5 +1,5 @@
 import promiseutils from '@/utils/promiseutils';
-import { fetchJson, queryFetch } from '@/utils/fetchutils';
+import { fetchJson, queryFetch, PlexAuthError } from '@/utils/fetchutils';
 import { difference } from '@/utils/lightlodash';
 
 export default {
@@ -32,16 +32,29 @@ export default {
     await dispatch('FETCH_PLEX_USER', signal);
   },
 
-  FETCH_PLEX_USER: async ({ getters, commit }, signal) => {
-    const data = await fetchJson('https://plex.tv/api/v2/user', {
-      ...getters.GET_PLEX_BASE_PARAMS(),
-      includeSubscriptions: 1,
-      includeProviders: 1,
-      includeSettings: 1,
-      includeSharedSettings: 1,
-    }, { signal });
+  FETCH_PLEX_USER: async ({ getters, commit, dispatch }, signal) => {
+    try {
+      const data = await fetchJson('https://plex.tv/api/v2/user', {
+        ...getters.GET_PLEX_BASE_PARAMS(),
+        includeSubscriptions: 1,
+        includeProviders: 1,
+        includeSettings: 1,
+        includeSharedSettings: 1,
+      }, { signal });
 
-    commit('SET_PLEX_USER', data);
+      commit('SET_PLEX_USER', data);
+    } catch (e) {
+      if (e instanceof PlexAuthError) {
+        await dispatch('DISPLAY_NOTIFICATION', {
+          text: 'Session expired. Please sign in again.',
+          color: 'error',
+        }, { root: true });
+        commit('SET_PLEX_AUTH_TOKEN', null);
+        await dispatch('NAVIGATE_SIGN_IN', null, { root: true });
+      }
+
+      throw e;
+    }
   },
 
   // Private function, please use FETCH_PLEX_DEVICES instead
@@ -50,11 +63,25 @@ export default {
   }) => {
     const oldServersIds = rootGetters['plexservers/GET_PLEX_SERVER_IDS'];
 
-    const devices = await fetchJson('https://plex.tv/api/v2/resources', {
-      ...getters.GET_PLEX_BASE_PARAMS(),
-      includeHttps: 1,
-      includeRelay: 1,
-    });
+    let devices;
+    try {
+      devices = await fetchJson('https://plex.tv/api/v2/resources', {
+        ...getters.GET_PLEX_BASE_PARAMS(),
+        includeHttps: 1,
+        includeRelay: 1,
+      });
+    } catch (e) {
+      if (e instanceof PlexAuthError) {
+        await dispatch('DISPLAY_NOTIFICATION', {
+          text: 'Session expired. Please sign in again.',
+          color: 'error',
+        }, { root: true });
+        commit('SET_PLEX_AUTH_TOKEN', null);
+        await dispatch('NAVIGATE_SIGN_IN', null, { root: true });
+      }
+
+      throw e;
+    }
 
     await Promise.allSettled(devices.map(async (device) => {
       if (device.provides.indexOf('server') !== -1) {

@@ -100,9 +100,9 @@
       </v-tooltip>
 
       <v-list-item
-        v-if="!AM_I_HOST
-          && GET_HOST_USER && GET_HOST_USER.state !== 'stopped'"
+        v-if="AM_I_HOST"
         density="compact"
+        class="px-3 py-0"
       >
         <v-tooltip
           location="bottom"
@@ -114,22 +114,76 @@
               variant="flat"
               color="primary"
               class="text-white"
-              :disabled="!IS_PARTY_PAUSING_ENABLED"
-              @click="sendPartyPause(GET_HOST_USER.state === 'playing')"
+              size="small"
+              :disabled="forceSyncDisabled"
+              @click="handleForceSync"
             >
-              <v-icon v-if="GET_HOST_USER.state === 'playing'">
-                pause
+              <v-icon start>
+                sync_problem
               </v-icon>
-
-              <v-icon v-else>
-                play_arrow
-              </v-icon>
+              Force Sync
             </v-btn>
           </template>
 
-          <span>Party Pausing is currently {{
-            IS_PARTY_PAUSING_ENABLED ? 'enabled' : 'disabled' }} by the host</span>
+          <span>Force all users to sync to your current position</span>
         </v-tooltip>
+      </v-list-item>
+
+      <v-list-item
+        v-if="!AM_I_HOST
+          && GET_HOST_USER && GET_HOST_USER.state !== 'stopped'"
+        density="compact"
+        class="px-3 py-0"
+      >
+        <div class="d-flex ga-2">
+          <v-tooltip
+            location="bottom"
+            content-class="thumbnail-tooltip"
+          >
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                size="small"
+                variant="flat"
+                color="primary"
+                class="text-white"
+                :disabled="!IS_PARTY_PAUSING_ENABLED"
+                @click="sendPartyPause(GET_HOST_USER.state === 'playing')"
+              >
+                <v-icon v-if="GET_HOST_USER.state === 'playing'">
+                  pause
+                </v-icon>
+
+                <v-icon v-else>
+                  play_arrow
+                </v-icon>
+              </v-btn>
+            </template>
+
+            <span>Party Pausing is currently {{
+              IS_PARTY_PAUSING_ENABLED ? 'enabled' : 'disabled' }} by the host</span>
+          </v-tooltip>
+
+          <v-tooltip
+            location="bottom"
+            content-class="thumbnail-tooltip"
+          >
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                size="small"
+                variant="flat"
+                color="primary"
+                class="text-white"
+                @click="SYNC_MEDIA_AND_PLAYER_STATE"
+              >
+                <v-icon>sync</v-icon>
+              </v-btn>
+            </template>
+
+            <span>Sync to host</span>
+          </v-tooltip>
+        </div>
       </v-list-item>
 
       <v-divider />
@@ -166,6 +220,10 @@ export default {
     UserList: defineAsyncComponent(() => import('@/components/UserList.vue')),
   },
 
+  data: () => ({
+    forceSyncDisabled: false,
+  }),
+
   computed: {
     ...mapState(['isRightSidebarOpen']),
 
@@ -179,16 +237,34 @@ export default {
   },
 
   methods: {
+    ...mapActions([
+      'DISPLAY_NOTIFICATION',
+    ]),
+
     ...mapActions('synclounge', [
       'SEND_SET_PARTY_PAUSING_ENABLED',
       'SEND_SET_AUTO_HOST_ENABLED',
       'sendPartyPause',
       'DISCONNECT_AND_NAVIGATE_HOME',
+      'SYNC_MEDIA_AND_PLAYER_STATE',
+      'FORCE_SYNC_ALL',
     ]),
 
     ...mapMutations([
       'SET_RIGHT_SIDEBAR_OPEN',
     ]),
+
+    async handleForceSync() {
+      this.forceSyncDisabled = true;
+      await this.FORCE_SYNC_ALL();
+      this.DISPLAY_NOTIFICATION({
+        text: 'Force sync sent to all users',
+        color: 'info',
+      });
+      setTimeout(() => {
+        this.forceSyncDisabled = false;
+      }, 3000);
+    },
   },
 };
 </script>

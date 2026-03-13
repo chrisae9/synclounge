@@ -41,6 +41,10 @@ export default {
     state.navigateHome = navigate;
   },
 
+  SET_NAVIGATE_SIGN_IN: (state, navigate) => {
+    state.navigateSignIn = navigate;
+  },
+
   TOGGLE_LIBRARY_LIST_VIEW: (state) => {
     state.isLibraryListView = !state.isLibraryListView;
   },
