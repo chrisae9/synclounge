@@ -24,8 +24,12 @@ export default (store) => {
       ];
 
       // Listen for clicks on the button to start the next playback
-      this.eventManager.listen(this.button, 'click', () => {
-        store.dispatch('synclounge/MANUAL_SYNC');
+      this.eventManager.listen(this.button, 'click', async () => {
+        await store.dispatch('synclounge/MANUAL_SYNC');
+        store.dispatch('DISPLAY_NOTIFICATION', {
+          text: 'Synced',
+          color: 'success',
+        });
       });
 
       this.updateButtonDisplay();

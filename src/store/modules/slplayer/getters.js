@@ -272,7 +272,7 @@ export default {
 
   GET_DECISION_AND_START_PARAMS: (state, getters, rootState, rootGetters) => ({
     hasMDE: 1,
-    path: rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA'].key,
+    path: rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']?.key,
     mediaIndex: getters.GET_MEDIA_INDEX,
     // TODO: investigate multipart file support
     partIndex: 0,

@@ -369,6 +369,8 @@ export default {
   PROCESS_PLAYER_STATE_UPDATE: async ({ getters, dispatch, commit }, noSync) => {
     if (!getters.IS_IN_ROOM || !isConnected()) return;
 
+    const previousState = getters.GET_USER(getters.GET_SOCKET_ID)?.state;
+
     const playerState = await dispatch(
       'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE',
       null,
@@ -388,7 +390,14 @@ export default {
     await dispatch('PROCESS_UPNEXT', playerState);
 
     if (playerState.state !== 'buffering' && !noSync && !getters.IS_JOIN_SYNC_IN_PROGRESS) {
-      await dispatch('SYNC_PLAYER_STATE');
+      // After buffering→playing, immediately sync to host position instead of relying
+      // on gradual speed sync which can leave non-hosts behind
+      if (previousState === 'buffering' && playerState.state === 'playing'
+        && !getters.AM_I_HOST) {
+        await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+      } else {
+        await dispatch('SYNC_PLAYER_STATE');
+      }
     }
   },
 
@@ -413,9 +422,11 @@ export default {
       commit('SET_UP_NEXT_TRIGGERED', false);
     }
 
+    const media = rootGetters['plexclients/GET_ACTIVE_MEDIA_POLL_METADATA'];
+
     commit('SET_USER_MEDIA', {
       id: getters.GET_SOCKET_ID,
-      media: rootGetters['plexclients/GET_ACTIVE_MEDIA_POLL_METADATA'],
+      media,
     });
 
     commit('SET_USER_PLAYER_STATE', {
@@ -426,7 +437,7 @@ export default {
     emit({
       eventName: 'mediaUpdate',
       data: {
-        media: rootGetters['plexclients/GET_ACTIVE_MEDIA_POLL_METADATA'],
+        media,
         ...playerState,
         userInitiated,
       },

@@ -196,6 +196,9 @@ export default {
   },
 
   RELOAD_ACTIVE_MEDIA_METADATA: async ({ getters, dispatch, commit }) => {
+    if (!getters.GET_ACTIVE_MEDIA_METADATA) {
+      return;
+    }
     const metadata = await dispatch('plexservers/FETCH_PLEX_METADATA', {
       machineIdentifier: getters.GET_ACTIVE_SERVER_ID,
       ratingKey: getters.GET_ACTIVE_MEDIA_METADATA.ratingKey,

@@ -13,12 +13,15 @@ import {
 import Deferred from '@/utils/deferredpromise';
 import subtitleActions from './subtitleActions';
 
+// Module-level guard for play queue transitions (not reactive, so reads are synchronous)
+let isPlayQueueTransitioning = false;
+
 export default {
   MAKE_TIMELINE_PARAMS: async ({ getters, rootGetters, dispatch }) => ({
-    ratingKey: rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA'].ratingKey,
-    key: rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA'].key,
+    ratingKey: rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']?.ratingKey,
+    key: rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']?.key,
     // playbackTime: 591
-    playQueueItemID: rootGetters['plexclients/GET_ACTIVE_PLAY_QUEUE_SELECTED_ITEM'].playQueueItemID,
+    playQueueItemID: rootGetters['plexclients/GET_ACTIVE_PLAY_QUEUE_SELECTED_ITEM']?.playQueueItemID,
     state: getters.GET_PLAYER_STATE,
     hasMDE: 1,
     time: Math.floor(await dispatch('FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK')),
@@ -529,6 +532,10 @@ export default {
     await dispatch('UNREGISTER_PLAYER_EVENTS');
     await dispatch('CANCEL_PERIODIC_PLEX_TIMELINE_UPDATE');
 
+    // Send stop media update BEFORE clearing metadata, so PROCESS_MEDIA_UPDATE
+    // can still read the active metadata without crashing
+    await dispatch('synclounge/PROCESS_MEDIA_UPDATE', null, { root: true });
+
     commit('plexclients/SET_ACTIVE_MEDIA_METADATA', null, { root: true });
     commit('plexclients/SET_ACTIVE_SERVER_ID', null, { root: true });
     // Leaving play queue around for possible upnext
@@ -539,9 +546,6 @@ export default {
     commit('SET_SUBTITLE_OFFSET', 0);
     await destroy();
     commit('SET_OFFSET_MS', 0);
-
-    // Send out stop media update
-    await dispatch('synclounge/PROCESS_MEDIA_UPDATE', null, { root: true });
   },
 
   REGISTER_PLAYER_EVENTS: ({ commit, dispatch }) => {
@@ -600,14 +604,32 @@ export default {
   },
 
   PLAY_NEXT: async ({ dispatch, commit }) => {
+    if (isPlayQueueTransitioning) {
+      console.debug('slplayer/PLAY_NEXT: ignored, already transitioning');
+      return;
+    }
     console.debug('slplayer/PLAY_NEXT');
-    commit('plexclients/INCREMENT_ACTIVE_PLAY_QUEUE_SELECTED_ITEM_OFFSET', null, { root: true });
-    await dispatch('PLAY_ACTIVE_PLAY_QUEUE_SELECTED_ITEM');
+    isPlayQueueTransitioning = true;
+    try {
+      commit('plexclients/INCREMENT_ACTIVE_PLAY_QUEUE_SELECTED_ITEM_OFFSET', null, { root: true });
+      await dispatch('PLAY_ACTIVE_PLAY_QUEUE_SELECTED_ITEM');
+    } finally {
+      isPlayQueueTransitioning = false;
+    }
   },
 
   PLAY_PREVIOUS: async ({ dispatch, commit }) => {
-    commit('plexclients/DECREMENT_ACTIVE_PLAY_QUEUE_SELECTED_ITEM_OFFSET', null, { root: true });
-    await dispatch('PLAY_ACTIVE_PLAY_QUEUE_SELECTED_ITEM');
+    if (isPlayQueueTransitioning) {
+      console.debug('slplayer/PLAY_PREVIOUS: ignored, already transitioning');
+      return;
+    }
+    isPlayQueueTransitioning = true;
+    try {
+      commit('plexclients/DECREMENT_ACTIVE_PLAY_QUEUE_SELECTED_ITEM_OFFSET', null, { root: true });
+      await dispatch('PLAY_ACTIVE_PLAY_QUEUE_SELECTED_ITEM');
+    } finally {
+      isPlayQueueTransitioning = false;
+    }
   },
 
   PLAY_ACTIVE_PLAY_QUEUE_SELECTED_ITEM: async ({ dispatch, commit, rootGetters }) => {

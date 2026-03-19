@@ -1,4 +1,4 @@
-const METADATA_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const METADATA_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 const METADATA_MAX_SIZE = 10000;
 
 function createCache({ nowFn = Date.now } = {}) {

@@ -103,11 +103,17 @@
           <v-snackbar
             :model-value="GET_SNACKBAR_OPEN"
             :color="GET_SNACKBAR_MESSAGE.color"
-            location="bottom"
+            :location="GET_SNACKBAR_MESSAGE.location || 'bottom'"
             timeout="4000"
             content-class="text-center"
             @update:model-value="SET_SNACKBAR_OPEN"
           >
+            <v-icon
+              v-if="GET_SNACKBAR_MESSAGE.icon"
+              class="mr-2 snackbar-icon-spin"
+            >
+              {{ GET_SNACKBAR_MESSAGE.icon }}
+            </v-icon>
             {{ GET_SNACKBAR_MESSAGE.text }}
           </v-snackbar>
 
@@ -314,5 +320,14 @@ export default {
   min-width: 120px;
   width: 100%;
   margin: 0 auto;
+}
+
+.snackbar-icon-spin {
+  animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

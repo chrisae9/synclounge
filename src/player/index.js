@@ -70,15 +70,20 @@ export const addEventListener = (...args) => getRawPlayer().addEventListener(...
 export const removeEventListener = (...args) => getRawPlayer().removeEventListener(...args);
 
 const addMediaElementEventListener = (...args) => getRawPlayer()
-  .getMediaElement()
-  .addEventListener(...args);
+  ?.getMediaElement()
+  ?.addEventListener(...args);
 
 const removeMediaElementEventListener = (...args) => getRawPlayer()
-  .getMediaElement()
-  .removeEventListener(...args);
+  ?.getMediaElement()
+  ?.removeEventListener(...args);
 
 // TODO: potentialy make cancellable
 export const waitForMediaElementEvent = ({ signal, type }) => new Promise((resolve, reject) => {
+  if (!signal || !signal.pr) {
+    reject(new Error('waitForMediaElementEvent: invalid signal'));
+    return;
+  }
+
   signal.pr.catch((e) => {
     removeMediaElementEventListener(type, resolve);
     reject(e);

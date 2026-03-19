@@ -175,7 +175,7 @@
                 variant="flat"
                 color="primary"
                 class="text-white"
-                @click="SYNC_MEDIA_AND_PLAYER_STATE"
+                @click="handleManualSync"
               >
                 <v-icon>sync</v-icon>
               </v-btn>
@@ -246,13 +246,21 @@ export default {
       'SEND_SET_AUTO_HOST_ENABLED',
       'sendPartyPause',
       'DISCONNECT_AND_NAVIGATE_HOME',
-      'SYNC_MEDIA_AND_PLAYER_STATE',
+      'MANUAL_SYNC',
       'FORCE_SYNC_ALL',
     ]),
 
     ...mapMutations([
       'SET_RIGHT_SIDEBAR_OPEN',
     ]),
+
+    async handleManualSync() {
+      await this.MANUAL_SYNC();
+      this.DISPLAY_NOTIFICATION({
+        text: 'Synced',
+        color: 'success',
+      });
+    },
 
     async handleForceSync() {
       this.forceSyncDisabled = true;

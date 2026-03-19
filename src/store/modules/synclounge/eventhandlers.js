@@ -1,3 +1,4 @@
+import { CAF } from 'caf';
 import { emit, waitForEvent, getId } from '@/socket';
 
 // Strip server-assigned dedup suffix like "(1)", "(2)" for username comparison.
@@ -248,7 +249,9 @@ export default {
       if (user) {
         dispatch('DISPLAY_NOTIFICATION', {
           text: `${user.username} is buffering...`,
-          color: 'info',
+          color: 'warning',
+          icon: 'sync',
+          location: 'top end',
         }, { root: true });
       }
     }
@@ -272,9 +275,23 @@ export default {
         color: 'info',
       }, { root: true });
       await dispatch('CANCEL_IN_PROGRESS_SYNC');
-      await dispatch('plexclients/SEEK_TO', {
-        offset: data.time,
-      }, { root: true });
+      // eslint-disable-next-line new-cap
+      const token = new CAF.cancelToken();
+      commit('SET_SYNC_CANCEL_TOKEN', token);
+      try {
+        await dispatch('plexclients/SEEK_TO', {
+          cancelSignal: token.signal,
+          offset: data.time,
+        }, { root: true });
+      } catch (e) {
+        if (!token.signal.aborted) {
+          console.error('Error following non-host seek:', e);
+        }
+      } finally {
+        if (getters.GET_SYNC_CANCEL_TOKEN === token) {
+          commit('SET_SYNC_CANCEL_TOKEN', null);
+        }
+      }
     }
   },
 
