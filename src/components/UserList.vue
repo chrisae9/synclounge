@@ -33,13 +33,15 @@
           <div
             v-bind="props"
           >
-            <v-list-item-title>
-              {{ user.username }}
-              <span
-                v-if="id === GET_SOCKET_ID"
-                class="text-medium-emphasis"
-              >
-                (you)
+            <v-list-item-title class="user-title">
+              <span class="user-name">
+                {{ user.username }}
+                <span
+                  v-if="id === GET_SOCKET_ID"
+                  class="text-medium-emphasis"
+                >
+                  (you)
+                </span>
               </span>
               <span class="user-time">
                 {{ getTimeFromMs(getAdjustedTime(user)) }}
@@ -88,8 +90,14 @@
           star
         </v-icon>
 
+        <v-icon
+          v-if="id === GET_HOST_ID && AM_I_HOST"
+          style="visibility: hidden"
+        >
+          clear
+        </v-icon>
         <v-tooltip
-          v-if="id !== GET_HOST_ID && AM_I_HOST"
+          v-else-if="id !== GET_HOST_ID && AM_I_HOST"
           location="bottom"
           content-class="thumbnail-tooltip"
         >
@@ -277,9 +285,23 @@ export default {
   border-color: #0de47499;
 }
 
+.user-title {
+  display: flex !important;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .user-time {
   font-size: 75%;
   opacity: 0.7;
-  margin-left: 4px;
+  flex-shrink: 0;
 }
 </style>

@@ -298,7 +298,7 @@ export default {
   HANDLE_MEDIA_UPDATE: async ({
     getters, dispatch, commit,
   }, {
-    id, state, time, duration, media, makeHost,
+    id, state, time, duration, playbackRate, media, makeHost,
   }) => {
     console.debug('HANDLE_MEDIA_UPDATE:', {
       from: id, isHost: id === getters.GET_HOST_ID, title: media?.title, state, makeHost,
@@ -308,6 +308,7 @@ export default {
       state,
       time,
       duration,
+      playbackRate,
     });
 
     commit('SET_USER_MEDIA', {

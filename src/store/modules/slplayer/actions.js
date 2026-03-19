@@ -356,9 +356,11 @@ export default {
           rateChangePromise,
         ]);
       } finally {
+        // eslint-disable-next-line new-cap
+        const resetToken = new CAF.cancelToken();
         // Register listener before resetting rate — setPlaybackRate fires ratechange synchronously
         dispatch('PROCESS_STATE_UPDATE_ON_PLAYER_EVENT', {
-          signal,
+          signal: resetToken.signal,
           type: 'ratechange',
           noSync: signal.aborted,
         }).catch(() => {}); // Expected rejection when signal is already aborted

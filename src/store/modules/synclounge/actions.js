@@ -104,10 +104,14 @@ export default {
     commit('SET_HOST_ID', hostId);
 
     commit('SET_USERS', Object.fromEntries(
-      Object.entries(users).map(([socketid, data]) => ([socketid, {
-        ...data,
-        updatedAt,
-      }])),
+      Object.entries(users).map(([socketid, data]) => {
+        const existing = getters.GET_USER(socketid);
+        return [socketid, {
+          ...data,
+          ...(existing || {}),
+          updatedAt: existing?.updatedAt || updatedAt,
+        }];
+      }),
     ));
 
     // Add ourselves to user list
@@ -394,7 +398,11 @@ export default {
       // on gradual speed sync which can leave non-hosts behind
       if (previousState === 'buffering' && playerState.state === 'playing'
         && !getters.AM_I_HOST) {
-        await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+        // Post-buffering sync: use MANUAL_SYNC to seek directly to the host's position,
+        // bypassing the normal sync flexibility threshold. Buffering introduces a delay
+        // that often lands just under the threshold (~3s), leaving the client permanently
+        // behind since periodic sync never corrects sub-threshold gaps.
+        await dispatch('MANUAL_SYNC');
       } else {
         await dispatch('SYNC_PLAYER_STATE');
       }
@@ -537,6 +545,8 @@ export default {
 
     if (getters.GET_SYNC_CANCEL_TOKEN === token) {
       commit('SET_SYNC_CANCEL_TOKEN', null);
+      // Refresh stored time/updatedAt so sidebar displays the new position immediately
+      await dispatch('PROCESS_PLAYER_STATE_UPDATE', true);
     }
   },
 
@@ -600,7 +610,7 @@ export default {
       { root: true },
     );
 
-    if (getters.GET_HOST_USER.state === 'stopped') {
+    if (getters.GET_HOST_USER.state === 'stopped' || !getters.GET_HOST_USER.media) {
       // First, decide if we should stop playback
       if (timeline.state !== 'stopped') {
         await dispatch('DISPLAY_NOTIFICATION', {
@@ -738,13 +748,15 @@ export default {
   PLAY_MEDIA_AND_SYNC_TIME: async ({ getters, dispatch }, media) => {
     const offset = getters.GET_ADJUSTED_HOST_TIME();
 
-    await dispatch('plexclients/PLAY_MEDIA', {
+    dispatch('plexclients/PLAY_MEDIA', {
       mediaIndex: media.mediaIndex || 0,
       // TODO: potentially play ahead a bit by the time it takes to buffer / transcode.
       offset: offset || 0,
       metadata: media,
       machineIdentifier: media.machineIdentifier,
-    }, { root: true });
+    }, { root: true }).catch((e) => {
+      console.error('Error during PLAY_MEDIA:', e);
+    });
   },
 
   REQUEST_ALLOW_NOTIFICATIONS: async ({ commit }) => {
