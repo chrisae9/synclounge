@@ -13,7 +13,7 @@
           ref="videoPlayer"
           autoplay
           preload="auto"
-          playsinline="true"
+          playsinline
           style="background-color: black;"
 
           @pause="HANDLE_PLAYER_PAUSE"
@@ -26,6 +26,20 @@
           @leavepictureinpicture="HANDLE_PICTURE_IN_PICTURE_CHANGE"
           @timeupdate="handleTimeUpdate"
         />
+
+        <v-fade-transition>
+          <v-btn
+            v-show="IS_AUTOPLAY_BLOCKED"
+            size="large"
+            variant="flat"
+            color="primary"
+            class="unmute-banner text-white"
+            @click.stop="UNMUTE_AFTER_AUTOPLAY_BLOCK"
+          >
+            <v-icon start>mdi-volume-off</v-icon>
+            Click to unmute
+          </v-btn>
+        </v-fade-transition>
 
         <v-fade-transition
           transition="fade-transition"
@@ -63,7 +77,7 @@
                     <div class="text-h5 text-truncate">{{ GET_TITLE }}</div>
                     <div class="text-subtitle-1 text-medium-emphasis text-truncate">{{ GET_SECONDARY_TITLE }}</div>
                     <div class="text-subtitle-2 text-primary">
-                      Playing from {{ GET_PLEX_SERVER.name }}
+                      Playing from {{ GET_PLEX_SERVER?.name }}
                     </div>
                   </div>
                 </v-col>
@@ -96,7 +110,7 @@
               <div class="text-h6 text-truncate">{{ GET_TITLE }}</div>
               <div class="text-subtitle-2 text-medium-emphasis text-truncate">{{ GET_SECONDARY_TITLE }}</div>
               <div class="text-subtitle-2 text-primary">
-                Playing from {{ GET_PLEX_SERVER.name }}
+                Playing from {{ GET_PLEX_SERVER?.name }}
               </div>
             </div>
           </v-col>
@@ -171,6 +185,7 @@ export default {
       'ARE_PLAYER_CONTROLS_SHOWN',
       'GET_PLAYER_STATE',
       'IS_USING_NATIVE_SUBTITLES',
+      'IS_AUTOPLAY_BLOCKED',
     ]),
 
     ...mapGetters('synclounge', [
@@ -323,6 +338,7 @@ export default {
       'SKIP_INTRO',
       'RERENDER_SUBTITLE_CONTAINER',
       'UPDATE_PLAYER_SRC_AND_KEEP_TIME',
+      'UNMUTE_AFTER_AUTOPLAY_BLOCK',
     ]),
 
     ...mapActions('synclounge', [
@@ -406,7 +422,11 @@ export default {
           break;
 
         case 'm':
-          this.$refs.videoPlayer.muted = !this.$refs.videoPlayer.muted;
+          if (this.IS_AUTOPLAY_BLOCKED) {
+            this.UNMUTE_AFTER_AUTOPLAY_BLOCK();
+          } else {
+            this.$refs.videoPlayer.muted = !this.$refs.videoPlayer.muted;
+          }
           break;
 
         case 'ArrowLeft':
@@ -496,6 +516,13 @@ export default {
   vertical-align: middle;
   margin-left: auto;
   margin-right: auto;
+}
+
+.v-btn.unmute-banner {
+  z-index: 2;
+  position: absolute;
+  top: 12px;
+  left: 12px;
 }
 
 .v-btn.skip-intro {

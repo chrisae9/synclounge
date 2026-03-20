@@ -15,7 +15,6 @@ const persistedState = createPersistedState({
 
     'plex.user',
     'plex.plexAuthToken',
-    'plex.clientIdentifier',
     'plex.areDevicesCached',
 
     'plexclients.clients',

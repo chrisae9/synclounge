@@ -41,13 +41,21 @@ export const setVolume = (volume) => {
   getPlayer().getMediaElement().volume = volume;
 };
 
-export const play = () => getPlayer().getMediaElement().play().catch((e) => {
-  if (e.name === 'NotAllowedError') {
-    console.warn('play(): autoplay blocked by browser policy');
-  } else if (e.name !== 'AbortError') {
-    console.error('play() failed:', e);
+export const play = async () => {
+  try {
+    await getPlayer().getMediaElement().play();
+    return true;
+  } catch (e) {
+    if (e.name === 'NotAllowedError') {
+      console.warn('play(): autoplay blocked by browser policy');
+      return false;
+    }
+    if (e.name !== 'AbortError') {
+      console.error('play() failed:', e);
+    }
+    return false;
   }
-});
+};
 export const pause = () => getPlayer().getMediaElement().pause();
 
 export const isTimeInBufferedRange = (timeMs) => {
@@ -135,7 +143,7 @@ export const insertElementBeforeVideo = (element) => {
   parent.insertBefore(element, getRawPlayer().getMediaElement());
 };
 
-export const getMediaElement = () => getRawPlayer().getMediaElement();
+export const getMediaElement = () => getRawPlayer()?.getMediaElement?.() || null;
 
 export { isCasting };
 

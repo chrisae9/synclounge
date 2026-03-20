@@ -685,7 +685,7 @@ export default {
   },
 
   // Private version without lock. Please use the locking version unless you know what you are doing
-  _SYNC_PLAYER_STATE: async ({ getters, dispatch }, cancelSignal) => {
+  _SYNC_PLAYER_STATE: async ({ getters, rootGetters, dispatch }, cancelSignal) => {
     if (!getters.GET_HOST_USER) {
       return;
     }
@@ -712,6 +712,10 @@ export default {
       && timeline.state === 'paused') {
       if (inPartyPauseGrace) {
         console.debug('_SYNC_PLAYER_STATE: skipping resume during party pause grace period');
+        return;
+      }
+      if (rootGetters['slplayer/IS_AUTOPLAY_BLOCKED']) {
+        console.debug('_SYNC_PLAYER_STATE: skipping resume because autoplay is blocked');
         return;
       }
       await dispatch('DISPLAY_NOTIFICATION', {

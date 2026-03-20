@@ -49,7 +49,7 @@ export default {
   GET_PART_ID: (state, getters, rootState, rootGetters) => (
     rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']
       ? rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']
-        .Media[getters.GET_MEDIA_INDEX].Part[0].id
+        .Media?.[getters.GET_MEDIA_INDEX]?.Part?.[0]?.id
       : null),
 
   GET_DECISION_PART: (state, getters) => getters.GET_PLEX_DECISION?.MediaContainer
@@ -106,8 +106,8 @@ export default {
       return false;
     }
 
-    if (!isContainerSupported(getters.GET_PART)) {
-      console.log(`CAN_DIRECT_PLAY: container not supported: ${getters.GET_PART.container}`);
+    if (!getters.GET_PART || !isContainerSupported(getters.GET_PART)) {
+      console.debug(`CAN_DIRECT_PLAY: ${!getters.GET_PART ? 'no media part available' : `container not supported: ${getters.GET_PART.container}`}`);
       return false;
     }
 
@@ -234,7 +234,7 @@ export default {
     let extras = targetCodec('type=videoProfile&context=streaming&audioCodec=aac'
                              + `&protocol=${protocol}`);
 
-    if (videoStream.codec === 'hevc' && !getters.GET_FORCE_TRANSCODE) {
+    if (videoStream?.codec === 'hevc' && !getters.GET_FORCE_TRANSCODE) {
       extras = targetCodec('type=videoProfile&context=streaming&videoCodec=hevc&audioCodec=aac'
                            + `&protocol=${protocol}`);
       extras += addLimitation('scope=videoCodec&scopeName=hevc&type=upperBound'
@@ -346,4 +346,6 @@ export default {
 
   GET_FORCE_TRANSCODE: (state, getters, rootState, rootGetters) => getters.GET_FORCE_TRANSCODE_RETRY
     || rootGetters['settings/GET_SLPLAYERFORCETRANSCODE'],
+
+  IS_AUTOPLAY_BLOCKED: (state) => state.autoplayBlocked,
 };

@@ -7,7 +7,7 @@ import {
   isMediaElementAttached, isPlaying, isPresentationPaused, isBuffering, getVolume, isPaused,
   waitForMediaElementEvent, destroy, cancelTrickPlay, load, setPlaybackRate, getPlaybackRate,
   setCurrentTimeMs, setVolume, addEventListener, removeEventListener, areControlsShown,
-  getSmallPlayButton, getBigPlayButton, unload, isCasting,
+  getSmallPlayButton, getBigPlayButton, unload, isCasting, getMediaElement,
   addCastStatusListener, removeCastStatusListener,
 } from '@/player';
 import Deferred from '@/utils/deferredpromise';
@@ -306,8 +306,27 @@ export default {
     return dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME');
   },
 
-  PRESS_PLAY: () => {
-    play();
+  PRESS_PLAY: async ({ commit }) => {
+    const success = await play();
+    if (!success) {
+      // Muted autoplay is always allowed by browsers
+      const mediaElement = getMediaElement();
+      if (mediaElement) {
+        mediaElement.muted = true;
+        const retrySuccess = await play();
+        if (retrySuccess) {
+          commit('SET_AUTOPLAY_BLOCKED', true);
+        }
+      }
+    }
+  },
+
+  UNMUTE_AFTER_AUTOPLAY_BLOCK: ({ commit }) => {
+    const mediaElement = getMediaElement();
+    if (mediaElement) {
+      mediaElement.muted = false;
+    }
+    commit('SET_AUTOPLAY_BLOCKED', false);
   },
 
   PRESS_PAUSE: () => {
@@ -507,8 +526,11 @@ export default {
       commit('SET_IS_PLAYER_INITIALIZED', true);
     } catch (e) {
       console.error('INIT_PLAYER_STATE: failed during initialization:', e);
+      dispatch('synclounge/DISPLAY_NOTIFICATION', {
+        text: 'Failed to load media. If you have another tab playing, please close it and try again.',
+        color: 'error',
+      }, { root: true });
       if (getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE) {
-        // TODO: potentially close player
         getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE.reject(e);
         commit('SET_PLAYER_INITIALIZED_DEFERRED_PROMISE', null);
       }

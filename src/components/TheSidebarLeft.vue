@@ -61,6 +61,7 @@
       </v-list-item>
 
       <v-list-item
+        v-if="GET_PLEX_USER"
         :to="{ name: 'SignOut' }"
       >
         <template #prepend>

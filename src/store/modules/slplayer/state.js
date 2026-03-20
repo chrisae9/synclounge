@@ -39,6 +39,7 @@ const state = () => ({
   forceTranscodeRetry: false,
   forceBurnSubtitles: false,
   allowDirectPlay: true,
+  autoplayBlocked: false,
 });
 
 export default state;

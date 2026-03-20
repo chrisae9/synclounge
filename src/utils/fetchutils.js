@@ -55,7 +55,12 @@ export const fetchJson = async (url, queryParams, { headers, ...rest } = {}) => 
     },
   );
 
-  return response.json();
+  const text = await response.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Expected JSON from ${url} but got: ${text.slice(0, 200)}`);
+  }
 };
 
 export const fetchXmlAndTransform = async (...args) => {

@@ -135,4 +135,8 @@ export default {
   SET_ALLOW_DIRECT_PLAY: (state, allow) => {
     state.allowDirectPlay = allow;
   },
+
+  SET_AUTOPLAY_BLOCKED: (state, value) => {
+    state.autoplayBlocked = value;
+  },
 };
