@@ -107,7 +107,10 @@ export default {
     }
 
     if (!getters.GET_PART || !isContainerSupported(getters.GET_PART)) {
-      console.debug(`CAN_DIRECT_PLAY: ${!getters.GET_PART ? 'no media part available' : `container not supported: ${getters.GET_PART.container}`}`);
+      const reason = !getters.GET_PART
+        ? 'no media part available'
+        : `container not supported: ${getters.GET_PART.container}`;
+      console.debug(`CAN_DIRECT_PLAY: ${reason}`);
       return false;
     }
 
