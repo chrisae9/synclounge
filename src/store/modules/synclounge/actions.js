@@ -394,18 +394,7 @@ export default {
     await dispatch('PROCESS_UPNEXT', playerState);
 
     if (playerState.state !== 'buffering' && !noSync && !getters.IS_JOIN_SYNC_IN_PROGRESS) {
-      // After buffering→playing, immediately sync to host position instead of relying
-      // on gradual speed sync which can leave non-hosts behind
-      if (previousState === 'buffering' && playerState.state === 'playing'
-        && !getters.AM_I_HOST) {
-        // Post-buffering sync: use MANUAL_SYNC to seek directly to the host's position,
-        // bypassing the normal sync flexibility threshold. Buffering introduces a delay
-        // that often lands just under the threshold (~3s), leaving the client permanently
-        // behind since periodic sync never corrects sub-threshold gaps.
-        await dispatch('MANUAL_SYNC');
-      } else {
-        await dispatch('SYNC_PLAYER_STATE');
-      }
+      await dispatch('SYNC_PLAYER_STATE');
     }
   },
 
