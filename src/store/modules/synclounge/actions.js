@@ -373,8 +373,6 @@ export default {
   PROCESS_PLAYER_STATE_UPDATE: async ({ getters, dispatch, commit }, noSync) => {
     if (!getters.IS_IN_ROOM || !isConnected()) return;
 
-    const previousState = getters.GET_USER(getters.GET_SOCKET_ID)?.state;
-
     const playerState = await dispatch(
       'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE',
       null,
