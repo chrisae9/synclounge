@@ -54,6 +54,17 @@ export const on = ({ eventName, handler }) => {
   socket.on(eventName, handler);
 };
 
+export const off = ({ eventName, handler }) => {
+  if (!socket) {
+    return;
+  }
+  if (handler) {
+    socket.off(eventName, handler);
+  } else {
+    socket.removeAllListeners(eventName);
+  }
+};
+
 export const waitForEvent = (eventName, timeoutMs) => new Promise((resolve, reject) => {
   if (!socket) {
     reject(new Error('Socket is not initialized'));

@@ -3,7 +3,7 @@ import eventhandlers from '@/store/modules/synclounge/eventhandlers';
 import { combineUrl, combineRelativeUrlParts } from '@/utils/combineurl';
 import { fetchJson } from '@/utils/fetchutils';
 import {
-  open, close, on, waitForEvent, isConnected, emit,
+  open, close, on, off, waitForEvent, isConnected, emit,
 } from '@/socket';
 import notificationSound from '@/assets/sounds/notification_simple-01.wav';
 
@@ -272,7 +272,20 @@ export default {
     commit('SET_SERVERS_HEALTH', aliveServerHealths);
   },
 
+  REMOVE_EVENT_HANDLERS: () => {
+    const eventNames = [
+      'userJoined', 'userLeft', 'newHost', 'newMessage', 'slPing',
+      'playerStateUpdate', 'mediaUpdate', 'syncFlexibilityUpdate',
+      'setPartyPausingEnabled', 'setAutoHostEnabled', 'partyPause',
+      'disconnect', 'connect', 'kicked',
+    ];
+    eventNames.forEach((eventName) => off({ eventName }));
+  },
+
   ADD_EVENT_HANDLERS: ({ dispatch }) => {
+    // Remove any existing listeners first to prevent duplicates on reconnect
+    dispatch('REMOVE_EVENT_HANDLERS');
+
     const makeHandler = (action) => (data) => dispatch(action, data);
 
     const registerListener = ({ eventName, action }) => on({
@@ -573,12 +586,9 @@ export default {
         console.error('Error in sync media logic:', e);
       }
     } finally {
-      // Always clear our token — the === check can fail if a concurrent operation
-      // overwrites the token, causing a permanent deadlock where no syncs can run
+      // Only clear our own token. If a concurrent operation replaced it,
+      // the new owner is responsible for their own cleanup.
       if (getters.GET_SYNC_CANCEL_TOKEN === token) {
-        commit('SET_SYNC_CANCEL_TOKEN', null);
-      } else if (getters.GET_SYNC_CANCEL_TOKEN) {
-        console.warn('Sync cancel token was replaced during SYNC_MEDIA_AND_PLAYER_STATE — clearing stale token');
         commit('SET_SYNC_CANCEL_TOKEN', null);
       }
     }
@@ -660,12 +670,9 @@ export default {
         console.error('Error in sync player logic:', e);
       }
     } finally {
-      // Always clear our token — the === check can fail if a concurrent operation
-      // overwrites the token, causing a permanent deadlock where no syncs can run
+      // Only clear our own token. If a concurrent operation replaced it,
+      // the new owner is responsible for their own cleanup.
       if (getters.GET_SYNC_CANCEL_TOKEN === token) {
-        commit('SET_SYNC_CANCEL_TOKEN', null);
-      } else if (getters.GET_SYNC_CANCEL_TOKEN) {
-        console.warn('Sync cancel token was replaced during SYNC_PLAYER_STATE — clearing stale token');
         commit('SET_SYNC_CANCEL_TOKEN', null);
       }
     }
