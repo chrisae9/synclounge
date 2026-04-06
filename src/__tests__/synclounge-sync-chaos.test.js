@@ -1,5 +1,5 @@
 import {
-  describe, it, expect, vi, beforeEach,
+  describe, it, expect, vi,
 } from 'vitest';
 import { CAF } from 'caf';
 import actions from '@/store/modules/synclounge/actions';
@@ -81,7 +81,7 @@ describe('Sync Token Deadlock (Bug 1)', () => {
     ctx.dispatch.mockImplementation((action) => {
       if (action === '_SYNC_PLAYER_STATE') {
         // Simulate async work
-        return new Promise((resolve) => setTimeout(resolve, 10));
+        return new Promise((resolve) => { setTimeout(resolve, 10); });
       }
       if (action === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') {
         return Promise.resolve({
@@ -210,7 +210,7 @@ describe('MANUAL_SYNC token cleanup (Bug 5)', () => {
     let resolveSeek;
     const ctx = createSyncContext();
 
-    ctx.dispatch.mockImplementation((action, payload, opts) => {
+    ctx.dispatch.mockImplementation((action) => {
       if (action === 'CANCEL_IN_PROGRESS_SYNC') {
         // Actual implementation
         const token = ctx.getSyncCancelToken();
@@ -236,6 +236,7 @@ describe('MANUAL_SYNC token cleanup (Bug 5)', () => {
     expect(tokenM).not.toBeNull();
 
     // Simulate concurrent operation overwriting the token
+    // eslint-disable-next-line new-cap
     const tokenS = new CAF.cancelToken();
     ctx.commit('SET_SYNC_CANCEL_TOKEN', tokenS);
 
@@ -311,7 +312,7 @@ describe('Reconnection listener cleanup (Bug 2)', () => {
 
     const ctx = createSyncContext();
     // Need dispatch to actually call REMOVE_EVENT_HANDLERS
-    ctx.dispatch.mockImplementation((action, data) => {
+    ctx.dispatch.mockImplementation((action) => {
       if (action === 'REMOVE_EVENT_HANDLERS') {
         return actions.REMOVE_EVENT_HANDLERS(ctx);
       }
@@ -319,7 +320,6 @@ describe('Reconnection listener cleanup (Bug 2)', () => {
     });
 
     actions.ADD_EVENT_HANDLERS(ctx);
-    const firstOnCount = on.mock.calls.length;
 
     // Second call should remove old listeners first via off()
     off.mockClear();
@@ -334,12 +334,53 @@ describe('Reconnection listener cleanup (Bug 2)', () => {
   });
 });
 
+describe('Post-buffering sync cooldown', () => {
+  it('PROCESS_PLAYER_STATE_UPDATE skips sync immediately after buffering ends', async () => {
+    const ctx = createSyncContext();
+
+    const mockDispatch = (action) => {
+      if (action === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') {
+        return Promise.resolve({
+          state: 'buffering', time: 5000, duration: 100000,
+        });
+      }
+      if (action === 'PROCESS_UPNEXT') return Promise.resolve();
+      if (action === 'SYNC_PLAYER_STATE') return Promise.resolve();
+      return Promise.resolve();
+    };
+
+    // First call with buffering state — sets the cooldown timestamp
+    ctx.dispatch.mockImplementation(mockDispatch);
+    await actions.PROCESS_PLAYER_STATE_UPDATE(ctx);
+    expect(ctx.dispatch).not.toHaveBeenCalledWith('SYNC_PLAYER_STATE');
+
+    // Immediately after: buffering ends, state becomes 'playing'
+    ctx.dispatch.mockClear();
+    ctx.dispatch.mockImplementation((action) => {
+      if (action === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') {
+        return Promise.resolve({
+          state: 'playing', time: 5000, duration: 100000, ratingKey: '123',
+        });
+      }
+      if (action === 'PROCESS_UPNEXT') return Promise.resolve();
+      if (action === 'SYNC_PLAYER_STATE') return Promise.resolve();
+      return Promise.resolve();
+    });
+
+    await actions.PROCESS_PLAYER_STATE_UPDATE(ctx);
+
+    // Should NOT sync during cooldown — prevents buffering→seek→rebuffer loop
+    expect(ctx.dispatch).not.toHaveBeenCalledWith('SYNC_PLAYER_STATE');
+  });
+});
+
 describe('Sync poll interval guards', () => {
   it('START_SYNC_POLL_INTERVAL guards against running sync when token exists', async () => {
     vi.useFakeTimers();
     const ctx = createSyncContext();
 
     // Set a non-null token to simulate an in-progress sync
+    // eslint-disable-next-line new-cap
     const token = new CAF.cancelToken();
     ctx.commit('SET_SYNC_CANCEL_TOKEN', token);
 

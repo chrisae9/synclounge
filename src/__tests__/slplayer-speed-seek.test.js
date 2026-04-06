@@ -154,3 +154,59 @@ describe('SPEED_SEEK', () => {
     expect(setPlaybackRate).toHaveBeenLastCalledWith(1);
   });
 });
+
+describe('SPEED_OR_NORMAL_SEEK', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('skips seek when player is buffering', async () => {
+    // eslint-disable-next-line new-cap
+    const cancelToken = new CAF.cancelToken();
+    const dispatch = vi.fn().mockImplementation((action) => {
+      if (action === 'FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK') return Promise.resolve(0);
+      return Promise.resolve();
+    });
+    const getters = { GET_PLAYER_STATE: 'buffering' };
+    const rootGetters = {
+      GET_CONFIG: {
+        slplayer_speed_sync_max_diff: 10000,
+      },
+    };
+
+    const result = await slplayerActions.SPEED_OR_NORMAL_SEEK(
+      { dispatch, getters, rootGetters },
+      { cancelSignal: cancelToken.signal, seekToMs: 5000 },
+    );
+
+    // Should NOT have dispatched SPEED_SEEK or NORMAL_SEEK
+    expect(dispatch).not.toHaveBeenCalledWith('SPEED_SEEK', expect.anything());
+    expect(dispatch).not.toHaveBeenCalledWith('NORMAL_SEEK', expect.anything());
+    expect(result).toBe('Skipped seek: player is buffering');
+  });
+
+  it('allows speed seek when player is playing and difference within threshold', async () => {
+    // eslint-disable-next-line new-cap
+    const cancelToken = new CAF.cancelToken();
+    const dispatch = vi.fn().mockImplementation((action) => {
+      if (action === 'FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK') return Promise.resolve(0);
+      return Promise.resolve('speed-seek-result');
+    });
+    const getters = { GET_PLAYER_STATE: 'playing' };
+    const rootGetters = {
+      GET_CONFIG: {
+        slplayer_speed_sync_max_diff: 10000,
+      },
+    };
+
+    await slplayerActions.SPEED_OR_NORMAL_SEEK(
+      { dispatch, getters, rootGetters },
+      { cancelSignal: cancelToken.signal, seekToMs: 5000 },
+    );
+
+    expect(dispatch).toHaveBeenCalledWith('SPEED_SEEK', {
+      cancelSignal: cancelToken.signal,
+      seekToMs: 5000,
+    });
+  });
+});

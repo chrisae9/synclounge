@@ -417,11 +417,12 @@ export default {
   },
 
   SPEED_OR_NORMAL_SEEK: async ({ dispatch, getters, rootGetters }, { cancelSignal, seekToMs }) => {
-    // TODO: maybe separate functino for skip ahead probably lol
-    // TODO: rewrite this entirely.
-    // TODO: check the logic here to make sense if the seek time is in the past ...
+    // Don't seek while buffering — seeking during buffer recovery triggers more buffering
+    if (getters.GET_PLAYER_STATE === 'buffering') {
+      console.debug('SPEED_OR_NORMAL_SEEK: skipping, player is buffering');
+      return 'Skipped seek: player is buffering';
+    }
 
-    // TODO: make sure this doesnt happen when buffering
     const currentTimeMs = await dispatch('FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK');
     const difference = seekToMs - currentTimeMs;
     if (Math.abs(difference) <= rootGetters.GET_CONFIG.slplayer_speed_sync_max_diff

@@ -14,6 +14,11 @@ const notificationAudio = new Audio(notificationSound);
 let lastPartyPauseTime = 0;
 const PARTY_PAUSE_GRACE_MS = 5000;
 
+// Cooldown after buffering ends — prevents aggressive sync from causing rebuffering loop.
+// The periodic 5s poll will handle sync after the player stabilizes.
+let lastBufferingEndTime = 0;
+const POST_BUFFERING_COOLDOWN_MS = 5000;
+
 // Visibility change handler reference for cleanup in DISCONNECT
 let visibilityChangeHandler = null;
 
@@ -404,8 +409,17 @@ export default {
 
     await dispatch('PROCESS_UPNEXT', playerState);
 
-    if (playerState.state !== 'buffering' && !noSync && !getters.IS_JOIN_SYNC_IN_PROGRESS) {
+    if (playerState.state === 'buffering') {
+      lastBufferingEndTime = Date.now();
+      return;
+    }
+
+    const inPostBufferingCooldown = (Date.now() - lastBufferingEndTime) < POST_BUFFERING_COOLDOWN_MS;
+
+    if (!noSync && !getters.IS_JOIN_SYNC_IN_PROGRESS && !inPostBufferingCooldown) {
       await dispatch('SYNC_PLAYER_STATE');
+    } else if (inPostBufferingCooldown) {
+      console.debug('PROCESS_PLAYER_STATE_UPDATE: skipping sync during post-buffering cooldown');
     }
   },
 

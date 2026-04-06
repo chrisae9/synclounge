@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop, no-use-before-define */
 /**
  * SyncLounge Chaos Monkey — Browser Console Stress Test
  *
