@@ -176,13 +176,22 @@ export default {
       state: getters.GET_PLAYER_STATE,
     }),
 
-  HANDLE_PLAYER_PLAYING: async ({ dispatch }) => {
+  HANDLE_PLAYER_PLAYING: async ({ getters, dispatch }) => {
+    if (getters.GET_PLAYER_STATE === 'stopped') {
+      return;
+    }
     if (isPlaying()) {
       await dispatch('CHANGE_PLAYER_STATE', 'playing');
     }
   },
 
   HANDLE_PLAYER_PAUSE: async ({ getters, dispatch }) => {
+    // Ignore pause events after the player has been stopped/destroyed — the media element
+    // fires a pause event during teardown which would overwrite 'stopped' with 'paused'
+    if (getters.GET_PLAYER_STATE === 'stopped') {
+      return;
+    }
+
     if (isBuffering()) {
       // If we are buffering, then we don't need to actually change the state, but we should send
       // out a new state update to synclounge since we have seeked
@@ -198,7 +207,10 @@ export default {
     }
   },
 
-  HANDLE_PLAYER_BUFFERING: async ({ dispatch }, event) => {
+  HANDLE_PLAYER_BUFFERING: async ({ getters, dispatch }, event) => {
+    if (getters.GET_PLAYER_STATE === 'stopped') {
+      return;
+    }
     console.debug('HANDLE_PLAYER_BUFFERING:', event.buffering ? 'started' : 'ended');
     if (event.buffering) {
       await dispatch('CHANGE_PLAYER_STATE', 'buffering');
