@@ -72,7 +72,7 @@ export default {
   FETCH_JOIN_PLAYER_DATA: async ({ getters, dispatch }) => ({
     ...await dispatch('FETCH_TIMELINE_POLL_DATA'),
     media: getters.GET_ACTIVE_MEDIA_POLL_METADATA,
-    playerProduct: getters.GET_CHOSEN_CLIENT.product,
+    playerProduct: getters.GET_CHOSEN_CLIENT?.product,
   }),
 
   SYNC: async ({ dispatch, rootGetters }, cancelSignal) => {

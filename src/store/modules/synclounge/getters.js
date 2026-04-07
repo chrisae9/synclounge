@@ -67,7 +67,7 @@ export default {
   GET_ADJUSTED_HOST_TIME: (state, getters) => () => (getters.GET_HOST_USER
     ? getters.GET_HOST_USER.state === 'playing'
       ? getters.GET_HOST_USER.time + (Date.now()
-          - getters.GET_HOST_USER.updatedAt) * getters.GET_HOST_USER.playbackRate
+          - getters.GET_HOST_USER.updatedAt) * (getters.GET_HOST_USER.playbackRate || 1)
       : getters.GET_HOST_USER.time
     : null),
 

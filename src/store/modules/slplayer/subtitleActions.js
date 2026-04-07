@@ -284,7 +284,7 @@ export default {
     }
 
     // eslint-disable-next-line no-underscore-dangle
-    videoClock._autoClock.seeking();
+    videoClock?._autoClock?.seeking();
 
     // TODO: give this a signal
     await dispatch('plexservers/UPDATE_STREAM', {

@@ -699,8 +699,11 @@ export default {
   },
 
   SKIP_INTRO: async ({ dispatch, commit, rootGetters }) => {
-    const introEnd = rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA_INTRO_MARKER']
-      .endTimeOffset;
+    const introMarker = rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA_INTRO_MARKER'];
+    if (!introMarker) {
+      return;
+    }
+    const introEnd = introMarker.endTimeOffset;
     console.debug('SKIP_INTRO', introEnd);
     await dispatch('DISPLAY_NOTIFICATION', {
       text: 'Skipping intro',

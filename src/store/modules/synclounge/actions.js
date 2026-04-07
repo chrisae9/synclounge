@@ -126,7 +126,7 @@ export default {
         ...rest,
         thumb: rootGetters['plex/GET_PLEX_USER'].thumb,
         media: rootGetters['plexclients/GET_ACTIVE_MEDIA_POLL_METADATA'],
-        playerProduct: rootGetters['plexclients/GET_CHOSEN_CLIENT'].product,
+        playerProduct: rootGetters['plexclients/GET_CHOSEN_CLIENT']?.product,
         syncFlexibility: rootGetters['settings/GET_SYNCFLEXIBILITY'],
         updatedAt,
         ...await dispatch('plexclients/FETCH_TIMELINE_POLL_DATA_CACHE', null, { root: true }),
@@ -353,6 +353,12 @@ export default {
     if (playerState.duration && !Number.isNaN(playerState.time)) {
       const timeUntilUpnextTrigger = playerState.duration - playerState.time
         - rootGetters.GET_CONFIG.synclounge_upnext_trigger_time_from_end;
+
+      // If already past the trigger point, show immediately
+      if (timeUntilUpnextTrigger <= 0) {
+        dispatch('DISPLAY_UPNEXT');
+        return;
+      }
 
       console.debug('SCHEDULE_UPNEXT', timeUntilUpnextTrigger);
       commit('SET_UPNEXT_TIMEOUT_ID', setTimeout(
