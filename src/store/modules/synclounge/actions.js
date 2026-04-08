@@ -599,6 +599,14 @@ export default {
     const token = new CAF.cancelToken();
     commit('SET_SYNC_CANCEL_TOKEN', token);
 
+    // Safety timeout: abort if sync takes too long, preventing token deadlock
+    const safetyTimeout = setTimeout(() => {
+      if (!token.signal.aborted) {
+        console.warn('SYNC_MEDIA_AND_PLAYER_STATE: aborting after 30s safety timeout');
+        token.abort('Sync safety timeout');
+      }
+    }, 30000);
+
     try {
       await dispatch('_SYNC_MEDIA_AND_PLAYER_STATE', token.signal);
     } catch (e) {
@@ -606,6 +614,7 @@ export default {
         console.error('Error in sync media logic:', e);
       }
     } finally {
+      clearTimeout(safetyTimeout);
       // Only clear our own token. If a concurrent operation replaced it,
       // the new owner is responsible for their own cleanup.
       if (getters.GET_SYNC_CANCEL_TOKEN === token) {
@@ -683,6 +692,14 @@ export default {
     const token = new CAF.cancelToken();
     commit('SET_SYNC_CANCEL_TOKEN', token);
 
+    // Safety timeout: abort if sync takes too long, preventing token deadlock
+    const safetyTimeout = setTimeout(() => {
+      if (!token.signal.aborted) {
+        console.warn('SYNC_PLAYER_STATE: aborting after 30s safety timeout');
+        token.abort('Sync safety timeout');
+      }
+    }, 30000);
+
     try {
       await dispatch('_SYNC_PLAYER_STATE', token.signal);
     } catch (e) {
@@ -690,6 +707,7 @@ export default {
         console.error('Error in sync player logic:', e);
       }
     } finally {
+      clearTimeout(safetyTimeout);
       // Only clear our own token. If a concurrent operation replaced it,
       // the new owner is responsible for their own cleanup.
       if (getters.GET_SYNC_CANCEL_TOKEN === token) {

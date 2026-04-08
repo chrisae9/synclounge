@@ -43,8 +43,19 @@ export const setVolume = (volume) => {
 
 export const play = async () => {
   try {
-    await getPlayer().getMediaElement().play();
-    return true;
+    const playPromise = getPlayer().getMediaElement().play();
+    // Timeout after 10s to prevent play() from hanging indefinitely
+    // (can happen when media is still loading or in some browser states)
+    const result = await Promise.race([
+      playPromise.then(() => true),
+      new Promise((resolve) => {
+        setTimeout(() => resolve(false), 10000);
+      }),
+    ]);
+    if (!result) {
+      console.warn('play(): timed out after 10s');
+    }
+    return result;
   } catch (e) {
     if (e.name === 'NotAllowedError') {
       console.warn('play(): autoplay blocked by browser policy');
