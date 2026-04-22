@@ -289,6 +289,66 @@ describe('Grace period blocks and unblocks sync', () => {
   });
 });
 
+describe('Host leaving mid-sync (TOCTOU)', () => {
+  it('_SYNC_MEDIA_AND_PLAYER_STATE does not throw when host leaves during timeline fetch', async () => {
+    const ctx = createSyncContext();
+
+    // Host disappears during the FETCH_TIMELINE_POLL_DATA_CACHE await
+    ctx.dispatch.mockImplementation((action) => {
+      if (action === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') {
+        ctx.getters.GET_HOST_USER = undefined;
+        return Promise.resolve({ state: 'playing' });
+      }
+      return Promise.resolve();
+    });
+
+    // Should not throw — must re-check GET_HOST_USER after each await
+    await expect(actions._SYNC_MEDIA_AND_PLAYER_STATE(ctx, null)).resolves.not.toThrow();
+  });
+
+  it('_SYNC_MEDIA_AND_PLAYER_STATE does not throw when host leaves during FIND_BEST_MEDIA_MATCH', async () => {
+    const ctx = createSyncContext({
+      GET_HOST_USER: {
+        id: 'host-1',
+        state: 'playing',
+        time: 0,
+        updatedAt: Date.now(),
+        playbackRate: 1,
+        media: { ratingKey: 'k1', title: 'Show' },
+      },
+    });
+    ctx.rootGetters['settings/GET_AUTOPLAY'] = true;
+    ctx.rootGetters['plexclients/IS_THIS_MEDIA_PLAYING'] = () => true;
+
+    ctx.dispatch.mockImplementation((action) => {
+      if (action === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') {
+        return Promise.resolve({ state: 'playing' });
+      }
+      if (action === 'plexservers/FIND_BEST_MEDIA_MATCH') {
+        ctx.getters.GET_HOST_USER = undefined;
+        return Promise.resolve(null);
+      }
+      return Promise.resolve();
+    });
+
+    await expect(actions._SYNC_MEDIA_AND_PLAYER_STATE(ctx, null)).resolves.not.toThrow();
+  });
+
+  it('_SYNC_PLAYER_STATE does not throw when host leaves during timeline fetch', async () => {
+    const ctx = createSyncContext();
+
+    ctx.dispatch.mockImplementation((action) => {
+      if (action === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') {
+        ctx.getters.GET_HOST_USER = undefined;
+        return Promise.resolve({ state: 'playing' });
+      }
+      return Promise.resolve();
+    });
+
+    await expect(actions._SYNC_PLAYER_STATE(ctx, null)).resolves.not.toThrow();
+  });
+});
+
 describe('Reconnection listener cleanup (Bug 2)', () => {
   it('ADD_EVENT_HANDLERS registers socket listeners', async () => {
     const { on } = await import('@/socket');

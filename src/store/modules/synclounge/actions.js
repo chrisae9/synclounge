@@ -636,7 +636,13 @@ export default {
       { root: true },
     );
 
-    if (getters.GET_HOST_USER.state === 'stopped' || !getters.GET_HOST_USER.media) {
+    // Host may have left the room during the await above — re-check before use
+    let hostUser = getters.GET_HOST_USER;
+    if (!hostUser) {
+      return;
+    }
+
+    if (hostUser.state === 'stopped' || !hostUser.media) {
       // First, decide if we should stop playback
       if (timeline.state !== 'stopped') {
         await dispatch('DISPLAY_NOTIFICATION', {
@@ -654,11 +660,16 @@ export default {
     if (rootGetters['settings/GET_AUTOPLAY']) {
       const bestMatch = await dispatch(
         'plexservers/FIND_BEST_MEDIA_MATCH',
-        getters.GET_HOST_USER.media,
+        hostUser.media,
         { root: true },
       );
+      // Re-check host after await
+      hostUser = getters.GET_HOST_USER;
+      if (!hostUser) {
+        return;
+      }
       console.debug('_SYNC_MEDIA_AND_PLAYER_STATE: match result:', {
-        hostMedia: getters.GET_HOST_USER.media?.title,
+        hostMedia: hostUser.media?.title,
         bestMatch: bestMatch ? { title: bestMatch.title, ratingKey: bestMatch.ratingKey } : null,
         alreadyPlaying: bestMatch ? rootGetters['plexclients/IS_THIS_MEDIA_PLAYING'](bestMatch) : false,
       });
@@ -670,7 +681,7 @@ export default {
         }
         // TODO: fix
       } else {
-        const text = `Failed to find a compatible copy of ${getters.GET_HOST_USER.media.title
+        const text = `Failed to find a compatible copy of ${hostUser.media?.title ?? 'host media'
         }. If you have access to the content try manually playing it.`;
         console.warn(text);
         await dispatch('DISPLAY_NOTIFICATION', {
@@ -731,6 +742,12 @@ export default {
       { root: true },
     );
 
+    // Host may have left the room during the await above — re-check before use
+    const hostUser = getters.GET_HOST_USER;
+    if (!hostUser) {
+      return;
+    }
+
     // If we didn't find a good match or .... wtf??
     if (timeline.state === 'stopped') {
       return;
@@ -740,7 +757,7 @@ export default {
     // the party pause message needs time to reach the host and propagate back
     const inPartyPauseGrace = (Date.now() - lastPartyPauseTime) < PARTY_PAUSE_GRACE_MS;
 
-    if (getters.GET_HOST_USER.state === 'playing'
+    if (hostUser.state === 'playing'
       && timeline.state === 'paused') {
       if (inPartyPauseGrace) {
         console.debug('_SYNC_PLAYER_STATE: skipping resume during party pause grace period');
@@ -758,7 +775,7 @@ export default {
       // Fall through to SYNC below to also seek to the correct host position
     }
 
-    if (getters.GET_HOST_USER.state === 'paused' && timeline.state === 'playing') {
+    if (hostUser.state === 'paused' && timeline.state === 'playing') {
       if (inPartyPauseGrace) {
         console.debug('_SYNC_PLAYER_STATE: skipping pause during party pause grace period');
         return;
@@ -772,7 +789,7 @@ export default {
     }
 
     // When host is buffering, don't pause other users — just skip sync until host recovers
-    if (getters.GET_HOST_USER.state === 'buffering') {
+    if (hostUser.state === 'buffering') {
       return;
     }
 
