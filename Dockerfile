@@ -5,6 +5,7 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++
 USER node
 COPY --link --chown=1000:1000 package*.json ./
+COPY --link --chown=1000:1000 packages packages
 RUN SKIP_BUILD=true npm ci
 COPY --link --chown=1000:1000 . .
 
@@ -19,6 +20,7 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++
 USER node
 COPY --link --chown=1000:1000 package*.json ./
+COPY --link --chown=1000:1000 packages packages
 RUN SKIP_BUILD=true npm ci
 RUN npm prune --production
 
@@ -31,6 +33,7 @@ RUN apk add --no-cache tini
 USER node
 COPY --link --chown=1000:1000 server.js cache.js ./
 COPY --link --chown=1000:1000 config config
+COPY --link --chown=1000:1000 packages packages
 COPY --link --chown=1000:1000 --from=dependency-stage /app/node_modules node_modules
 COPY --link --chown=1000:1000 --from=build-stage /app/dist dist
 

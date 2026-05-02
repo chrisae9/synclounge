@@ -642,17 +642,18 @@ export default {
       return;
     }
 
-    if (hostUser.state === 'stopped' || !hostUser.media) {
-      // First, decide if we should stop playback
+    const stopIfNeeded = async () => {
       if (timeline.state !== 'stopped') {
         await dispatch('DISPLAY_NOTIFICATION', {
           text: 'The host pressed stop',
           color: 'info',
         }, { root: true });
         await dispatch('plexclients/PRESS_STOP', null, { root: true });
-        return;
       }
+    };
 
+    if (!hostUser.media) {
+      await stopIfNeeded();
       return;
     }
 
@@ -689,6 +690,11 @@ export default {
           color: 'error',
         }, { root: true });
       }
+    }
+
+    if (hostUser.state === 'stopped') {
+      await stopIfNeeded();
+      return;
     }
 
     await dispatch('_SYNC_PLAYER_STATE', cancelSignal);

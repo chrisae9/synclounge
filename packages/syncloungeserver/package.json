@@ -1,0 +1,22 @@
+{
+  "name": "syncloungeserver",
+  "version": "8.0.88-sync.1",
+  "description": "SyncLounge socket server with local production fixes",
+  "bin": "./dist/index.js",
+  "main": "./dist/lib.js",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "nconf": "^0.12.1",
+    "socket.io": "^4.7.5",
+    "uuid": "^10.0.0"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.0.8",
+    "utf-8-validate": "^6.0.4"
+  },
+  "engines": {
+    "node": ">=12"
+  },
+  "license": "MIT"
+}

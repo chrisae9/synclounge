@@ -7,19 +7,20 @@
   "files": [
     "dist",
     "config",
-    "server.js"
+    "server.js",
+    "packages/syncloungeserver"
   ],
   "scripts": {
     "serve": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src/",
-    "test": "node --test test/*.test.js",
+    "test": "node --test test/*.test.js && vitest run",
     "prepare": "if-env SKIP_BUILD=true && echo 'Skipping build' || npm run build"
   },
   "dependencies": {
     "nconf": "^0.13.0",
-    "syncloungeserver": "^8.0.88"
+    "syncloungeserver": "file:packages/syncloungeserver"
   },
   "devDependencies": {
     "@delucis/if-env": "^1.1.2",
