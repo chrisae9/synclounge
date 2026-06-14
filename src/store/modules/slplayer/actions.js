@@ -405,7 +405,6 @@ export default {
   NORMAL_SEEK: async ({ rootGetters, commit }, { cancelSignal, seekToMs }) => {
     console.debug('NORMAL_SEEK', seekToMs);
     commit('SET_OFFSET_MS', seekToMs);
-    setCurrentTimeMs(seekToMs);
 
     const timeoutToken = CAF.timeout(
       rootGetters.GET_CONFIG.slplayer_seek_timeout,
@@ -422,7 +421,19 @@ export default {
     });
 
     try {
-      await main(anySignal);
+      const seekedPromise = main(anySignal);
+      setCurrentTimeMs(seekToMs);
+      const settleTimeout = rootGetters.GET_CONFIG.slplayer_seek_settle_timeout ?? 500;
+      const settleTolerance = rootGetters.GET_CONFIG.slplayer_seek_settle_tolerance ?? 250;
+      await Promise.race([
+        seekedPromise,
+        CAF.delay(anySignal, settleTimeout).then(() => {
+          if (Math.abs(getCurrentTimeMs() - seekToMs) <= settleTolerance) {
+            return undefined;
+          }
+          return seekedPromise;
+        }),
+      ]);
     } finally {
       timeoutToken.abort();
     }
@@ -437,7 +448,8 @@ export default {
 
     const currentTimeMs = await dispatch('FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK');
     const difference = seekToMs - currentTimeMs;
-    if (Math.abs(difference) <= rootGetters.GET_CONFIG.slplayer_speed_sync_max_diff
+    const maxSpeedCorrection = rootGetters.GET_CONFIG.slplayer_speed_sync_max_correction ?? 500;
+    if (Math.abs(difference) <= maxSpeedCorrection
         && getters.GET_PLAYER_STATE === 'playing') {
       return dispatch('SPEED_SEEK', { cancelSignal, seekToMs });
     }
@@ -647,11 +659,13 @@ export default {
     }
     console.debug('slplayer/PLAY_NEXT');
     isPlayQueueTransitioning = true;
+    commit('SET_IS_PLAY_QUEUE_TRANSITIONING', true);
     try {
       commit('plexclients/INCREMENT_ACTIVE_PLAY_QUEUE_SELECTED_ITEM_OFFSET', null, { root: true });
       await dispatch('PLAY_ACTIVE_PLAY_QUEUE_SELECTED_ITEM');
     } finally {
       isPlayQueueTransitioning = false;
+      commit('SET_IS_PLAY_QUEUE_TRANSITIONING', false);
     }
   },
 
@@ -661,11 +675,13 @@ export default {
       return;
     }
     isPlayQueueTransitioning = true;
+    commit('SET_IS_PLAY_QUEUE_TRANSITIONING', true);
     try {
       commit('plexclients/DECREMENT_ACTIVE_PLAY_QUEUE_SELECTED_ITEM_OFFSET', null, { root: true });
       await dispatch('PLAY_ACTIVE_PLAY_QUEUE_SELECTED_ITEM');
     } finally {
       isPlayQueueTransitioning = false;
+      commit('SET_IS_PLAY_QUEUE_TRANSITIONING', false);
     }
   },
 
@@ -687,10 +703,13 @@ export default {
       'SET_OFFSET_MS',
       rootGetters['plexclients/GET_ACTIVE_PLAY_QUEUE_SELECTED_ITEM'].viewOffset || 0,
     );
+    commit('SET_PLAYER_STATE', 'buffering');
     commit('SET_MASK_PLAYER_STATE', true);
     await dispatch('synclounge/PROCESS_MEDIA_UPDATE', true, { root: true });
 
     await dispatch('CHANGE_PLAYER_SRC');
+    await dispatch('PRESS_PLAY');
+    await dispatch('synclounge/PROCESS_MEDIA_UPDATE', true, { root: true });
 
     // Purposefully not awaited
     dispatch('START_PERIODIC_PLEX_TIMELINE_UPDATE');

@@ -25,6 +25,10 @@ function createMockContext(getterOverrides = {}) {
   };
   return {
     getters,
+    rootGetters: {
+      'slplayer/IS_CHANGING_SOURCE': false,
+      'slplayer/IS_PLAY_QUEUE_TRANSITIONING': false,
+    },
     commit: vi.fn(),
     dispatch: vi.fn().mockResolvedValue(undefined),
   };
@@ -424,6 +428,48 @@ describe('HANDLE_NEW_HOST', () => {
 });
 
 describe('HANDLE_PLAYER_STATE_UPDATE', () => {
+  describe('host non-host seek-follow guard', () => {
+    it('ignores non-host seek-like updates while host is changing source', async () => {
+      const ctx = createMockContext({
+        AM_I_HOST: true,
+        GET_SOCKET_ID: 'host-1',
+        GET_USER: (id) => ({ username: `user-${id}`, state: 'playing', time: 0 }),
+      });
+      ctx.rootGetters['slplayer/IS_CHANGING_SOURCE'] = true;
+
+      await eventhandlers.HANDLE_PLAYER_STATE_UPDATE(ctx, {
+        id: 'guest-1', state: 'paused', time: 3641944.991,
+      });
+
+      expect(ctx.dispatch).not.toHaveBeenCalledWith('CANCEL_IN_PROGRESS_SYNC');
+      expect(ctx.dispatch).not.toHaveBeenCalledWith(
+        'plexclients/SEEK_TO',
+        expect.anything(),
+        { root: true },
+      );
+    });
+
+    it('ignores non-host seek-like updates while host is changing play queue items', async () => {
+      const ctx = createMockContext({
+        AM_I_HOST: true,
+        GET_SOCKET_ID: 'host-1',
+        GET_USER: (id) => ({ username: `user-${id}`, state: 'playing', time: 0 }),
+      });
+      ctx.rootGetters['slplayer/IS_PLAY_QUEUE_TRANSITIONING'] = true;
+
+      await eventhandlers.HANDLE_PLAYER_STATE_UPDATE(ctx, {
+        id: 'guest-1', state: 'paused', time: 3641944.991,
+      });
+
+      expect(ctx.dispatch).not.toHaveBeenCalledWith('CANCEL_IN_PROGRESS_SYNC');
+      expect(ctx.dispatch).not.toHaveBeenCalledWith(
+        'plexclients/SEEK_TO',
+        expect.anything(),
+        { root: true },
+      );
+    });
+  });
+
   describe('grace period guard', () => {
     it('ignores updates from pending host during grace period', async () => {
       const ctx = createMockContext({

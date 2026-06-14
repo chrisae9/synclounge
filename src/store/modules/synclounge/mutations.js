@@ -1,3 +1,4 @@
+import { markRaw } from 'vue';
 import stateFactory from './state';
 
 export default {
@@ -38,7 +39,7 @@ export default {
   },
 
   SET_SYNC_CANCEL_TOKEN: (state, token) => {
-    state.syncCancelToken = token;
+    state.syncCancelToken = token ? markRaw(token) : token;
   },
 
   SET_IS_IN_ROOM: (state, isInRoom) => {

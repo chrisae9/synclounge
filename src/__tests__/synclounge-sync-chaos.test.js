@@ -203,11 +203,11 @@ describe('Sync Token Deadlock (Bug 1)', () => {
 
 describe('MANUAL_SYNC token cleanup (Bug 5)', () => {
   it('MANUAL_SYNC does not orphan token when overwritten by concurrent sync', async () => {
-    // 1. MANUAL_SYNC creates tokenM, starts SEEK_TO
+    // 1. MANUAL_SYNC creates tokenM, starts plexclients/SYNC
     // 2. SYNC_PLAYER_STATE runs, overwrites tokenM with tokenS
     // 3. MANUAL_SYNC finishes — its === check fails, token must not be orphaned
 
-    let resolveSeek;
+    let resolveSync;
     const ctx = createSyncContext();
 
     ctx.dispatch.mockImplementation((action) => {
@@ -220,8 +220,8 @@ describe('MANUAL_SYNC token cleanup (Bug 5)', () => {
         }
         return Promise.resolve();
       }
-      if (action === 'plexclients/SEEK_TO') {
-        return new Promise((resolve) => { resolveSeek = resolve; });
+      if (action === 'plexclients/SYNC') {
+        return new Promise((resolve) => { resolveSync = resolve; });
       }
       if (action === 'PROCESS_PLAYER_STATE_UPDATE') {
         return Promise.resolve();
@@ -240,14 +240,34 @@ describe('MANUAL_SYNC token cleanup (Bug 5)', () => {
     const tokenS = new CAF.cancelToken();
     ctx.commit('SET_SYNC_CANCEL_TOKEN', tokenS);
 
-    // Resolve the seek — MANUAL_SYNC's cleanup runs
-    resolveSeek();
+    // Resolve sync — MANUAL_SYNC's cleanup runs
+    resolveSync();
     await manualPromise;
 
     // tokenS must not be cleared by MANUAL_SYNC's cleanup
     // (Currently MANUAL_SYNC only clears if === tokenM, which is correct.
     // But it should also not leave tokenM orphaned if it fails the check.)
     expect(ctx.getSyncCancelToken()).toBe(tokenS);
+  });
+
+  it('MANUAL_SYNC uses the shared plexclient sync strategy instead of direct seek', async () => {
+    const ctx = createSyncContext();
+
+    ctx.dispatch.mockImplementation((action) => {
+      if (action === 'CANCEL_IN_PROGRESS_SYNC' || action === 'PROCESS_PLAYER_STATE_UPDATE') {
+        return Promise.resolve();
+      }
+      if (action === 'plexclients/SYNC') {
+        return Promise.resolve('synced');
+      }
+      return Promise.resolve();
+    });
+
+    await actions.MANUAL_SYNC(ctx);
+
+    expect(ctx.dispatch).toHaveBeenCalledWith('plexclients/SYNC', expect.anything(), { root: true });
+    expect(ctx.dispatch).not.toHaveBeenCalledWith('plexclients/SEEK_TO', expect.anything(), { root: true });
+    expect(ctx.getSyncCancelToken()).toBeNull();
   });
 });
 

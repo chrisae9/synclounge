@@ -24,12 +24,17 @@ const defaults = {
   slplayer_controls_visible_checker_interval: 250,
   slplayer_initial_skip_intro_visible_period: 8000,
 
-  // Controlls the max time difference cutoff for syncing by changing the playback speed
+  // Deprecated: legacy max time difference cutoff for syncing by changing playback speed
   slplayer_speed_sync_max_diff: 10000,
 
-  // The playback rate (1 +/- rate) that is used when speed syncing
-  slplayer_speed_sync_rate: 0.5,
+  // Maximum drift, in ms, where playback-rate catch-up is allowed instead of a normal seek
+  slplayer_speed_sync_max_correction: 500,
+
+  // The playback rate delta (1 +/- rate) used for tiny drift speed syncing
+  slplayer_speed_sync_rate: 0.05,
   slplayer_seek_timeout: 15000,
+  slplayer_seek_settle_timeout: 500,
+  slplayer_seek_settle_tolerance: 250,
 
   // Buffering goal in seconds
   slplayer_buffering_goal: 120,

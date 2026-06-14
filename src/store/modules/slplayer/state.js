@@ -36,6 +36,7 @@ const state = () => ({
   subtitleOffset: 0,
   streamingProtocol: 'dash',
   isChangingSource: false,
+  isPlayQueueTransitioning: false,
   forceTranscodeRetry: false,
   forceBurnSubtitles: false,
   allowDirectPlay: true,

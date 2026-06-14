@@ -388,5 +388,9 @@ export default {
   GET_FORCE_TRANSCODE: (state, getters, rootState, rootGetters) => getters.GET_FORCE_TRANSCODE_RETRY
     || rootGetters['settings/GET_SLPLAYERFORCETRANSCODE'],
 
+  IS_CHANGING_SOURCE: (state) => state.isChangingSource,
+
+  IS_PLAY_QUEUE_TRANSITIONING: (state) => state.isPlayQueueTransitioning,
+
   IS_AUTOPLAY_BLOCKED: (state) => state.autoplayBlocked,
 };

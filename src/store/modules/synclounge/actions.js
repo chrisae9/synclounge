@@ -547,16 +547,11 @@ export default {
     console.debug('MANUAL_SYNC');
     await dispatch('CANCEL_IN_PROGRESS_SYNC');
 
-    const offset = getters.GET_ADJUSTED_HOST_TIME();
-
     // eslint-disable-next-line new-cap
     const token = new CAF.cancelToken();
     commit('SET_SYNC_CANCEL_TOKEN', token);
     try {
-      await dispatch('plexclients/SEEK_TO', {
-        cancelSignal: token.signal,
-        offset,
-      }, { root: true });
+      await dispatch('plexclients/SYNC', token.signal, { root: true });
     } catch (e) {
       if (!token.signal.aborted) {
         console.error('Error in manual sync:', e);

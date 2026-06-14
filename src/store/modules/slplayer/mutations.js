@@ -107,6 +107,10 @@ export default {
     state.isChangingSource = isChanging;
   },
 
+  SET_IS_PLAY_QUEUE_TRANSITIONING: (state, isTransitioning) => {
+    state.isPlayQueueTransitioning = isTransitioning;
+  },
+
   SET_FORCE_TRANSCODE_RETRY: (state, force) => {
     state.forceTranscodeRetry = force;
   },

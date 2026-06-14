@@ -228,7 +228,9 @@ export default {
     });
   },
 
-  HANDLE_PLAYER_STATE_UPDATE: async ({ getters, dispatch, commit }, data) => {
+  HANDLE_PLAYER_STATE_UPDATE: async ({
+    getters, rootGetters, dispatch, commit,
+  }, data) => {
     console.debug('HANDLE_PLAYER_STATE_UPDATE:', {
       from: data.id, isHost: data.id === getters.GET_HOST_ID, state: data.state, time: data.time,
     });
@@ -265,6 +267,8 @@ export default {
       await dispatch('CANCEL_IN_PROGRESS_SYNC');
       await dispatch('SYNC_PLAYER_STATE');
     } else if (data.id !== getters.GET_SOCKET_ID && getters.AM_I_HOST
+      && !rootGetters['slplayer/IS_CHANGING_SOURCE']
+      && !rootGetters['slplayer/IS_PLAY_QUEUE_TRANSITIONING']
       && previousTime != null && Math.abs(data.time - previousTime) > 5000
       && data.state !== 'buffering') {
       // Non-host user seeked (time jump > 5s) — follow their seek

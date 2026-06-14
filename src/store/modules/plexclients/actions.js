@@ -97,9 +97,20 @@ export default {
       return dispatch('SKIP_AHEAD', { cancelSignal, offset });
     }
 
-    // Skip soft seek — on iOS Safari, setting currentTime directly causes audio decoder resets
-    // (audible clicks/pops) and triggers buffering events that create a feedback loop.
-    // Sub-syncFlexibility differences are imperceptible to viewers.
+    const browserOs = rootGetters.GET_BROWSER?.os;
+    const canSoftSeek = browserOs !== 'iOS' && browserOs !== 'iPadOS';
+    const softSeekThreshold = rootGetters.GET_CONFIG.slplayer_soft_seek_threshold ?? 200;
+    if (canSoftSeek
+      && rootGetters['synclounge/GET_HOST_USER'].state === 'playing'
+      && playerPollData.state === 'playing'
+      && absDifference > softSeekThreshold) {
+      try {
+        return await dispatch('slplayer/SOFT_SEEK', adjustedHostTime, { root: true });
+      } catch (e) {
+        console.debug('SYNC soft seek skipped:', e.message);
+      }
+    }
+
     return 'No sync needed';
   },
 
@@ -112,7 +123,7 @@ export default {
   SEEK_TO: ({ dispatch }, { cancelSignal, offset }) => {
     console.debug('SEEK_TO', offset);
     return dispatch(
-      'slplayer/SPEED_OR_NORMAL_SEEK',
+      'slplayer/NORMAL_SEEK',
       { cancelSignal, seekToMs: offset },
       { root: true },
     );

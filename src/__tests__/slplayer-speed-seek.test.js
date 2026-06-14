@@ -59,7 +59,9 @@ vi.mock('@/utils/deferredpromise', () => ({
   }),
 }));
 
-const { setPlaybackRate } = await import('@/player');
+const {
+  setPlaybackRate, setCurrentTimeMs, waitForMediaElementEvent, getCurrentTimeMs,
+} = await import('@/player');
 
 describe('SPEED_SEEK', () => {
   beforeEach(() => {
@@ -155,6 +157,77 @@ describe('SPEED_SEEK', () => {
   });
 });
 
+describe('NORMAL_SEEK', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('registers the seeked listener before setting currentTime so fast seeks cannot strand sync tokens', async () => {
+    // eslint-disable-next-line new-cap
+    const cancelToken = new CAF.cancelToken();
+    const rootGetters = { GET_CONFIG: { slplayer_seek_timeout: 15000 } };
+    const commit = vi.fn();
+
+    await slplayerActions.NORMAL_SEEK(
+      { rootGetters, commit },
+      { cancelSignal: cancelToken.signal, seekToMs: 1000 },
+    );
+
+    expect(waitForMediaElementEvent).toHaveBeenCalledWith({
+      signal: expect.anything(),
+      type: 'seeked',
+    });
+    expect(setCurrentTimeMs).toHaveBeenCalledWith(1000);
+    expect(waitForMediaElementEvent.mock.invocationCallOrder[0])
+      .toBeLessThan(setCurrentTimeMs.mock.invocationCallOrder[0]);
+  });
+
+  it('falls back after a short settle period only if current time reached the target', async () => {
+    vi.useFakeTimers();
+    waitForMediaElementEvent.mockReturnValueOnce(new Promise(() => {}));
+    getCurrentTimeMs.mockReturnValueOnce(1000);
+    // eslint-disable-next-line new-cap
+    const cancelToken = new CAF.cancelToken();
+    const rootGetters = { GET_CONFIG: { slplayer_seek_timeout: 15000 } };
+    const commit = vi.fn();
+
+    const promise = slplayerActions.NORMAL_SEEK(
+      { rootGetters, commit },
+      { cancelSignal: cancelToken.signal, seekToMs: 1000 },
+    );
+
+    await vi.advanceTimersByTimeAsync(600);
+    await expect(promise).resolves.toBeUndefined();
+    expect(setCurrentTimeMs).toHaveBeenCalledWith(1000);
+    vi.useRealTimers();
+  });
+
+  it('waits for delayed seeked events when current time has not settled at fallback time', async () => {
+    vi.useFakeTimers();
+    let resolveSeeked;
+    waitForMediaElementEvent.mockReturnValueOnce(new Promise((resolve) => { resolveSeeked = resolve; }));
+    getCurrentTimeMs.mockReturnValueOnce(0);
+    // eslint-disable-next-line new-cap
+    const cancelToken = new CAF.cancelToken();
+    const rootGetters = { GET_CONFIG: { slplayer_seek_timeout: 15000 } };
+    const commit = vi.fn();
+    let resolved = false;
+
+    const promise = slplayerActions.NORMAL_SEEK(
+      { rootGetters, commit },
+      { cancelSignal: cancelToken.signal, seekToMs: 1000 },
+    ).then(() => { resolved = true; });
+
+    await vi.advanceTimersByTimeAsync(600);
+    expect(resolved).toBe(false);
+
+    resolveSeeked();
+    await promise;
+    expect(resolved).toBe(true);
+    vi.useRealTimers();
+  });
+});
+
 describe('SPEED_OR_NORMAL_SEEK', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -185,12 +258,65 @@ describe('SPEED_OR_NORMAL_SEEK', () => {
     expect(result).toBe('Skipped seek: player is buffering');
   });
 
-  it('allows speed seek when player is playing and difference within threshold', async () => {
+  it('normal seeks multi-second drift instead of speeding playback for a long catch-up', async () => {
+    // eslint-disable-next-line new-cap
+    const cancelToken = new CAF.cancelToken();
+    const dispatch = vi.fn().mockImplementation((action) => {
+      if (action === 'FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK') return Promise.resolve(0);
+      return Promise.resolve('normal-seek-result');
+    });
+    const getters = { GET_PLAYER_STATE: 'playing' };
+    const rootGetters = {
+      GET_CONFIG: {
+        slplayer_speed_sync_max_diff: 10000,
+        slplayer_speed_sync_max_correction: 500,
+      },
+    };
+
+    await slplayerActions.SPEED_OR_NORMAL_SEEK(
+      { dispatch, getters, rootGetters },
+      { cancelSignal: cancelToken.signal, seekToMs: 5000 },
+    );
+
+    expect(dispatch).toHaveBeenCalledWith('NORMAL_SEEK', {
+      cancelSignal: cancelToken.signal,
+      seekToMs: 5000,
+    });
+    expect(dispatch).not.toHaveBeenCalledWith('SPEED_SEEK', expect.anything());
+  });
+
+  it('uses speed seek for tiny drift within the correction window while playing', async () => {
     // eslint-disable-next-line new-cap
     const cancelToken = new CAF.cancelToken();
     const dispatch = vi.fn().mockImplementation((action) => {
       if (action === 'FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK') return Promise.resolve(0);
       return Promise.resolve('speed-seek-result');
+    });
+    const getters = { GET_PLAYER_STATE: 'playing' };
+    const rootGetters = {
+      GET_CONFIG: {
+        slplayer_speed_sync_max_correction: 500,
+      },
+    };
+
+    await slplayerActions.SPEED_OR_NORMAL_SEEK(
+      { dispatch, getters, rootGetters },
+      { cancelSignal: cancelToken.signal, seekToMs: 300 },
+    );
+
+    expect(dispatch).toHaveBeenCalledWith('SPEED_SEEK', {
+      cancelSignal: cancelToken.signal,
+      seekToMs: 300,
+    });
+    expect(dispatch).not.toHaveBeenCalledWith('NORMAL_SEEK', expect.anything());
+  });
+
+  it('defaults the speed correction window to sub-second drift when no explicit cap is configured', async () => {
+    // eslint-disable-next-line new-cap
+    const cancelToken = new CAF.cancelToken();
+    const dispatch = vi.fn().mockImplementation((action) => {
+      if (action === 'FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK') return Promise.resolve(0);
+      return Promise.resolve('normal-seek-result');
     });
     const getters = { GET_PLAYER_STATE: 'playing' };
     const rootGetters = {
@@ -204,9 +330,10 @@ describe('SPEED_OR_NORMAL_SEEK', () => {
       { cancelSignal: cancelToken.signal, seekToMs: 5000 },
     );
 
-    expect(dispatch).toHaveBeenCalledWith('SPEED_SEEK', {
+    expect(dispatch).toHaveBeenCalledWith('NORMAL_SEEK', {
       cancelSignal: cancelToken.signal,
       seekToMs: 5000,
     });
+    expect(dispatch).not.toHaveBeenCalledWith('SPEED_SEEK', expect.anything());
   });
 });

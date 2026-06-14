@@ -41,19 +41,6 @@
           </v-btn>
         </v-col>
 
-        <v-col
-          v-if="!AM_I_HOST"
-          cols="auto"
-        >
-          <v-btn
-            variant="flat"
-            color="primary"
-            class="text-white"
-            @click="MANUAL_SYNC"
-          >
-            Manual sync
-          </v-btn>
-        </v-col>
       </v-row>
 
       <v-row
@@ -432,10 +419,6 @@ export default {
       'FETCH_RELATED',
       'FETCH_MEDIA_CHILDREN',
       'MARK_WATCHED',
-    ]),
-
-    ...mapActions('synclounge', [
-      'MANUAL_SYNC',
     ]),
 
     abortRequests() {
