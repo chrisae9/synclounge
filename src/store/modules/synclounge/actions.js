@@ -23,15 +23,24 @@ const POST_BUFFERING_COOLDOWN_MS = 5000;
 let visibilityChangeHandler = null;
 
 export default {
-  CONNECT_AND_JOIN_ROOM: async ({ dispatch }) => {
+  CONNECT_AND_JOIN_ROOM: async ({ dispatch }, options) => {
     await dispatch('ESTABLISH_SOCKET_CONNECTION');
-    await dispatch('JOIN_ROOM_AND_INIT');
+    await dispatch('JOIN_ROOM_AND_INIT', options);
   },
 
-  SET_AND_CONNECT_AND_JOIN_ROOM: ({ commit, dispatch }, { server, room }) => {
+  SET_AND_CONNECT_AND_JOIN_ROOM: async (
+    { commit, dispatch, rootGetters = {} },
+    { server, room, syncOnJoin = true },
+  ) => {
     commit('SET_SERVER', server);
     commit('SET_ROOM', room);
-    return dispatch('CONNECT_AND_JOIN_ROOM');
+
+    if (rootGetters['plex/GET_PLEX_AUTH_TOKEN']) {
+      await dispatch('plex/FETCH_PLEX_USER', null, { root: true });
+      await dispatch('plex/FETCH_PLEX_DEVICES', null, { root: true });
+    }
+
+    return dispatch('CONNECT_AND_JOIN_ROOM', { syncOnJoin });
   },
 
   DISCONNECT_IF_CONNECTED: async ({ dispatch }) => {
@@ -98,7 +107,7 @@ export default {
 
   JOIN_ROOM_AND_INIT: async ({
     getters, rootGetters, dispatch, commit,
-  }) => {
+  }, { syncOnJoin = true } = {}) => {
     // Note: this is also called on rejoining, so be careful not to register handlers twice
     // or duplicate tasks
     const {
@@ -142,33 +151,35 @@ export default {
       color: 'success',
     }, { root: true });
 
-    commit('SET_JOIN_SYNC_IN_PROGRESS', true);
-    try {
-      await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
-    } finally {
-      commit('SET_JOIN_SYNC_IN_PROGRESS', false);
-    }
-
-    // Schedule a delayed re-sync to catch up after initial media load settles
-    setTimeout(() => {
-      if (getters.IS_IN_ROOM) {
-        dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+    if (syncOnJoin) {
+      commit('SET_JOIN_SYNC_IN_PROGRESS', true);
+      try {
+        await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+      } finally {
+        commit('SET_JOIN_SYNC_IN_PROGRESS', false);
       }
-    }, 2000);
 
-    // Start periodic sync polling to correct drift during continuous playback
-    dispatch('START_SYNC_POLL_INTERVAL');
+      // Schedule a delayed re-sync to catch up after initial media load settles
+      setTimeout(() => {
+        if (getters.IS_IN_ROOM) {
+          dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+        }
+      }, 2000);
 
-    // Re-sync when the tab becomes visible again (Chrome pauses video in background tabs)
-    if (visibilityChangeHandler) {
-      document.removeEventListener('visibilitychange', visibilityChangeHandler);
-    }
-    visibilityChangeHandler = () => {
-      if (document.visibilityState === 'visible' && getters.IS_IN_ROOM && !getters.AM_I_HOST) {
-        dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+      // Start periodic sync polling to correct drift during continuous playback
+      dispatch('START_SYNC_POLL_INTERVAL');
+
+      // Re-sync when the tab becomes visible again (Chrome pauses video in background tabs)
+      if (visibilityChangeHandler) {
+        document.removeEventListener('visibilitychange', visibilityChangeHandler);
       }
-    };
-    document.addEventListener('visibilitychange', visibilityChangeHandler);
+      visibilityChangeHandler = () => {
+        if (document.visibilityState === 'visible' && getters.IS_IN_ROOM && !getters.AM_I_HOST) {
+          dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+        }
+      };
+      document.addEventListener('visibilitychange', visibilityChangeHandler);
+    }
   },
 
   DISCONNECT: async ({ commit, dispatch }) => {
@@ -802,15 +813,13 @@ export default {
   PLAY_MEDIA_AND_SYNC_TIME: async ({ getters, dispatch }, media) => {
     const offset = getters.GET_ADJUSTED_HOST_TIME();
 
-    dispatch('plexclients/PLAY_MEDIA', {
+    await dispatch('plexclients/PLAY_MEDIA', {
       mediaIndex: media.mediaIndex || 0,
       // TODO: potentially play ahead a bit by the time it takes to buffer / transcode.
       offset: offset || 0,
       metadata: media,
       machineIdentifier: media.machineIdentifier,
-    }, { root: true }).catch((e) => {
-      console.error('Error during PLAY_MEDIA:', e);
-    });
+    }, { root: true });
   },
 
   REQUEST_ALLOW_NOTIFICATIONS: async ({ commit }) => {

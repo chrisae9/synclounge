@@ -98,18 +98,43 @@ export default {
       'DISCONNECT_IF_CONNECTED',
     ]),
 
+    getSafeRoomRedirect(redirect) {
+      if (typeof redirect !== 'string' || !redirect.startsWith('/') || redirect.startsWith('//')) {
+        return null;
+      }
+
+      const resolvedRedirect = this.$router.resolve(redirect);
+      const isProtectedRoomRoute = resolvedRedirect.matched
+        .some((route) => route.meta.protected)
+        && resolvedRedirect.params.room === this.room
+        && (this.server ? resolvedRedirect.params.server === this.server : !resolvedRedirect.params.server);
+
+      return isProtectedRoomRoute ? resolvedRedirect.fullPath : null;
+    },
+
     async joinInvite() {
       this.error = null;
       this.loading = true;
+
+      const startedOnRoomJoin = this.$route.name === 'RoomJoin';
+      const redirect = this.$route.query.redirect;
+      const watching = this.$route.query.watching;
+      const safeRedirect = this.getSafeRoomRedirect(redirect);
+      const syncOnJoin = !safeRedirect || this.$router.resolve(safeRedirect).name === 'WebPlayer';
 
       try {
         await this.SET_AND_CONNECT_AND_JOIN_ROOM({
           server: this.server,
           room: this.room,
+          syncOnJoin,
         });
+        if (safeRedirect) {
+          this.$router.push(safeRedirect);
+          return;
+        }
 
-        if (this.$route.name === 'RoomJoin') {
-          const destination = this.$route.query.watching
+        if (this.$route.name === 'RoomJoin' && startedOnRoomJoin) {
+          const destination = watching
             ? { name: 'WebPlayer' }
             : { name: 'PlexHome' };
           this.$router.push(this.linkWithRoom(destination));

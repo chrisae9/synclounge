@@ -60,6 +60,9 @@ export default {
 
     if (rootGetters['slplayer/IS_PLAYER_INITIALIZED']) {
       await dispatch('slplayer/CHANGE_PLAYER_SRC', true, { root: true });
+      if (!rootGetters['slplayer/GET_PLEX_TIMELINE_UPDATER_CANCEL_TOKEN']) {
+        dispatch('slplayer/START_PERIODIC_PLEX_TIMELINE_UPDATE', null, { root: true });
+      }
     } else {
       await dispatch('slplayer/NAVIGATE_AND_INITIALIZE_PLAYER', null, { root: true });
     }

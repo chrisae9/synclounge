@@ -538,10 +538,14 @@ export default {
       await dispatch('REGISTER_PLAYER_EVENTS');
       await dispatch('START_UPDATE_PLAYER_CONTROLS_SHOWN_INTERVAL');
       setVolume(rootGetters['settings/GET_SLPLAYERVOLUME']);
-      await dispatch('CHANGE_PLAYER_SRC');
 
-      // Purposefully not awaited
-      dispatch('START_PERIODIC_PLEX_TIMELINE_UPDATE');
+      if (rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']
+        && rootGetters['plexclients/GET_ACTIVE_SERVER_ID']) {
+        await dispatch('CHANGE_PLAYER_SRC');
+
+        // Purposefully not awaited
+        dispatch('START_PERIODIC_PLEX_TIMELINE_UPDATE');
+      }
 
       if (getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE) {
         getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE.resolve();

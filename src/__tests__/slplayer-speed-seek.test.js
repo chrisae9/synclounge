@@ -63,6 +63,38 @@ const {
   setPlaybackRate, setCurrentTimeMs, waitForMediaElementEvent, getCurrentTimeMs,
 } = await import('@/player');
 
+describe('INIT_PLAYER_STATE', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('does not request a Plex media source when the player route opens without active media', async () => {
+    const commit = vi.fn();
+    const dispatch = vi.fn(() => Promise.resolve());
+    const getters = {
+      GET_PLAYER_INITIALIZED_DEFERRED_PROMISE: null,
+    };
+    const rootGetters = {
+      'settings/GET_SLPLAYERVOLUME': 1,
+      'plexclients/GET_ACTIVE_MEDIA_METADATA': null,
+      'plexclients/GET_ACTIVE_SERVER_ID': null,
+    };
+
+    await slplayerActions.INIT_PLAYER_STATE({
+      getters,
+      rootGetters,
+      commit,
+      dispatch,
+    });
+
+    expect(dispatch).toHaveBeenCalledWith('REGISTER_PLAYER_EVENTS');
+    expect(dispatch).toHaveBeenCalledWith('START_UPDATE_PLAYER_CONTROLS_SHOWN_INTERVAL');
+    expect(dispatch).not.toHaveBeenCalledWith('CHANGE_PLAYER_SRC');
+    expect(dispatch).not.toHaveBeenCalledWith('START_PERIODIC_PLEX_TIMELINE_UPDATE');
+    expect(commit).toHaveBeenCalledWith('SET_IS_PLAYER_INITIALIZED', true);
+  });
+});
+
 describe('SPEED_SEEK', () => {
   beforeEach(() => {
     vi.useFakeTimers();

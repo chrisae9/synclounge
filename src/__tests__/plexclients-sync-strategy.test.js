@@ -1,5 +1,5 @@
 import {
-  describe, it, expect, vi,
+  describe, it, expect, vi, afterEach,
 } from 'vitest';
 import plexclientActions from '@/store/modules/plexclients/actions';
 
@@ -9,6 +9,10 @@ const baseHostUser = {
   updatedAt: Date.now(),
   playbackRate: 1,
 };
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 const makeRootGetters = (overrides = {}) => ({
   'synclounge/GET_ADJUSTED_HOST_TIME': () => 10300,
@@ -24,6 +28,45 @@ const makeRootGetters = (overrides = {}) => ({
     os: 'macOS',
   },
   ...overrides,
+});
+
+describe('plexclients PLAY_MEDIA', () => {
+  it('starts Plex timeline polling when media arrives after an empty initialized player', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true })));
+    const metadata = {
+      title: 'Episode 2',
+      ratingKey: 'episode-2',
+      thumb: '/thumb.jpg',
+    };
+    const playQueue = { playQueueID: 123 };
+    const commit = vi.fn();
+    const dispatch = vi.fn((action) => {
+      if (action === 'plexservers/CREATE_PLAY_QUEUE') {
+        return Promise.resolve(playQueue);
+      }
+      return Promise.resolve();
+    });
+    const rootGetters = {
+      'synclounge/GET_ROOM': 'room123',
+      'plexservers/GET_MEDIA_IMAGE_URL': vi.fn(() => '/poster.jpg'),
+      'slplayer/IS_PLAYER_INITIALIZED': true,
+      'slplayer/GET_PLEX_TIMELINE_UPDATER_CANCEL_TOKEN': null,
+    };
+
+    await plexclientActions.PLAY_MEDIA({ commit, dispatch, rootGetters }, {
+      mediaIndex: 0,
+      offset: 12345,
+      metadata,
+      machineIdentifier: 'server-1',
+    });
+
+    expect(dispatch).toHaveBeenCalledWith('slplayer/CHANGE_PLAYER_SRC', true, { root: true });
+    expect(dispatch).toHaveBeenCalledWith(
+      'slplayer/START_PERIODIC_PLEX_TIMELINE_UPDATE',
+      null,
+      { root: true },
+    );
+  });
 });
 
 describe('plexclients SYNC drift strategy', () => {

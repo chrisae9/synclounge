@@ -65,20 +65,17 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  if ((store.getters['plex/IS_UNAUTHORIZED']
-    && to.matched.some((record) => record.meta.requiresAuth))
-  || (!store.getters['plex/GET_PLEX_AUTH_TOKEN']
-    && to.matched.some((record) => record.meta.requiresPlexToken))) {
-    if (to.matched.some((record) => record.meta.redirectAfterAuth)) {
-      next({
-        name: 'SignIn',
-        query: {
-          redirect: to.fullPath,
-        },
-      });
-    } else {
-      next({ name: 'SignIn' });
-    }
+  if (store.getters['plex/IS_UNAUTHORIZED']
+    && to.matched.some((record) => record.meta.requiresAuth)) {
+    next({
+      name: 'SignIn',
+      query: {
+        redirect: to.fullPath,
+      },
+    });
+  } else if (!store.getters['plex/GET_PLEX_AUTH_TOKEN']
+    && to.matched.some((record) => record.meta.requiresPlexToken)) {
+    next({ name: 'SignIn' });
   } else if (to.matched.some((record) => record.meta.requiresNoAuth)
     && store.getters['plex/GET_PLEX_AUTH_TOKEN'] && store.getters['plex/IS_USER_AUTHORIZED']) {
     next({ name: 'RoomCreation' });
@@ -96,6 +93,9 @@ router.beforeEach(async (to, from, next) => {
         params: {
           room: to.params.room,
           ...(to.params.server && { server: to.params.server }),
+        },
+        query: {
+          redirect: to.fullPath,
         },
       });
     } else {
