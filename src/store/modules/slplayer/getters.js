@@ -24,6 +24,14 @@ export default {
     if (os === 'iOS' || os === 'iPadOS') {
       return 'hls';
     }
+
+    // Plex Web uses DASH/MP4 for HEVC browser playback so it can copy supported
+    // HEVC video while transcoding audio to AAC. Do not fall back to HLS/MPEG-TS
+    // here; Chrome/Shaka fails when Plex emits HLS segments with MP3 audio.
+    if (getters.GET_HEVC_VIDEO_STREAM) {
+      return 'dash';
+    }
+
     return getters.IS_IN_BUGGY_CHROME_STATE ? 'hls' : state.streamingProtocol;
   },
 
@@ -229,28 +237,44 @@ export default {
 
   GET_PLEX_PROFILE_EXTRAS: (state, getters, rootState, rootGetters) => {
     const targetCodec = (x) => `append-transcode-target-codec(${x})`;
-    const addLimitation = (x) => `+add-limitation(${x})`;
+    const addLimitation = (x) => `add-limitation(${x})`;
 
-    const videoStream = getters.GET_STREAMS.find(({ streamType }) => streamType === 1);
     const protocol = getters.GET_STREAMING_PROTOCOL;
+    const extras = [];
 
-    let extras = targetCodec('type=videoProfile&context=streaming&audioCodec=aac'
-                             + `&protocol=${protocol}`);
-
-    if (videoStream?.codec === 'hevc' && !getters.GET_FORCE_TRANSCODE) {
-      extras = targetCodec('type=videoProfile&context=streaming&videoCodec=hevc&audioCodec=aac'
-                           + `&protocol=${protocol}`);
-      extras += addLimitation('scope=videoCodec&scopeName=hevc&type=upperBound'
-                              + '&name=video.bitDepth&value=10&replace=true');
+    if (protocol === 'dash' && getters.GET_HEVC_VIDEO_STREAM) {
+      if (getters.GET_CAN_DIRECT_STREAM_HEVC_VIDEO) {
+        extras.push(
+          addLimitation('scope=videoCodec&scopeName=hevc&type=upperBound'
+                        + '&name=video.width&value=4096&replace=true'),
+          addLimitation('scope=videoCodec&scopeName=hevc&type=upperBound'
+                        + '&name=video.height&value=2160&replace=true'),
+          addLimitation('scope=videoCodec&scopeName=hevc&type=upperBound'
+                        + '&name=video.bitDepth&value=10&replace=true'),
+          targetCodec('type=videoProfile&context=streaming&protocol=dash&videoCodec=hevc'),
+          addLimitation('scope=videoTranscodeTarget&scopeName=hevc&scopeType=videoCodec'
+                        + '&context=streaming&protocol=dash&type=match&name=video.colorTrc'
+                        + '&list=bt709|bt470m|bt470bg|smpte170m|smpte240m|bt2020-10|smpte2084'
+                        + '&isRequired=false'),
+          targetCodec('type=videoProfile&context=streaming&videoCodec=h264%2Chevc'
+                      + '&audioCodec=aac&protocol=dash'),
+        );
+      } else {
+        extras.push(targetCodec('type=videoProfile&context=streaming&videoCodec=h264'
+                                + '&audioCodec=aac&protocol=dash'));
+      }
+    } else {
+      extras.push(targetCodec('type=videoProfile&context=streaming&audioCodec=aac'
+                              + `&protocol=${protocol}`));
     }
 
     if (rootGetters['settings/GET_SLPLAYERQUALITY']) {
       const quality = rootGetters['settings/GET_SLPLAYERQUALITY'];
-      extras += addLimitation('scope=videoCodec&scopeName=*&type=upperBound'
-                              + `&name=video.bitrate&value=${quality}&replace=true`);
+      extras.push(addLimitation('scope=videoCodec&scopeName=*&type=upperBound'
+                                + `&name=video.bitrate&value=${quality}&replace=true`));
     }
 
-    return extras;
+    return extras.join('+');
   },
 
   SHOULD_FORCE_BURN_SUBTITLES: (state, getters) => getters.IS_IN_PICTURE_IN_PICTURE
@@ -273,6 +297,15 @@ export default {
     };
   },
 
+  GET_HEVC_VIDEO_STREAM: (state, getters) => getters.GET_STREAMS
+    .find(({ streamType, codec }) => streamType === 1 && codec === 'hevc'),
+
+  GET_CAN_DIRECT_STREAM_HEVC_VIDEO: (state, getters) => Boolean(getters.GET_HEVC_VIDEO_STREAM)
+    && isVideoSupported(getters.GET_HEVC_VIDEO_STREAM),
+
+  GET_SHOULD_FORCE_VIDEO_TRANSCODE: (state, getters) => Boolean(getters.GET_HEVC_VIDEO_STREAM)
+    && !getters.GET_CAN_DIRECT_STREAM_HEVC_VIDEO,
+
   GET_DECISION_AND_START_PARAMS: (state, getters, rootState, rootGetters) => ({
     hasMDE: 1,
     path: rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']?.key,
@@ -281,8 +314,8 @@ export default {
     partIndex: 0,
     protocol: getters.GET_STREAMING_PROTOCOL,
     fastSeek: 1,
-    directPlay: getters.CAN_DIRECT_PLAY ? 1 : 0,
-    directStream: getters.GET_FORCE_TRANSCODE ? 0 : 1,
+    directPlay: getters.CAN_DIRECT_PLAY && !getters.GET_SHOULD_FORCE_VIDEO_TRANSCODE ? 1 : 0,
+    directStream: getters.GET_FORCE_TRANSCODE || getters.GET_SHOULD_FORCE_VIDEO_TRANSCODE ? 0 : 1,
     subtitleSize: 100,
     audioBoost: 100,
     location: getters.GET_PLEX_SERVER_LOCATION,
@@ -294,7 +327,12 @@ export default {
 
     // TODO: figure out how to make autoAdjustQuality work
     autoAdjustQuality: 0,
-    directStreamAudio: getters.GET_FORCE_TRANSCODE ? 0 : 1,
+    directStreamAudio: getters.GET_FORCE_TRANSCODE || getters.GET_HEVC_VIDEO_STREAM ? 0 : 1,
+    autoAdjustSubtitle: 1,
+    ...getters.GET_SHOULD_FORCE_VIDEO_TRANSCODE && {
+      videoCodec: 'h264',
+      audioCodec: 'aac',
+    },
     mediaBufferSize: 102400, // ~100MB (same as what Plex Web uses)
     session: state.session,
     ...getters.GET_SUBTITLE_PARAMS,
