@@ -1,9 +1,12 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
+const os = require('node:os');
 
 const BASE = 'http://localhost:18088';
 let serverProcess;
+let posterFixtureServer;
+let posterFixtureBase;
 
 // Helper to make HTTP requests
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
@@ -29,6 +32,23 @@ async function waitForServer(url, retries = 30, delay = 200) {
 
 describe('server', () => {
   before(async () => {
+    posterFixtureServer = http.createServer((req, res) => {
+      if (req.url === '/image/jpeg') {
+        res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+        res.end(Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+        return;
+      }
+      if (req.url === '/status/404') {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('not found');
+        return;
+      }
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('unexpected fixture path');
+    });
+    await new Promise((resolve) => posterFixtureServer.listen(0, '0.0.0.0', resolve));
+    posterFixtureBase = `http://${os.hostname()}:${posterFixtureServer.address().port}`;
+
     const { spawn } = require('node:child_process');
     serverProcess = spawn('node', ['server.js'], {
       cwd: __dirname + '/..',
@@ -42,6 +62,9 @@ describe('server', () => {
   after(() => {
     if (serverProcess) {
       serverProcess.kill('SIGTERM');
+    }
+    if (posterFixtureServer) {
+      posterFixtureServer.close();
     }
   });
 
@@ -380,7 +403,7 @@ describe('server', () => {
         body: {
           title: 'Proxy Test',
           type: 'movie',
-          posterUrl: 'https://httpbin.org/image/jpeg',
+          posterUrl: `${posterFixtureBase}/image/jpeg`,
           machineIdentifier: 'proxy-machine',
           ratingKey: '400',
         },
@@ -925,7 +948,7 @@ describe('server', () => {
         body: {
           title: '404 Upstream',
           type: 'movie',
-          posterUrl: 'https://httpbin.org/status/404',
+          posterUrl: `${posterFixtureBase}/status/404`,
           machineIdentifier: 'upstream4xx',
           ratingKey: '702',
         },
@@ -974,7 +997,7 @@ describe('server', () => {
         body: {
           title: 'Legit',
           type: 'movie',
-          posterUrl: 'https://httpbin.org/image/jpeg',
+          posterUrl: `${posterFixtureBase}/image/jpeg`,
           machineIdentifier: 'ssrf-legit',
           ratingKey: '1',
         },
