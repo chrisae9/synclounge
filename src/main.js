@@ -5,6 +5,8 @@ import App from './App.vue';
 import router from './router';
 import store from './store';
 import mapErrorMessage from './utils/errorutils';
+import { shouldApplyAutojoin, shouldRedirectProtectedRoute } from './router/guardutils';
+import { isConnected } from './socket';
 
 const vChatScroll = {
   mounted(el) {
@@ -44,19 +46,12 @@ app.config.errorHandler = (err) => {
   });
 };
 
-const isEqualIfExpectedTrue = (expected, got) => (expected
-  ? expected === got
-  : !got);
-
-const doesServerMatch = (expected, got) => expected.room === got.room
-  && isEqualIfExpectedTrue(expected.server, got.server);
-
 router.beforeEach(async (to, from, next) => {
   if (!store.getters.GET_CONFIG) {
     await store.dispatch('FETCH_CONFIG');
 
     // This will only happen once per refresh of the page
-    if (store.getters.GET_CONFIG?.autojoin) {
+    if (shouldApplyAutojoin(to, store.getters.GET_CONFIG)) {
       next({
         name: 'RoomJoin',
         params: store.getters.GET_CONFIG.autojoin,
@@ -79,13 +74,11 @@ router.beforeEach(async (to, from, next) => {
   } else if (to.matched.some((record) => record.meta.requiresNoAuth)
     && store.getters['plex/GET_PLEX_AUTH_TOKEN'] && store.getters['plex/IS_USER_AUTHORIZED']) {
     next({ name: 'RoomCreation' });
-  } else if (to.matched.some((record) => record.meta.protected)
-    && (!store.getters['synclounge/IS_IN_ROOM']
-      || !doesServerMatch({
-        server: store.getters['synclounge/GET_SERVER'],
-        room: store.getters['synclounge/GET_ROOM'],
-      }, to.params))
-  ) {
+  } else if (shouldRedirectProtectedRoute(to, {
+    inRoom: store.getters['synclounge/IS_IN_ROOM'],
+    server: store.getters['synclounge/GET_SERVER'],
+    room: store.getters['synclounge/GET_ROOM'],
+  }, isConnected())) {
     // TODO: add redirect
     if (to.params.room) {
       next({

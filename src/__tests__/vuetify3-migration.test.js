@@ -922,6 +922,18 @@ describe('TheSettingsDialog Form Controls', () => {
     }
   });
 
+  it('keeps expert playback and sync tuning inside an Advanced settings group', () => {
+    expect(source).toContain('<v-expansion-panels');
+    expect(source).toContain('Advanced');
+    const advancedSection = source.substring(source.indexOf('Advanced'));
+    expect(advancedSection).toContain('Force Transcode');
+    expect(advancedSection).toContain('Force Burn Subtitles');
+    expect(advancedSection).toContain('Streaming Protocol');
+    expect(advancedSection).toContain('Sync Flexibility');
+    expect(advancedSection).toContain('Syncing Method');
+    expect(advancedSection).toContain('Client Poll Interval');
+  });
+
   it('all v-text-field use model-value not value', () => {
     const textFieldMatches = source.matchAll(/<v-text-field\b[\s\S]*?\/>/g);
     for (const match of textFieldMatches) {

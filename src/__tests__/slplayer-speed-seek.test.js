@@ -37,6 +37,7 @@ vi.mock('@/player', () => ({
   getBigPlayButton: vi.fn(() => ({ addEventListener: vi.fn(), removeEventListener: vi.fn() })),
   unload: vi.fn(),
   isCasting: vi.fn(() => false),
+  getMediaElement: vi.fn(() => ({ muted: true })),
   addCastStatusListener: vi.fn(),
   removeCastStatusListener: vi.fn(),
 }));
@@ -92,6 +93,96 @@ describe('INIT_PLAYER_STATE', () => {
     expect(dispatch).not.toHaveBeenCalledWith('CHANGE_PLAYER_SRC');
     expect(dispatch).not.toHaveBeenCalledWith('START_PERIODIC_PLEX_TIMELINE_UPDATE');
     expect(commit).toHaveBeenCalledWith('SET_IS_PLAYER_INITIALIZED', true);
+  });
+
+  it('loads media without pressing play when initialized while following a paused host', async () => {
+    const commit = vi.fn();
+    const dispatch = vi.fn(() => Promise.resolve());
+    const getters = {
+      GET_PLAYER_INITIALIZED_DEFERRED_PROMISE: null,
+      GET_SHOULD_PLAY_ON_LOAD: null,
+    };
+    const rootGetters = {
+      'settings/GET_SLPLAYERVOLUME': 1,
+      'plexclients/GET_ACTIVE_MEDIA_METADATA': { ratingKey: 'episode-2' },
+      'plexclients/GET_ACTIVE_SERVER_ID': 'server-1',
+      'synclounge/GET_HOST_USER': { state: 'paused' },
+    };
+
+    await slplayerActions.INIT_PLAYER_STATE({
+      getters,
+      rootGetters,
+      commit,
+      dispatch,
+    });
+
+    expect(dispatch).toHaveBeenCalledWith('CHANGE_PLAYER_SRC');
+    expect(dispatch).not.toHaveBeenCalledWith('PRESS_PLAY');
+    expect(commit).toHaveBeenCalledWith('SET_SHOULD_PLAY_ON_LOAD', null);
+    expect(dispatch).toHaveBeenCalledWith('START_PERIODIC_PLEX_TIMELINE_UPDATE');
+    expect(commit).toHaveBeenCalledWith('SET_IS_PLAYER_INITIALIZED', true);
+  });
+
+  it('honors explicit play intent while initialized under a paused host', async () => {
+    const commit = vi.fn();
+    const dispatch = vi.fn(() => Promise.resolve());
+    const getters = {
+      GET_PLAYER_INITIALIZED_DEFERRED_PROMISE: null,
+      GET_SHOULD_PLAY_ON_LOAD: true,
+    };
+    const rootGetters = {
+      'settings/GET_SLPLAYERVOLUME': 1,
+      'plexclients/GET_ACTIVE_MEDIA_METADATA': { ratingKey: 'episode-2' },
+      'plexclients/GET_ACTIVE_SERVER_ID': 'server-1',
+      'synclounge/GET_HOST_USER': { state: 'paused' },
+    };
+
+    await slplayerActions.INIT_PLAYER_STATE({
+      getters,
+      rootGetters,
+      commit,
+      dispatch,
+    });
+
+    expect(dispatch).toHaveBeenCalledWith('CHANGE_PLAYER_SRC');
+    expect(dispatch).toHaveBeenCalledWith('PRESS_PLAY');
+    expect(commit).toHaveBeenCalledWith('SET_SHOULD_PLAY_ON_LOAD', null);
+    expect(dispatch).toHaveBeenCalledWith('START_PERIODIC_PLEX_TIMELINE_UPDATE');
+  });
+});
+
+describe('autoplay recovery', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('unmute retry clears autoplay block and attempts playback again', async () => {
+    const mediaElement = { muted: true };
+    const { getMediaElement } = await import('@/player');
+    getMediaElement.mockReturnValue(mediaElement);
+    const commit = vi.fn();
+    const dispatch = vi.fn().mockResolvedValue(undefined);
+
+    await slplayerActions.UNMUTE_AFTER_AUTOPLAY_BLOCK({ commit, dispatch });
+
+    expect(mediaElement.muted).toBe(false);
+    expect(commit).toHaveBeenCalledWith('SET_AUTOPLAY_BLOCKED', false);
+    expect(dispatch).toHaveBeenCalledWith('PRESS_PLAY');
+  });
+
+  it('stop clears stale autoplay block state and unmutes autoplay-muted media', async () => {
+    const mediaElement = { muted: true };
+    const { getMediaElement } = await import('@/player');
+    getMediaElement.mockReturnValue(mediaElement);
+    const commit = vi.fn();
+    const dispatch = vi.fn().mockResolvedValue(undefined);
+    const getters = { IS_AUTOPLAY_BLOCKED: true };
+
+    await slplayerActions.PRESS_STOP({ getters, commit, dispatch });
+
+    expect(mediaElement.muted).toBe(false);
+    expect(commit).toHaveBeenCalledWith('SET_AUTOPLAY_BLOCKED', false);
+    expect(dispatch).toHaveBeenCalledWith('CHANGE_PLAYER_STATE', 'stopped');
   });
 });
 

@@ -58,9 +58,48 @@ describe('plexclients PLAY_MEDIA', () => {
       offset: 12345,
       metadata,
       machineIdentifier: 'server-1',
+      shouldPlay: true,
     });
 
     expect(dispatch).toHaveBeenCalledWith('slplayer/CHANGE_PLAYER_SRC', true, { root: true });
+    expect(dispatch).toHaveBeenCalledWith('slplayer/PRESS_PLAY', null, { root: true });
+    expect(dispatch).toHaveBeenCalledWith(
+      'slplayer/START_PERIODIC_PLEX_TIMELINE_UPDATE',
+      null,
+      { root: true },
+    );
+  });
+
+  it('loads media without pressing play when following a paused host', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true })));
+    const metadata = {
+      title: 'Episode 2',
+      ratingKey: 'episode-2',
+      thumb: '/thumb.jpg',
+    };
+    const dispatch = vi.fn((action) => {
+      if (action === 'plexservers/CREATE_PLAY_QUEUE') {
+        return Promise.resolve({ playQueueID: 123 });
+      }
+      return Promise.resolve();
+    });
+    const rootGetters = {
+      'synclounge/GET_ROOM': 'room123',
+      'plexservers/GET_MEDIA_IMAGE_URL': vi.fn(() => '/poster.jpg'),
+      'slplayer/IS_PLAYER_INITIALIZED': true,
+      'slplayer/GET_PLEX_TIMELINE_UPDATER_CANCEL_TOKEN': null,
+    };
+
+    await plexclientActions.PLAY_MEDIA({ commit: vi.fn(), dispatch, rootGetters }, {
+      mediaIndex: 0,
+      offset: 12345,
+      metadata,
+      machineIdentifier: 'server-1',
+      shouldPlay: false,
+    });
+
+    expect(dispatch).toHaveBeenCalledWith('slplayer/CHANGE_PLAYER_SRC', true, { root: true });
+    expect(dispatch).not.toHaveBeenCalledWith('slplayer/PRESS_PLAY', null, { root: true });
     expect(dispatch).toHaveBeenCalledWith(
       'slplayer/START_PERIODIC_PLEX_TIMELINE_UPDATE',
       null,

@@ -30,6 +30,8 @@ jobs:
 
       - run: npm run build
 
+      - run: npm run lint
+
       - run: npm test
 
   release:
@@ -48,14 +50,44 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Determine version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - run: npm ci
+        env:
+          SKIP_BUILD: true
+
+      - name: Determine and validate version
         id: version
+        env:
+          VERSION_INPUT: ${{ github.event.inputs.version }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION=${{ github.event.inputs.version }}
+            VERSION="$VERSION_INPUT"
+            EXPECTED_REF="v${VERSION}"
           else
+            EXPECTED_REF="$GITHUB_REF_NAME"
             VERSION=${GITHUB_REF_NAME#v}
           fi
+
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Release version must be semver x.y.z, got: $VERSION" >&2
+            exit 1
+          fi
+
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "package.json version ($PACKAGE_VERSION) does not match release version ($VERSION)" >&2
+            exit 1
+          fi
+
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] && [ "$EXPECTED_REF" != "v$VERSION" ]; then
+            echo "Tag must be v$VERSION, got: $EXPECTED_REF" >&2
+            exit 1
+          fi
+
           MAJOR=${VERSION%%.*}
           MINOR=${VERSION#*.}
           MINOR=${MINOR%%.*}

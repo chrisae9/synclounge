@@ -392,5 +392,7 @@ export default {
 
   IS_PLAY_QUEUE_TRANSITIONING: (state) => state.isPlayQueueTransitioning,
 
+  GET_SHOULD_PLAY_ON_LOAD: (state) => state.shouldPlayOnLoad,
+
   IS_AUTOPLAY_BLOCKED: (state) => state.autoplayBlocked,
 };

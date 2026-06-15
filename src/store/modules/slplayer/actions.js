@@ -333,19 +333,25 @@ export default {
     }
   },
 
-  UNMUTE_AFTER_AUTOPLAY_BLOCK: ({ commit }) => {
+  UNMUTE_AFTER_AUTOPLAY_BLOCK: async ({ commit, dispatch }) => {
     const mediaElement = getMediaElement();
     if (mediaElement) {
       mediaElement.muted = false;
     }
     commit('SET_AUTOPLAY_BLOCKED', false);
+    await dispatch('PRESS_PLAY');
   },
 
   PRESS_PAUSE: () => {
     pause();
   },
 
-  PRESS_STOP: async ({ dispatch }) => {
+  PRESS_STOP: async ({ getters, commit, dispatch }) => {
+    const mediaElement = getMediaElement();
+    if (getters.IS_AUTOPLAY_BLOCKED && mediaElement) {
+      mediaElement.muted = false;
+    }
+    commit('SET_AUTOPLAY_BLOCKED', false);
     await dispatch('CHANGE_PLAYER_STATE', 'stopped');
   },
 
@@ -542,6 +548,12 @@ export default {
       if (rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']
         && rootGetters['plexclients/GET_ACTIVE_SERVER_ID']) {
         await dispatch('CHANGE_PLAYER_SRC');
+        const shouldPlayOnLoad = getters.GET_SHOULD_PLAY_ON_LOAD
+          ?? (rootGetters['synclounge/GET_HOST_USER']?.state !== 'paused');
+        if (shouldPlayOnLoad) {
+          await dispatch('PRESS_PLAY');
+        }
+        commit('SET_SHOULD_PLAY_ON_LOAD', null);
 
         // Purposefully not awaited
         dispatch('START_PERIODIC_PLEX_TIMELINE_UPDATE');

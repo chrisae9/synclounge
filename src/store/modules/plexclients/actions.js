@@ -2,7 +2,7 @@ export default {
   PLAY_MEDIA: async ({
     commit, dispatch, rootGetters,
   }, {
-    mediaIndex, offset, metadata, machineIdentifier, userInitiated,
+    mediaIndex, offset, metadata, machineIdentifier, userInitiated, shouldPlay = userInitiated,
   }) => {
     console.debug('PLAY_MEDIA:', {
       title: metadata.title,
@@ -57,9 +57,14 @@ export default {
     commit('slplayer/SET_PLAYER_STATE', 'buffering', { root: true });
     commit('slplayer/SET_MASK_PLAYER_STATE', true, { root: true });
     await dispatch('synclounge/PROCESS_MEDIA_UPDATE', userInitiated, { root: true });
+    commit('slplayer/SET_SHOULD_PLAY_ON_LOAD', Boolean(shouldPlay), { root: true });
 
     if (rootGetters['slplayer/IS_PLAYER_INITIALIZED']) {
       await dispatch('slplayer/CHANGE_PLAYER_SRC', true, { root: true });
+      if (shouldPlay) {
+        await dispatch('slplayer/PRESS_PLAY', null, { root: true });
+      }
+      commit('slplayer/SET_SHOULD_PLAY_ON_LOAD', null, { root: true });
       if (!rootGetters['slplayer/GET_PLEX_TIMELINE_UPDATER_CANCEL_TOKEN']) {
         dispatch('slplayer/START_PERIODIC_PLEX_TIMELINE_UPDATE', null, { root: true });
       }

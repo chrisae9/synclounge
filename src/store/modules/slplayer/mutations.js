@@ -67,6 +67,10 @@ export default {
     state.playerInitializedDeferredPromise = deferred;
   },
 
+  SET_SHOULD_PLAY_ON_LOAD: (state, shouldPlay) => {
+    state.shouldPlayOnLoad = shouldPlay;
+  },
+
   SET_MASK_PLAYER_STATE: (state, mask) => {
     state.maskPlayerState = mask;
   },

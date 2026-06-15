@@ -56,10 +56,16 @@ export default {
       && stripUsernameSuffix(rest.username)
         === stripUsernameSuffix(getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME);
     if (getters.IS_HOST_GRACE_PERIOD && (thumbMatch || nameMatch)) {
+      const amPendingHost = getters.GET_PENDING_HOST_ID === getters.GET_SOCKET_ID;
+
+      // Only the server-selected pending host may reclaim on behalf of the room.
+      // Bystanders keep grace state and wait for the server's newHost broadcast.
+      if (!amPendingHost) {
+        return;
+      }
+
       await dispatch('CLEAR_HOST_GRACE_PERIOD');
       commit('SET_HOST_ID', id);
-
-      // Tell the server the original host is back (fire-and-forget)
       dispatch('TRANSFER_HOST', id);
 
       await dispatch('ADD_MESSAGE_AND_CACHE_AND_NOTIFY', {

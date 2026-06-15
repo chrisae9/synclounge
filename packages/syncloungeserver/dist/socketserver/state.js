@@ -17,7 +17,10 @@ const rooms = new Map();
 // Map from socket id to room name
 const socketRoomId = new Map();
 const socketLatencyData = new Map();
-const getNumberFromUsername = username => parseInt(username.match(/\((\d+)\)$/)[1], 10);
+const getNumberFromUsername = username => {
+  const match = username.match(/\((\d+)\)$/);
+  return match ? parseInt(match[1], 10) : null;
+};
 const getUserRoomId = socketId => socketRoomId.get(socketId);
 exports.getUserRoomId = getUserRoomId;
 const getUserRoom = socketId => rooms.get(getUserRoomId(socketId));
@@ -35,7 +38,10 @@ const getUniqueUsername = ({
   // Get users with same username that are numbered like:  username(1)
   const sameUsersNum = usernames.filter(username => username.startsWith("".concat(desiredUsername, "(")));
   if (sameUsersNum.length > 0) {
-    const userNumbers = sameUsersNum.map(getNumberFromUsername);
+    const userNumbers = sameUsersNum.map(getNumberFromUsername).filter(number => number != null);
+    if (userNumbers.length === 0) {
+      return "".concat(desiredUsername, "(1)");
+    }
     const nextNumber = Math.max(...userNumbers) + 1;
     return "".concat(desiredUsername, "(").concat(nextNumber, ")");
   }

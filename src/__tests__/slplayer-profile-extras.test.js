@@ -115,4 +115,20 @@ describe('slplayer Plex profile extras', () => {
 
     expect(protocol).toBe('dash');
   });
+
+  it.each(['iOS', 'iPadOS'])('uses HLS on %s even when HEVC browser logic would prefer DASH', (os) => {
+    const getters = {
+      IS_IN_BUGGY_CHROME_STATE: false,
+      GET_HEVC_VIDEO_STREAM: { streamType: 1, codec: 'hevc', bitDepth: 10 },
+      GET_CAN_DIRECT_STREAM_HEVC_VIDEO: true,
+    };
+    const rootGetters = {
+      GET_BROWSER: { os },
+    };
+    const state = { streamingProtocol: 'dash' };
+
+    const protocol = slplayerGetters.GET_STREAMING_PROTOCOL(state, getters, {}, rootGetters);
+
+    expect(protocol).toBe('hls');
+  });
 });

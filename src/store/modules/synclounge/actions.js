@@ -3,7 +3,7 @@ import eventhandlers from '@/store/modules/synclounge/eventhandlers';
 import { combineUrl, combineRelativeUrlParts } from '@/utils/combineurl';
 import { fetchJson } from '@/utils/fetchutils';
 import {
-  open, close, on, off, waitForEvent, isConnected, emit,
+  open, close, on, off, waitForEvent, isConnected, hasSocket, emit,
 } from '@/socket';
 import notificationSound from '@/assets/sounds/notification_simple-01.wav';
 
@@ -32,6 +32,8 @@ export default {
     { commit, dispatch, rootGetters = {} },
     { server, room, syncOnJoin = true },
   ) => {
+    await dispatch('DISCONNECT_IF_CONNECTED');
+
     commit('SET_SERVER', server);
     commit('SET_ROOM', room);
 
@@ -44,7 +46,7 @@ export default {
   },
 
   DISCONNECT_IF_CONNECTED: async ({ dispatch }) => {
-    if (isConnected()) {
+    if (isConnected() || hasSocket()) {
       await dispatch('DISCONNECT');
     }
   },
@@ -819,6 +821,7 @@ export default {
       offset: offset || 0,
       metadata: media,
       machineIdentifier: media.machineIdentifier,
+      shouldPlay: getters.GET_HOST_USER?.state === 'playing',
     }, { root: true });
   },
 

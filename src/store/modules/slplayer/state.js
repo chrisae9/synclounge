@@ -17,6 +17,7 @@ const state = () => ({
   playerDestroyCancelToken: null,
   isPlayerInitialized: false,
   playerInitializedDeferredPromise: null,
+  shouldPlayOnLoad: null,
 
   // This is used to signal whether to mask the player state (time, etc) when sending updates
   // before the media is loaded

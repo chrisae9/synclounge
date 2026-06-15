@@ -124,13 +124,25 @@ export default {
       }
     },
 
+    getSafeRedirect(redirect) {
+      if (typeof redirect !== 'string' || !redirect.startsWith('/') || redirect.startsWith('//')) {
+        return '/';
+      }
+
+      const resolvedRedirect = this.$router.resolve(redirect);
+      const requiresAuth = resolvedRedirect.matched
+        .some((route) => route.meta.requiresAuth);
+
+      return requiresAuth ? resolvedRedirect.fullPath : '/';
+    },
+
     signIn() {
       if (!this.plexAuthResponse) return;
 
       // Save the PIN so we can retrieve the token after redirect
       sessionStorage.setItem(PIN_STORAGE_KEY, JSON.stringify({
         id: this.plexAuthResponse.id,
-        redirect: this.$route.query.redirect || '/',
+        redirect: this.getSafeRedirect(this.$route.query.redirect || '/'),
       }));
 
       const forwardUrl = window.location.origin + this.$route.fullPath;
@@ -147,7 +159,7 @@ export default {
         await this.REQUEST_PLEX_AUTH_TOKEN({ id: savedPin.id });
         await this.FETCH_PLEX_DEVICES_IF_NEEDED();
         this.FETCH_AND_SET_RANDOM_BACKGROUND_IMAGE();
-        this.$router.push(savedPin.redirect || '/');
+        this.$router.push(this.getSafeRedirect(savedPin.redirect || '/'));
       } catch {
         // Token not ready yet or PIN expired — start fresh
         await this.fetchInitialAuthCode();
@@ -174,7 +186,7 @@ export default {
     },
 
     redirect() {
-      this.$router.push(this.$route.query.redirect || '/');
+      this.$router.push(this.getSafeRedirect(this.$route.query.redirect || '/'));
     },
   },
 };

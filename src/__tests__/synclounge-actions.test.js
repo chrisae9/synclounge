@@ -2,15 +2,18 @@ import {
   describe, it, expect, vi, beforeEach, afterEach,
 } from 'vitest';
 
-vi.mock('@/socket', () => ({
+const socketMocks = vi.hoisted(() => ({
   emit: vi.fn(),
   isConnected: vi.fn(() => true),
+  hasSocket: vi.fn(() => true),
   open: vi.fn(),
   close: vi.fn(),
   on: vi.fn(),
   off: vi.fn(),
   waitForEvent: vi.fn(),
 }));
+
+vi.mock('@/socket', () => socketMocks);
 
 function createAudioMock() {
   return class AudioMock {
@@ -29,6 +32,18 @@ describe('synclounge actions', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  describe('DISCONNECT_IF_CONNECTED', () => {
+    it('disconnects stale socket managers even if the transport is not connected', async () => {
+      socketMocks.isConnected.mockReturnValue(false);
+      socketMocks.hasSocket.mockReturnValue(true);
+      const dispatch = vi.fn().mockResolvedValue(undefined);
+
+      await actions.DISCONNECT_IF_CONNECTED({ dispatch });
+
+      expect(dispatch).toHaveBeenCalledWith('DISCONNECT');
+    });
   });
 
   describe('SET_AND_CONNECT_AND_JOIN_ROOM', () => {
@@ -52,6 +67,7 @@ describe('synclounge actions', () => {
       });
 
       expect(calls).toEqual([
+        ['dispatch', 'DISCONNECT_IF_CONNECTED', undefined, undefined],
         ['commit', 'SET_SERVER', ''],
         ['commit', 'SET_ROOM', 'stale123'],
         ['dispatch', 'plex/FETCH_PLEX_USER', null, { root: true }],
@@ -98,6 +114,7 @@ describe('synclounge actions', () => {
       });
       const getters = {
         GET_ADJUSTED_HOST_TIME: vi.fn(() => 12345),
+        GET_HOST_USER: { state: 'paused' },
       };
 
       let resolved = false;
@@ -111,6 +128,7 @@ describe('synclounge actions', () => {
         offset: 12345,
         metadata: media,
         machineIdentifier: 'server-1',
+        shouldPlay: false,
       }, { root: true });
       expect(resolved).toBe(false);
 
@@ -118,6 +136,30 @@ describe('synclounge actions', () => {
       await actionPromise;
 
       expect(resolved).toBe(true);
+    });
+
+    it('requests playback when loading media for a playing host', async () => {
+      const media = {
+        title: 'Episode 2',
+        ratingKey: 'episode-2',
+        machineIdentifier: 'server-1',
+        mediaIndex: 0,
+      };
+      const dispatch = vi.fn().mockResolvedValue(undefined);
+      const getters = {
+        GET_ADJUSTED_HOST_TIME: vi.fn(() => 12345),
+        GET_HOST_USER: { state: 'playing' },
+      };
+
+      await actions.PLAY_MEDIA_AND_SYNC_TIME({ getters, dispatch }, media);
+
+      expect(dispatch).toHaveBeenCalledWith('plexclients/PLAY_MEDIA', {
+        mediaIndex: 0,
+        offset: 12345,
+        metadata: media,
+        machineIdentifier: 'server-1',
+        shouldPlay: true,
+      }, { root: true });
     });
   });
 

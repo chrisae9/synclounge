@@ -100,9 +100,10 @@ describe('HANDLE_USER_JOINED', () => {
     expect(ctx.dispatch).not.toHaveBeenCalledWith('CLEAR_HOST_GRACE_PERIOD');
   });
 
-  it('reclaims host when username matches during grace period', async () => {
+  it('reclaims host when username matches during grace period and this client is pending host', async () => {
     const ctx = createMockContext({
       IS_HOST_GRACE_PERIOD: true,
+      GET_PENDING_HOST_ID: 'me-1',
       GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'Alice',
     });
 
@@ -113,9 +114,25 @@ describe('HANDLE_USER_JOINED', () => {
     expect(ctx.dispatch).toHaveBeenCalledWith('SYNC_MEDIA_AND_PLAYER_STATE');
   });
 
+  it('leaves host grace untouched when a bystander recognizes the returning host', async () => {
+    const ctx = createMockContext({
+      IS_HOST_GRACE_PERIOD: true,
+      GET_PENDING_HOST_ID: 'other-pending-host',
+      GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'Alice',
+      AM_I_HOST: false,
+    });
+
+    await eventhandlers.HANDLE_USER_JOINED(ctx, { id: 'u1', username: 'Alice' });
+
+    expect(ctx.dispatch).not.toHaveBeenCalledWith('CLEAR_HOST_GRACE_PERIOD');
+    expect(ctx.commit).not.toHaveBeenCalledWith('SET_HOST_ID', 'u1');
+    expect(ctx.dispatch).not.toHaveBeenCalledWith('TRANSFER_HOST', 'u1');
+  });
+
   it('reclaims host when username matches after server suffix change', async () => {
     const ctx = createMockContext({
       IS_HOST_GRACE_PERIOD: true,
+      GET_PENDING_HOST_ID: 'me-1',
       GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'Alice(2)',
     });
 
@@ -128,6 +145,7 @@ describe('HANDLE_USER_JOINED', () => {
   it('reclaims host by thumb even when username changed', async () => {
     const ctx = createMockContext({
       IS_HOST_GRACE_PERIOD: true,
+      GET_PENDING_HOST_ID: 'me-1',
       GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'OldName',
       GET_HOST_GRACE_PREVIOUS_HOST_THUMB: 'https://plex.tv/avatar/abc',
     });
@@ -140,10 +158,12 @@ describe('HANDLE_USER_JOINED', () => {
     expect(ctx.commit).toHaveBeenCalledWith('SET_HOST_ID', 'u1');
   });
 
-  it('reclaim dispatches TRANSFER_HOST to notify server', async () => {
+  it('pending host reclaim dispatches TRANSFER_HOST to notify server', async () => {
     const ctx = createMockContext({
       IS_HOST_GRACE_PERIOD: true,
+      GET_PENDING_HOST_ID: 'me-1',
       GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'Alice',
+      AM_I_HOST: false,
     });
 
     await eventhandlers.HANDLE_USER_JOINED(ctx, { id: 'u1', username: 'Alice' });
@@ -154,6 +174,7 @@ describe('HANDLE_USER_JOINED', () => {
   it('catches sync error after host reclaim (Bug 4)', async () => {
     const ctx = createMockContext({
       IS_HOST_GRACE_PERIOD: true,
+      GET_PENDING_HOST_ID: 'me-1',
       GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'Alice',
     });
     ctx.dispatch.mockImplementation((action) => {

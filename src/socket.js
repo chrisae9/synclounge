@@ -106,4 +106,6 @@ export const waitForEvent = (eventName, timeoutMs) => new Promise((resolve, reje
 
 export const isConnected = () => socket?.connected;
 
+export const hasSocket = () => socket != null;
+
 export const getId = () => socket?.id;
