@@ -307,10 +307,12 @@ export default {
       state: isPause ? 'paused' : 'playing',
     };
 
-    // Older servers do not send request IDs or acknowledgments.
-    if (!requestId) {
-      pendingPartyPauseFallbackTimeout = setTimeout(clearPendingPartyPause, 5000);
-    }
+    // Preserve legacy-server behavior while preventing a missing current-server ack
+    // from suppressing synchronization indefinitely.
+    pendingPartyPauseFallbackTimeout = setTimeout(
+      clearPendingPartyPause,
+      requestId ? 30000 : 5000,
+    );
   },
 
   CLEAR_PENDING_PARTY_PAUSE: () => {

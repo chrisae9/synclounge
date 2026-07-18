@@ -236,6 +236,31 @@ describe('HANDLE_PARTY_PAUSE', () => {
     expect(ctx.dispatch).not.toHaveBeenCalledWith('SEND_PARTY_PAUSE_ACK', 'old-request-2');
   });
 
+  it('does not acknowledge old-room work invalidated during host state refresh', async () => {
+    let resolveRefresh;
+    const refreshPromise = new Promise((resolve) => { resolveRefresh = resolve; });
+    const ctx = createMockContext({ AM_I_HOST: true });
+    ctx.dispatch.mockImplementation((action) => {
+      if (action === 'plexclients/REFRESH_PLAYER_STATE') return refreshPromise;
+      return Promise.resolve();
+    });
+
+    const command = eventhandlers.HANDLE_PARTY_PAUSE(ctx, {
+      senderId: 'guest-1', isPause: true, requestId: 'old-request-1',
+    });
+    await vi.waitFor(() => {
+      expect(ctx.dispatch).toHaveBeenCalledWith('plexclients/REFRESH_PLAYER_STATE', null, {
+        root: true,
+      });
+    });
+
+    eventhandlers.INVALIDATE_PARTY_PAUSE_COMMANDS();
+    resolveRefresh();
+    await command;
+
+    expect(ctx.dispatch).not.toHaveBeenCalledWith('SEND_PARTY_PAUSE_ACK', 'old-request-1');
+  });
+
   it('refreshes actual paused state before sending the host acknowledgment', async () => {
     const ctx = createMockContext({ AM_I_HOST: true });
 
@@ -589,6 +614,7 @@ describe('HANDLE_NEW_HOST', () => {
     });
 
     it('does not sync a server-elected returning host before playback is ready', async () => {
+      let restorePendingId = null;
       const ctx = createMockContext({
         IS_HOST_GRACE_PERIOD: true,
         GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'Alice',
@@ -596,6 +622,12 @@ describe('HANDLE_NEW_HOST', () => {
         GET_USER: (id) => (id === 'alice-new'
           ? { username: 'Alice', state: 'buffering', media: null }
           : { username: `user-${id}`, state: 'playing', media: { ratingKey: 'movie-1' } }),
+      });
+      Object.defineProperty(ctx.getters, 'GET_HOST_RESTORE_PENDING_ID', {
+        get: () => restorePendingId,
+      });
+      ctx.commit.mockImplementation((mutation, value) => {
+        if (mutation === 'SET_HOST_RESTORE_PENDING_ID') restorePendingId = value;
       });
 
       await eventhandlers.HANDLE_NEW_HOST(ctx, {
@@ -656,6 +688,58 @@ describe('HANDLE_NEW_HOST', () => {
       await vi.advanceTimersByTimeAsync(1000);
 
       expect(restorePendingId).toBeNull();
+      expect(ctx.dispatch.mock.calls.filter(
+        ([action]) => action === 'SYNC_MEDIA_AND_PLAYER_STATE',
+      )).toHaveLength(1);
+    });
+
+    it('does not run an expired restore timeout before grace is cleared', async () => {
+      vi.setSystemTime(1000);
+      let restorePendingId = null;
+      let restoreTimeoutId = null;
+      let isGracePeriod = true;
+      let resolveClearGrace;
+      const clearGracePromise = new Promise((resolve) => { resolveClearGrace = resolve; });
+      const ctx = createMockContext({
+        IS_HOST_GRACE_PERIOD: true,
+        GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'Alice',
+        GET_HOST_GRACE_PREVIOUS_HOST_STATE: 'playing',
+        GET_HOST_GRACE_RESTORE_DEADLINE_AT: 1000,
+        GET_USER: (id) => (id === 'alice-new'
+          ? { username: 'Alice', state: 'buffering', media: null }
+          : { username: `user-${id}`, state: 'playing', media: { ratingKey: 'movie-1' } }),
+      });
+      Object.defineProperty(ctx.getters, 'GET_HOST_RESTORE_PENDING_ID', {
+        get: () => restorePendingId,
+      });
+      Object.defineProperty(ctx.getters, 'GET_HOST_RESTORE_TIMEOUT_ID', {
+        get: () => restoreTimeoutId,
+      });
+      Object.defineProperty(ctx.getters, 'IS_HOST_GRACE_PERIOD', {
+        get: () => isGracePeriod,
+      });
+      ctx.commit.mockImplementation((mutation, value) => {
+        if (mutation === 'SET_HOST_RESTORE_PENDING_ID') restorePendingId = value;
+        if (mutation === 'SET_HOST_RESTORE_TIMEOUT_ID') restoreTimeoutId = value;
+      });
+      ctx.dispatch.mockImplementation((action) => {
+        if (action === 'CLEAR_HOST_GRACE_PERIOD') return clearGracePromise;
+        return Promise.resolve();
+      });
+
+      const newHost = eventhandlers.HANDLE_NEW_HOST(ctx, {
+        hostId: 'alice-new', previousHostLeft: true,
+      });
+      await vi.waitFor(() => {
+        expect(restorePendingId).toBe('alice-new');
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(ctx.dispatch).not.toHaveBeenCalledWith('SYNC_MEDIA_AND_PLAYER_STATE');
+
+      isGracePeriod = false;
+      resolveClearGrace();
+      await newHost;
+      await vi.advanceTimersByTimeAsync(0);
       expect(ctx.dispatch.mock.calls.filter(
         ([action]) => action === 'SYNC_MEDIA_AND_PLAYER_STATE',
       )).toHaveLength(1);

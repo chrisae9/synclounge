@@ -139,6 +139,17 @@ describe('kick socket event', () => {
       const ackPromise = waitForSocketEvent(guest.socket, 'partyPauseAck');
       host.socket.emit('partyPauseAck', { requestId: command.requestId });
       assert.deepEqual(await ackPromise, { requestId: command.requestId });
+
+      const newHostPromise = waitForSocketEvent(host.socket, 'newHost');
+      host.socket.emit('transferHost', guest.socket.id);
+      await newHostPromise;
+
+      let lateAckBroadcast = false;
+      guest.socket.once('partyPauseAck', () => { lateAckBroadcast = true; });
+      host.socket.emit('partyPauseAck', { requestId: command.requestId });
+      await wait(100);
+      assert.equal(host.socket.connected, true);
+      assert.equal(lateAckBroadcast, false);
     } finally {
       host.socket.close();
       guest.socket.close();

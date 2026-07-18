@@ -344,14 +344,15 @@ export default {
     pause();
   },
 
-  REFRESH_PLAYER_STATE: ({ dispatch }) => {
+  REFRESH_PLAYER_STATE: ({ commit, dispatch }) => {
     let state = 'playing';
     if (isPaused()) {
       state = 'paused';
     } else if (isBuffering()) {
       state = 'buffering';
     }
-    return dispatch('CHANGE_PLAYER_STATE', state);
+    commit('SET_PLAYER_STATE', state);
+    return dispatch('synclounge/PROCESS_PLAYER_STATE_UPDATE', true, { root: true });
   },
 
   PRESS_STOP: async ({ getters, commit, dispatch }) => {

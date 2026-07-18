@@ -73,11 +73,16 @@ describe('REFRESH_PLAYER_STATE', () => {
   it('reports the media element paused state before an acknowledgment is sent', async () => {
     isPaused.mockReturnValue(true);
     isBuffering.mockReturnValue(false);
+    const commit = vi.fn();
     const dispatch = vi.fn().mockResolvedValue(undefined);
 
-    await slplayerActions.REFRESH_PLAYER_STATE({ dispatch });
+    await slplayerActions.REFRESH_PLAYER_STATE({ commit, dispatch });
 
-    expect(dispatch).toHaveBeenCalledWith('CHANGE_PLAYER_STATE', 'paused');
+    expect(commit).toHaveBeenCalledWith('SET_PLAYER_STATE', 'paused');
+    expect(dispatch).toHaveBeenCalledWith('synclounge/PROCESS_PLAYER_STATE_UPDATE', true, {
+      root: true,
+    });
+    expect(dispatch).not.toHaveBeenCalledWith('SEND_PLEX_TIMELINE_UPDATE');
   });
 });
 

@@ -529,6 +529,25 @@ describe('Autoplay-muted client sync', () => {
     );
     vi.useRealTimers();
   });
+
+  it('releases command protection if a current server acknowledgment never arrives', async () => {
+    vi.useFakeTimers();
+
+    actions.MARK_PARTY_PAUSE_RECEIVED(null, {
+      isPause: true,
+      requestId: 'request-1',
+    });
+    await vi.advanceTimersByTimeAsync(29999);
+    expect(actions.ACKNOWLEDGE_PARTY_PAUSE(null, 'request-1')).toBe(true);
+
+    actions.MARK_PARTY_PAUSE_RECEIVED(null, {
+      isPause: true,
+      requestId: 'request-2',
+    });
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(actions.ACKNOWLEDGE_PARTY_PAUSE(null, 'request-2')).toBe(false);
+    vi.useRealTimers();
+  });
 });
 
 describe('Sync poll interval guards', () => {

@@ -122,14 +122,18 @@ const completeHostRestore = async ({ getters, commit, dispatch }, id, force = fa
   await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
 };
 
-const startHostRestoreTimeout = (context, id, expectedState, timeoutMs) => {
-  const { getters, commit } = context;
+const armHostRestore = ({ getters, commit }, id, expectedState) => {
   if (getters.GET_HOST_RESTORE_TIMEOUT_ID != null) {
     clearTimeout(getters.GET_HOST_RESTORE_TIMEOUT_ID);
     commit('SET_HOST_RESTORE_TIMEOUT_ID', null);
   }
   commit('SET_HOST_RESTORE_PENDING_ID', id);
   commit('SET_HOST_RESTORE_EXPECTED_STATE', expectedState);
+};
+
+const startHostRestoreTimeout = (context, id, timeoutMs) => {
+  const { getters, commit } = context;
+  if (getters.GET_HOST_RESTORE_PENDING_ID !== id) return;
   const timeoutId = setTimeout(() => {
     completeHostRestore(context, id, true).catch((e) => {
       console.error('Error syncing after host restoration timeout:', e);
@@ -169,7 +173,9 @@ const applyPartyPause = async (
   if (generation !== partyPauseCommandGeneration) return;
   if (getters.AM_I_HOST) {
     await dispatch('plexclients/REFRESH_PLAYER_STATE', null, { root: true });
+    if (generation !== partyPauseCommandGeneration || !getters.AM_I_HOST) return;
     await dispatch('SEND_PARTY_PAUSE_ACK', requestId);
+    if (generation !== partyPauseCommandGeneration) return;
     await dispatch('ACKNOWLEDGE_PARTY_PAUSE', requestId);
   }
 };
@@ -302,13 +308,17 @@ export default {
       const restoreDeadline = getters.GET_HOST_GRACE_RESTORE_DEADLINE_AT
         ?? Date.now() + HOST_RESTORE_TIMEOUT;
       commit('SET_HOST_ID', hostId);
-      startHostRestoreTimeout(
+      armHostRestore(
         { getters, commit, dispatch },
         hostId,
         expectedState,
-        restoreDeadline - Date.now(),
       );
       await dispatch('CLEAR_HOST_GRACE_PERIOD');
+      startHostRestoreTimeout(
+        { getters, commit, dispatch },
+        hostId,
+        restoreDeadline - Date.now(),
+      );
 
       await dispatch('CANCEL_IN_PROGRESS_SYNC');
 

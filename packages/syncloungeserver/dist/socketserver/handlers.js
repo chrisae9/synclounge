@@ -350,7 +350,6 @@ const partyPauseAck = ({
   data
 }) => {
   if (!(0, _state.isUserInARoom)(socket.id) || !(0, _state.isUserHost)(socket.id)) {
-    socket.disconnect(true);
     return;
   }
   (0, _actions.emitToSocketRoom)({
