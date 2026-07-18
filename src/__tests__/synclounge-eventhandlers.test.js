@@ -198,6 +198,44 @@ describe('HANDLE_PARTY_PAUSE', () => {
     });
   });
 
+  it('invalidates old-room work without blocking new-room commands', async () => {
+    let amHost = false;
+    let resolvePlay;
+    const playPromise = new Promise((resolve) => { resolvePlay = resolve; });
+    const ctx = createMockContext();
+    Object.defineProperty(ctx.getters, 'AM_I_HOST', { get: () => amHost });
+    ctx.dispatch.mockImplementation((action) => {
+      if (action === 'plexclients/PRESS_PLAY') return playPromise;
+      return Promise.resolve();
+    });
+
+    const oldPlay = eventhandlers.HANDLE_PARTY_PAUSE(ctx, {
+      senderId: 'guest-1', isPause: false, requestId: 'old-request-1',
+    });
+    await vi.waitFor(() => {
+      expect(ctx.dispatch).toHaveBeenCalledWith('plexclients/PRESS_PLAY', null, {
+        root: true,
+      });
+    });
+    const oldPause = eventhandlers.HANDLE_PARTY_PAUSE(ctx, {
+      senderId: 'guest-1', isPause: true, requestId: 'old-request-2',
+    });
+
+    eventhandlers.INVALIDATE_PARTY_PAUSE_COMMANDS();
+    amHost = true;
+    const newPause = eventhandlers.HANDLE_PARTY_PAUSE(ctx, {
+      senderId: 'guest-2', isPause: true, requestId: 'new-request-1',
+    });
+    await newPause;
+
+    expect(ctx.dispatch).toHaveBeenCalledWith('SEND_PARTY_PAUSE_ACK', 'new-request-1');
+    expect(ctx.dispatch).not.toHaveBeenCalledWith('SEND_PARTY_PAUSE_ACK', 'old-request-1');
+
+    resolvePlay();
+    await Promise.all([oldPlay, oldPause]);
+    expect(ctx.dispatch).not.toHaveBeenCalledWith('SEND_PARTY_PAUSE_ACK', 'old-request-2');
+  });
+
   it('refreshes actual paused state before sending the host acknowledgment', async () => {
     const ctx = createMockContext({ AM_I_HOST: true });
 
@@ -570,6 +608,22 @@ describe('HANDLE_NEW_HOST', () => {
       expect(ctx.commit).toHaveBeenCalledWith('SET_HOST_RESTORE_EXPECTED_STATE', 'playing');
       expect(ctx.commit).toHaveBeenCalledWith('SET_HOST_RESTORE_TIMEOUT_ID', expect.anything());
       expect(ctx.dispatch).not.toHaveBeenCalledWith('SYNC_MEDIA_AND_PLAYER_STATE');
+      const pendingCall = ctx.commit.mock.invocationCallOrder[
+        ctx.commit.mock.calls.findIndex(([mutation]) => mutation === 'SET_HOST_RESTORE_PENDING_ID')
+      ];
+      const messageCall = ctx.dispatch.mock.invocationCallOrder[
+        ctx.dispatch.mock.calls.findIndex(
+          ([action]) => action === 'ADD_MESSAGE_AND_CACHE_AND_NOTIFY',
+        )
+      ];
+      const hostCall = ctx.commit.mock.invocationCallOrder[
+        ctx.commit.mock.calls.findIndex(([mutation]) => mutation === 'SET_HOST_ID')
+      ];
+      const timeoutCall = ctx.commit.mock.invocationCallOrder[
+        ctx.commit.mock.calls.findIndex(([mutation]) => mutation === 'SET_HOST_RESTORE_TIMEOUT_ID')
+      ];
+      expect(hostCall).toBeLessThan(timeoutCall);
+      expect(pendingCall).toBeLessThan(messageCall);
     });
 
     it('falls back to one full sync when an elected host never becomes ready', async () => {
@@ -656,6 +710,32 @@ describe('HANDLE_NEW_HOST', () => {
       expect(clearSpy).toHaveBeenCalledWith(oldTimeout);
       expect(ctx.commit).toHaveBeenCalledWith('SET_HOST_GRACE_TIMEOUT_ID', null);
       clearSpy.mockRestore();
+    });
+
+    it('preserves the absolute restoration deadline across temporary host elections', async () => {
+      vi.setSystemTime(10000);
+      let timeoutId = null;
+      const ctx = createMockContext({
+        IS_HOST_GRACE_PERIOD: true,
+        GET_HOST_GRACE_TIMEOUT_ID: null,
+        GET_HOST_GRACE_RESTORE_DEADLINE_AT: 11000,
+        GET_PENDING_HOST_ID: 'temporary-host-2',
+        GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: 'Alice',
+        GET_USER: (id) => ({ username: `user-${id}`, state: 'playing', time: 0 }),
+      });
+      Object.defineProperty(ctx.getters, 'GET_HOST_GRACE_TIMEOUT_ID', {
+        get: () => timeoutId,
+      });
+      ctx.commit.mockImplementation((mutation, value) => {
+        if (mutation === 'SET_HOST_GRACE_TIMEOUT_ID') timeoutId = value;
+      });
+
+      await eventhandlers.HANDLE_NEW_HOST(ctx, {
+        hostId: 'temporary-host-2', previousHostLeft: true,
+      });
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(ctx.dispatch).toHaveBeenCalledWith('CLEAR_HOST_GRACE_PERIOD');
     });
   });
 
@@ -841,6 +921,44 @@ describe('HANDLE_NEW_HOST', () => {
 });
 
 describe('HANDLE_PLAYER_STATE_UPDATE', () => {
+  it('rechecks restoration readiness after canceling an in-progress sync', async () => {
+    const returningUser = {
+      username: 'Alice', state: 'buffering', time: 5000, media: { ratingKey: 'movie-1' },
+    };
+    let restorePendingId = 'alice-new';
+    let resolveCancel;
+    const cancelPromise = new Promise((resolve) => { resolveCancel = resolve; });
+    const ctx = createMockContext({
+      GET_HOST_ID: 'alice-new',
+      GET_HOST_RESTORE_EXPECTED_STATE: 'playing',
+      GET_USER: () => returningUser,
+    });
+    Object.defineProperty(ctx.getters, 'GET_HOST_RESTORE_PENDING_ID', {
+      get: () => restorePendingId,
+    });
+    ctx.commit.mockImplementation((mutation, data) => {
+      if (mutation === 'SET_USER_PLAYER_STATE') returningUser.state = data.state;
+      if (mutation === 'SET_HOST_RESTORE_PENDING_ID') restorePendingId = data;
+    });
+    ctx.dispatch.mockImplementation((action) => {
+      if (action === 'CANCEL_IN_PROGRESS_SYNC') return cancelPromise;
+      return Promise.resolve();
+    });
+
+    const readyUpdate = eventhandlers.HANDLE_PLAYER_STATE_UPDATE(ctx, {
+      id: 'alice-new', state: 'playing', time: 5000, duration: 100000, playbackRate: 1,
+    });
+    await vi.waitFor(() => {
+      expect(ctx.dispatch).toHaveBeenCalledWith('CANCEL_IN_PROGRESS_SYNC');
+    });
+    returningUser.state = 'paused';
+    resolveCancel();
+    await readyUpdate;
+
+    expect(restorePendingId).toBe('alice-new');
+    expect(ctx.dispatch).not.toHaveBeenCalledWith('SYNC_MEDIA_AND_PLAYER_STATE');
+  });
+
   it('waits for the saved host state after server election', async () => {
     const returningUser = {
       username: 'Alice', state: 'buffering', time: 5000, media: { ratingKey: 'movie-1' },

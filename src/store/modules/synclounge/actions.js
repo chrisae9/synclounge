@@ -223,6 +223,7 @@ export default {
   },
 
   DISCONNECT: async ({ commit, dispatch }) => {
+    await dispatch('INVALIDATE_PARTY_PAUSE_COMMANDS');
     clearPendingPartyPause();
     await dispatch('CANCEL_IN_PROGRESS_SYNC');
     await dispatch('CANCEL_UPNEXT');

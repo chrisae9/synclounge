@@ -19,6 +19,12 @@ const hasRestoredPlayback = (user) => user?.media
 
 const HOST_RESTORE_TIMEOUT = 30000;
 let partyPauseCommandQueue = Promise.resolve();
+let partyPauseCommandGeneration = 0;
+
+const invalidatePartyPauseCommands = () => {
+  partyPauseCommandGeneration += 1;
+  partyPauseCommandQueue = Promise.resolve();
+};
 
 const matchesPreviousHostPlayback = (getters, user) => {
   const previousState = getters.GET_HOST_GRACE_PREVIOUS_HOST_STATE;
@@ -103,6 +109,9 @@ const completeHostRestore = async ({ getters, commit, dispatch }, id, force = fa
   if (getters.GET_HOST_RESTORE_PENDING_ID !== id) {
     return;
   }
+  if (!force && !matchesHostRestorePlayback(getters, getters.GET_USER(id))) {
+    return;
+  }
 
   if (getters.GET_HOST_RESTORE_TIMEOUT_ID != null) {
     clearTimeout(getters.GET_HOST_RESTORE_TIMEOUT_ID);
@@ -129,7 +138,12 @@ const startHostRestoreTimeout = (context, id, expectedState, timeoutMs) => {
   commit('SET_HOST_RESTORE_TIMEOUT_ID', timeoutId);
 };
 
-const applyPartyPause = async ({ getters, dispatch }, { senderId, isPause, requestId }) => {
+const applyPartyPause = async (
+  { getters, dispatch },
+  { senderId, isPause, requestId },
+  generation,
+) => {
+  if (generation !== partyPauseCommandGeneration) return;
   const sender = getters.GET_USER(senderId);
   if (sender) {
     const text = `${sender.username} pressed ${isPause ? 'pause' : 'play'}`;
@@ -144,12 +158,15 @@ const applyPartyPause = async ({ getters, dispatch }, { senderId, isPause, reque
     }, { root: true });
   }
 
+  if (generation !== partyPauseCommandGeneration) return;
   await dispatch('CANCEL_IN_PROGRESS_SYNC');
+  if (generation !== partyPauseCommandGeneration) return;
   if (isPause) {
     await dispatch('plexclients/PRESS_PAUSE', null, { root: true });
   } else {
     await dispatch('plexclients/PRESS_PLAY', null, { root: true });
   }
+  if (generation !== partyPauseCommandGeneration) return;
   if (getters.AM_I_HOST) {
     await dispatch('plexclients/REFRESH_PLAYER_STATE', null, { root: true });
     await dispatch('SEND_PARTY_PAUSE_ACK', requestId);
@@ -158,6 +175,8 @@ const applyPartyPause = async ({ getters, dispatch }, { senderId, isPause, reque
 };
 
 export default {
+  INVALIDATE_PARTY_PAUSE_COMMANDS: invalidatePartyPauseCommands,
+
   CLEAR_HOST_GRACE_PERIOD: ({ getters, commit }) => {
     if (getters.GET_HOST_GRACE_TIMEOUT_ID != null) {
       clearTimeout(getters.GET_HOST_GRACE_TIMEOUT_ID);
@@ -250,6 +269,7 @@ export default {
       return;
     }
 
+    invalidatePartyPauseCommands();
     await dispatch('CLEAR_PENDING_PARTY_PAUSE');
     await dispatch('CLEAR_HOST_RESTORE_PENDING');
 
@@ -278,29 +298,26 @@ export default {
       && stripUsernameSuffix(newUser?.username)
         === stripUsernameSuffix(getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME);
     if (getters.IS_HOST_GRACE_PERIOD && (newThumbMatch || newNameMatch)) {
-      const isReady = matchesPreviousHostPlayback(getters, newUser);
       const expectedState = getters.GET_HOST_GRACE_PREVIOUS_HOST_STATE;
       const restoreDeadline = getters.GET_HOST_GRACE_RESTORE_DEADLINE_AT
         ?? Date.now() + HOST_RESTORE_TIMEOUT;
-      await dispatch('CLEAR_HOST_GRACE_PERIOD');
       commit('SET_HOST_ID', hostId);
+      startHostRestoreTimeout(
+        { getters, commit, dispatch },
+        hostId,
+        expectedState,
+        restoreDeadline - Date.now(),
+      );
+      await dispatch('CLEAR_HOST_GRACE_PERIOD');
+
+      await dispatch('CANCEL_IN_PROGRESS_SYNC');
 
       await dispatch('ADD_MESSAGE_AND_CACHE_AND_NOTIFY', {
         senderId: hostId,
         text: `${getters.GET_USER(hostId).username} is now the host`,
       });
 
-      await dispatch('CANCEL_IN_PROGRESS_SYNC');
-      if (isReady) {
-        await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
-      } else {
-        startHostRestoreTimeout(
-          { getters, commit, dispatch },
-          hostId,
-          expectedState,
-          restoreDeadline - Date.now(),
-        );
-      }
+      await completeHostRestore({ getters, commit, dispatch }, hostId);
       return;
     }
 
@@ -344,10 +361,14 @@ export default {
     });
 
     // Give the previous host 10 seconds to reconnect before accepting the elected host.
-    startHostGraceTimeout({ getters, commit, dispatch }, 10000);
+    const timeoutMs = getters.GET_HOST_GRACE_RESTORE_DEADLINE_AT == null
+      ? 10000
+      : Math.max(0, getters.GET_HOST_GRACE_RESTORE_DEADLINE_AT - Date.now());
+    startHostGraceTimeout({ getters, commit, dispatch }, timeoutMs);
   },
 
   HANDLE_DISCONNECT: async ({ dispatch }) => {
+    invalidatePartyPauseCommands();
     console.warn('HANDLE_DISCONNECT: lost connection to SyncLounge server');
     await dispatch('DISPLAY_NOTIFICATION', {
       text: 'Disconnected from the SyncLounge server',
@@ -519,13 +540,14 @@ export default {
   },
 
   HANDLE_PARTY_PAUSE: (context, data) => {
+    const generation = partyPauseCommandGeneration;
     const pending = context.dispatch('MARK_PARTY_PAUSE_RECEIVED', {
       isPause: data.isPause,
       requestId: data.requestId,
     });
     const command = partyPauseCommandQueue.then(async () => {
       await pending;
-      return applyPartyPause(context, data);
+      return applyPartyPause(context, data, generation);
     });
     partyPauseCommandQueue = command.catch(() => {});
     return command;
