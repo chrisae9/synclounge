@@ -85,6 +85,10 @@ export default {
 
   SYNC: async ({ dispatch, rootGetters }, cancelSignal) => {
     const playerPollData = await dispatch('FETCH_TIMELINE_POLL_DATA_CACHE');
+    const hostUser = rootGetters['synclounge/GET_HOST_USER'];
+    if (!hostUser) {
+      return undefined;
+    }
     const adjustedHostTime = rootGetters['synclounge/GET_ADJUSTED_HOST_TIME']();
 
     const difference = adjustedHostTime - playerPollData.time;
@@ -93,12 +97,12 @@ export default {
     console.debug('SYNC difference', difference);
 
     if (absDifference > rootGetters['settings/GET_SYNCFLEXIBILITY']
-      || (rootGetters['synclounge/GET_HOST_USER'].state === 'paused'
+      || (hostUser.state === 'paused'
         && absDifference > rootGetters.GET_CONFIG.paused_sync_flexibility)) {
       const offset = adjustedHostTime;
 
       if (rootGetters['settings/GET_SYNCMODE'] === 'cleanseek'
-        || rootGetters['synclounge/GET_HOST_USER'].state === 'paused') {
+        || hostUser.state === 'paused') {
         return dispatch('SEEK_TO', { cancelSignal, offset });
       }
 
@@ -109,7 +113,7 @@ export default {
     const canSoftSeek = browserOs !== 'iOS' && browserOs !== 'iPadOS';
     const softSeekThreshold = rootGetters.GET_CONFIG.slplayer_soft_seek_threshold ?? 200;
     if (canSoftSeek
-      && rootGetters['synclounge/GET_HOST_USER'].state === 'playing'
+      && hostUser.state === 'playing'
       && playerPollData.state === 'playing'
       && absDifference > softSeekThreshold) {
       try {
@@ -125,6 +129,10 @@ export default {
   PRESS_PLAY: ({ dispatch }) => dispatch('slplayer/PRESS_PLAY', null, { root: true }),
 
   PRESS_PAUSE: ({ dispatch }) => dispatch('slplayer/PRESS_PAUSE', null, { root: true }),
+
+  REFRESH_PLAYER_STATE: ({ dispatch }) => dispatch('slplayer/REFRESH_PLAYER_STATE', null, {
+    root: true,
+  }),
 
   PRESS_STOP: ({ dispatch }) => dispatch('slplayer/PRESS_STOP', null, { root: true }),
 

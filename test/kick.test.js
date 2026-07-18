@@ -121,4 +121,27 @@ describe('kick socket event', () => {
       guest.socket.close();
     }
   });
+
+  it('assigns party-pause request IDs and broadcasts host acknowledgments', async () => {
+    const roomId = `party-pause-${Date.now()}`;
+    const host = await joinClient({ roomId, username: 'host' });
+    const guest = await joinClient({ roomId, username: 'guest' });
+
+    try {
+      const commandPromise = waitForSocketEvent(host.socket, 'partyPause');
+      guest.socket.emit('partyPause', false);
+      const command = await commandPromise;
+
+      assert.equal(command.senderId, guest.socket.id);
+      assert.equal(command.isPause, false);
+      assert.equal(typeof command.requestId, 'string');
+
+      const ackPromise = waitForSocketEvent(guest.socket, 'partyPauseAck');
+      host.socket.emit('partyPauseAck', { requestId: command.requestId });
+      assert.deepEqual(await ackPromise, { requestId: command.requestId });
+    } finally {
+      host.socket.close();
+      guest.socket.close();
+    }
+  });
 });

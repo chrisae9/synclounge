@@ -109,6 +109,30 @@ describe('plexclients PLAY_MEDIA', () => {
 });
 
 describe('plexclients SYNC drift strategy', () => {
+  it('stops cleanly when the host leaves during the timeline read', async () => {
+    let hostUser = baseHostUser;
+    const rootGetters = makeRootGetters();
+    Object.defineProperty(rootGetters, 'synclounge/GET_HOST_USER', {
+      get: () => hostUser,
+    });
+    const dispatch = vi.fn(async (action) => {
+      if (action === 'FETCH_TIMELINE_POLL_DATA_CACHE') {
+        hostUser = null;
+        return {
+          state: 'playing', time: 10000, duration: 100000, playbackRate: 1,
+        };
+      }
+      return undefined;
+    });
+
+    await expect(plexclientActions.SYNC(
+      { dispatch, rootGetters },
+      new AbortController().signal,
+    )).resolves.toBeUndefined();
+
+    expect(dispatch).not.toHaveBeenCalledWith('SEEK_TO', expect.anything());
+  });
+
   it('soft-seeks small desktop drift above the soft threshold', async () => {
     const dispatch = vi.fn((action) => {
       if (action === 'FETCH_TIMELINE_POLL_DATA_CACHE') {

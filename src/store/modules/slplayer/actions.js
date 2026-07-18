@@ -325,10 +325,8 @@ export default {
       const mediaElement = getMediaElement();
       if (mediaElement) {
         mediaElement.muted = true;
-        const retrySuccess = await play();
-        if (retrySuccess) {
-          commit('SET_AUTOPLAY_BLOCKED', true);
-        }
+        commit('SET_AUTOPLAY_BLOCKED', true);
+        await play();
       }
     }
   },
@@ -344,6 +342,16 @@ export default {
 
   PRESS_PAUSE: () => {
     pause();
+  },
+
+  REFRESH_PLAYER_STATE: ({ dispatch }) => {
+    let state = 'playing';
+    if (isPaused()) {
+      state = 'paused';
+    } else if (isBuffering()) {
+      state = 'buffering';
+    }
+    return dispatch('CHANGE_PLAYER_STATE', state);
   },
 
   PRESS_STOP: async ({ getters, commit, dispatch }) => {

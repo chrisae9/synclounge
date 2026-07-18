@@ -338,8 +338,26 @@ const partyPause = ({
     eventName: 'partyPause',
     data: {
       senderId: socket.id,
-      isPause
+      isPause,
+      requestId: "".concat(socket.id, ":").concat(++partyPauseRequestId)
     }
+  });
+};
+let partyPauseRequestId = 0;
+const partyPauseAck = ({
+  server,
+  socket,
+  data
+}) => {
+  if (!(0, _state.isUserInARoom)(socket.id) || !(0, _state.isUserHost)(socket.id)) {
+    socket.disconnect(true);
+    return;
+  }
+  (0, _actions.emitToSocketRoom)({
+    server,
+    socketId: socket.id,
+    eventName: 'partyPauseAck',
+    data
   });
 };
 const syncFlexibilityUpdate = ({
@@ -408,6 +426,7 @@ const eventHandlers = {
   setPartyPausingEnabled,
   setAutoHostEnabled,
   partyPause,
+  partyPauseAck,
   disconnect,
   kick
 };

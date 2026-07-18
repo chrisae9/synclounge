@@ -62,7 +62,24 @@ vi.mock('@/utils/deferredpromise', () => ({
 
 const {
   setPlaybackRate, setCurrentTimeMs, waitForMediaElementEvent, getCurrentTimeMs,
+  isPaused, isBuffering,
 } = await import('@/player');
+
+describe('REFRESH_PLAYER_STATE', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reports the media element paused state before an acknowledgment is sent', async () => {
+    isPaused.mockReturnValue(true);
+    isBuffering.mockReturnValue(false);
+    const dispatch = vi.fn().mockResolvedValue(undefined);
+
+    await slplayerActions.REFRESH_PLAYER_STATE({ dispatch });
+
+    expect(dispatch).toHaveBeenCalledWith('CHANGE_PLAYER_STATE', 'paused');
+  });
+});
 
 describe('INIT_PLAYER_STATE', () => {
   beforeEach(() => {
@@ -168,6 +185,19 @@ describe('autoplay recovery', () => {
     expect(mediaElement.muted).toBe(false);
     expect(commit).toHaveBeenCalledWith('SET_AUTOPLAY_BLOCKED', false);
     expect(dispatch).toHaveBeenCalledWith('PRESS_PLAY');
+  });
+
+  it('keeps the unmute prompt available when the muted retry also fails', async () => {
+    const mediaElement = { muted: false };
+    const { getMediaElement, play } = await import('@/player');
+    getMediaElement.mockReturnValue(mediaElement);
+    play.mockResolvedValueOnce(false).mockResolvedValueOnce(false);
+    const commit = vi.fn();
+
+    await slplayerActions.PRESS_PLAY({ commit });
+
+    expect(mediaElement.muted).toBe(true);
+    expect(commit).toHaveBeenCalledWith('SET_AUTOPLAY_BLOCKED', true);
   });
 
   it('stop clears stale autoplay block state and unmutes autoplay-muted media', async () => {

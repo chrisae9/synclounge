@@ -10,6 +10,20 @@ export default {
     state.users = value;
   },
 
+  RECORD_USER_EVENT: (state, { id, fields }) => {
+    state.userEventRevision += 1;
+    const revisions = state.userEventRevisions[id] || {};
+    fields.forEach((field) => {
+      revisions[field] = state.userEventRevision;
+    });
+    state.userEventRevisions[id] = revisions;
+  },
+
+  RESET_USER_EVENTS: (state) => {
+    state.userEventRevision = 0;
+    state.userEventRevisions = {};
+  },
+
   SET_ROOM: (state, value) => {
     state.room = value;
   },
@@ -73,7 +87,7 @@ export default {
   SET_USER_PLAYER_STATE: (state, {
     id, state: playerState, time, duration, playbackRate,
   }) => {
-    if (!state.users[id]) return;
+    if (!state.users[id]) state.users[id] = {};
     state.users[id].state = playerState;
     state.users[id].time = time;
     state.users[id].duration = duration;
@@ -82,12 +96,12 @@ export default {
   },
 
   SET_USER_MEDIA: (state, { id, media }) => {
-    if (!state.users[id]) return;
+    if (!state.users[id]) state.users[id] = {};
     state.users[id].media = media;
   },
 
   SET_USER_SYNC_FLEXIBILITY: (state, { id, syncFlexibility }) => {
-    if (!state.users[id]) return;
+    if (!state.users[id]) state.users[id] = {};
     state.users[id].syncFlexibility = syncFlexibility;
   },
 
@@ -127,8 +141,28 @@ export default {
     state.hostGracePreviousHostThumb = thumb;
   },
 
+  SET_HOST_GRACE_PREVIOUS_HOST_STATE: (state, playerState) => {
+    state.hostGracePreviousHostState = playerState;
+  },
+
+  SET_HOST_GRACE_RESTORE_DEADLINE_AT: (state, deadline) => {
+    state.hostGraceRestoreDeadlineAt = deadline;
+  },
+
   SET_PENDING_HOST_ID: (state, id) => {
     state.pendingHostId = id;
+  },
+
+  SET_HOST_RESTORE_PENDING_ID: (state, id) => {
+    state.hostRestorePendingId = id;
+  },
+
+  SET_HOST_RESTORE_EXPECTED_STATE: (state, playerState) => {
+    state.hostRestoreExpectedState = playerState;
+  },
+
+  SET_HOST_RESTORE_TIMEOUT_ID: (state, id) => {
+    state.hostRestoreTimeoutId = id;
   },
 
   SET_SYNC_POLL_INTERVAL_ID: (state, id) => {

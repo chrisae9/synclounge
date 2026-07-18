@@ -24,6 +24,8 @@ export default {
   GET_HOST_ID: (state) => state.hostId,
   GET_ROOM: (state) => state.room,
   GET_USERS: (state) => state.users,
+  GET_USER_EVENT_REVISION: (state) => state.userEventRevision,
+  GET_USER_EVENT_REVISIONS: (state) => state.userEventRevisions,
   GET_MESSAGES: (state) => state.messages,
 
   IS_PARTY_PAUSING_ENABLED: (state, getters, rootState, rootGetters) => state.isPartyPausingEnabled
@@ -89,5 +91,10 @@ export default {
   IS_HOST_GRACE_PERIOD: (state) => state.isHostGracePeriod,
   GET_HOST_GRACE_PREVIOUS_HOST_USERNAME: (state) => state.hostGracePreviousHostUsername,
   GET_HOST_GRACE_PREVIOUS_HOST_THUMB: (state) => state.hostGracePreviousHostThumb,
+  GET_HOST_GRACE_PREVIOUS_HOST_STATE: (state) => state.hostGracePreviousHostState,
+  GET_HOST_GRACE_RESTORE_DEADLINE_AT: (state) => state.hostGraceRestoreDeadlineAt,
   GET_PENDING_HOST_ID: (state) => state.pendingHostId,
+  GET_HOST_RESTORE_PENDING_ID: (state) => state.hostRestorePendingId,
+  GET_HOST_RESTORE_EXPECTED_STATE: (state) => state.hostRestoreExpectedState,
+  GET_HOST_RESTORE_TIMEOUT_ID: (state) => state.hostRestoreTimeoutId,
 };

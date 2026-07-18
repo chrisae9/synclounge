@@ -3,6 +3,8 @@ const state = () => ({
   server: null,
   room: null,
   users: {},
+  userEventRevision: 0,
+  userEventRevisions: {},
   hostId: null,
   messagesUserCache: {},
   messages: [],
@@ -25,9 +27,14 @@ const state = () => ({
   // Host leave grace period: delays host transfer so original host can reconnect
   hostGracePreviousHostUsername: null,
   hostGracePreviousHostThumb: null,
+  hostGracePreviousHostState: null,
   isHostGracePeriod: false,
   hostGraceTimeoutId: null,
+  hostGraceRestoreDeadlineAt: null,
   pendingHostId: null,
+  hostRestorePendingId: null,
+  hostRestoreExpectedState: null,
+  hostRestoreTimeoutId: null,
 
   // Periodic sync poll interval ID
   syncPollIntervalId: null,

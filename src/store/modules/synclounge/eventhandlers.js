@@ -5,6 +5,158 @@ import { emit, waitForEvent, getId } from '@/socket';
 // When the same Plex user reconnects, the server may assign a different suffix.
 const stripUsernameSuffix = (name) => name?.replace(/\(\d+\)$/, '').trim();
 
+const matchesPreviousHost = (getters, user) => {
+  const thumbMatch = user?.thumb
+    && user.thumb === getters.GET_HOST_GRACE_PREVIOUS_HOST_THUMB;
+  const nameMatch = user?.username
+    && stripUsernameSuffix(user.username)
+      === stripUsernameSuffix(getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME);
+  return thumbMatch || nameMatch;
+};
+
+const hasRestoredPlayback = (user) => user?.media
+  && (user.state === 'playing' || user.state === 'paused');
+
+const HOST_RESTORE_TIMEOUT = 30000;
+let partyPauseCommandQueue = Promise.resolve();
+
+const matchesPreviousHostPlayback = (getters, user) => {
+  const previousState = getters.GET_HOST_GRACE_PREVIOUS_HOST_STATE;
+  const expectedState = previousState === 'playing' || previousState === 'paused'
+    ? previousState
+    : null;
+  return hasRestoredPlayback(user)
+    && (!expectedState || user.state === expectedState);
+};
+
+const matchesHostRestorePlayback = (getters, user) => hasRestoredPlayback(user)
+  && (!getters.GET_HOST_RESTORE_EXPECTED_STATE
+    || user.state === getters.GET_HOST_RESTORE_EXPECTED_STATE);
+
+const reclaimReturningHost = async ({ getters, commit, dispatch }, id) => {
+  if (getters.GET_PENDING_HOST_ID !== getters.GET_SOCKET_ID) {
+    return;
+  }
+
+  await dispatch('CLEAR_HOST_GRACE_PERIOD');
+  commit('SET_HOST_ID', id);
+  dispatch('TRANSFER_HOST', id);
+
+  await dispatch('ADD_MESSAGE_AND_CACHE_AND_NOTIFY', {
+    senderId: id,
+    text: `${getters.GET_USER(id).username} is now the host`,
+  });
+
+  try {
+    await dispatch('CANCEL_IN_PROGRESS_SYNC');
+    await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+  } catch (e) {
+    console.error('Error syncing after host reclaim:', e);
+  }
+};
+
+const startHostGraceTimeout = ({ getters, commit, dispatch }, timeoutMs) => {
+  if (getters.GET_HOST_GRACE_TIMEOUT_ID != null) {
+    clearTimeout(getters.GET_HOST_GRACE_TIMEOUT_ID);
+    commit('SET_HOST_GRACE_TIMEOUT_ID', null);
+  }
+
+  const timeoutId = setTimeout(async () => {
+    if (!getters.IS_HOST_GRACE_PERIOD || getters.GET_PENDING_HOST_ID == null) {
+      return;
+    }
+
+    const pendingHostId = getters.GET_PENDING_HOST_ID;
+    await dispatch('CLEAR_HOST_GRACE_PERIOD');
+    commit('SET_HOST_ID', pendingHostId);
+
+    try {
+      await dispatch('CANCEL_IN_PROGRESS_SYNC');
+      await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+    } catch (e) {
+      console.error('Error syncing after grace period timeout:', e);
+    }
+  }, timeoutMs);
+
+  commit('SET_HOST_GRACE_TIMEOUT_ID', timeoutId);
+};
+
+const startReturningHostRestoreWindow = (context) => {
+  const { getters, commit } = context;
+  let deadline = getters.GET_HOST_GRACE_RESTORE_DEADLINE_AT;
+  if (deadline == null) {
+    deadline = Date.now() + HOST_RESTORE_TIMEOUT;
+    commit('SET_HOST_GRACE_RESTORE_DEADLINE_AT', deadline);
+  }
+  startHostGraceTimeout(context, Math.max(0, deadline - Date.now()));
+};
+
+const completeHostRestore = async ({ getters, commit, dispatch }, id, force = false) => {
+  if (getters.GET_HOST_RESTORE_PENDING_ID !== id) {
+    return;
+  }
+  if (!force && !matchesHostRestorePlayback(getters, getters.GET_USER(id))) {
+    return;
+  }
+
+  await dispatch('CANCEL_IN_PROGRESS_SYNC');
+  if (getters.GET_HOST_RESTORE_PENDING_ID !== id) {
+    return;
+  }
+
+  if (getters.GET_HOST_RESTORE_TIMEOUT_ID != null) {
+    clearTimeout(getters.GET_HOST_RESTORE_TIMEOUT_ID);
+    commit('SET_HOST_RESTORE_TIMEOUT_ID', null);
+  }
+  commit('SET_HOST_RESTORE_PENDING_ID', null);
+  commit('SET_HOST_RESTORE_EXPECTED_STATE', null);
+  await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+};
+
+const startHostRestoreTimeout = (context, id, expectedState, timeoutMs) => {
+  const { getters, commit } = context;
+  if (getters.GET_HOST_RESTORE_TIMEOUT_ID != null) {
+    clearTimeout(getters.GET_HOST_RESTORE_TIMEOUT_ID);
+    commit('SET_HOST_RESTORE_TIMEOUT_ID', null);
+  }
+  commit('SET_HOST_RESTORE_PENDING_ID', id);
+  commit('SET_HOST_RESTORE_EXPECTED_STATE', expectedState);
+  const timeoutId = setTimeout(() => {
+    completeHostRestore(context, id, true).catch((e) => {
+      console.error('Error syncing after host restoration timeout:', e);
+    });
+  }, Math.max(0, timeoutMs));
+  commit('SET_HOST_RESTORE_TIMEOUT_ID', timeoutId);
+};
+
+const applyPartyPause = async ({ getters, dispatch }, { senderId, isPause, requestId }) => {
+  const sender = getters.GET_USER(senderId);
+  if (sender) {
+    const text = `${sender.username} pressed ${isPause ? 'pause' : 'play'}`;
+    await dispatch('ADD_MESSAGE_AND_CACHE_AND_NOTIFY', {
+      senderId,
+      text,
+    });
+
+    await dispatch('DISPLAY_NOTIFICATION', {
+      text,
+      color: 'info',
+    }, { root: true });
+  }
+
+  await dispatch('CANCEL_IN_PROGRESS_SYNC');
+  if (isPause) {
+    await dispatch('plexclients/PRESS_PAUSE', null, { root: true });
+  } else {
+    await dispatch('plexclients/PRESS_PLAY', null, { root: true });
+  }
+  if (getters.AM_I_HOST) {
+    await dispatch('plexclients/REFRESH_PLAYER_STATE', null, { root: true });
+    await dispatch('SEND_PARTY_PAUSE_ACK', requestId);
+    await dispatch('ACKNOWLEDGE_PARTY_PAUSE', requestId);
+  }
+};
+
 export default {
   CLEAR_HOST_GRACE_PERIOD: ({ getters, commit }) => {
     if (getters.GET_HOST_GRACE_TIMEOUT_ID != null) {
@@ -15,6 +167,17 @@ export default {
     commit('SET_PENDING_HOST_ID', null);
     commit('SET_HOST_GRACE_PREVIOUS_HOST_USERNAME', null);
     commit('SET_HOST_GRACE_PREVIOUS_HOST_THUMB', null);
+    commit('SET_HOST_GRACE_PREVIOUS_HOST_STATE', null);
+    commit('SET_HOST_GRACE_RESTORE_DEADLINE_AT', null);
+  },
+
+  CLEAR_HOST_RESTORE_PENDING: ({ getters, commit }) => {
+    if (getters.GET_HOST_RESTORE_TIMEOUT_ID != null) {
+      clearTimeout(getters.GET_HOST_RESTORE_TIMEOUT_ID);
+      commit('SET_HOST_RESTORE_TIMEOUT_ID', null);
+    }
+    commit('SET_HOST_RESTORE_PENDING_ID', null);
+    commit('SET_HOST_RESTORE_EXPECTED_STATE', null);
   },
 
   HANDLE_SET_PARTY_PAUSING_ENABLED: async ({ getters, dispatch, commit }, value) => {
@@ -43,6 +206,10 @@ export default {
         updatedAt: Date.now(),
       },
     });
+    commit('RECORD_USER_EVENT', {
+      id,
+      fields: ['membership', 'player', 'media', 'syncFlexibility'],
+    });
 
     await dispatch('ADD_MESSAGE_AND_CACHE_AND_NOTIFY', {
       senderId: id,
@@ -51,33 +218,11 @@ export default {
 
     // If a user joins during grace period whose identity matches the previous host, reclaim.
     // Match by thumb (Plex account identity) or stripped username (fallback).
-    const thumbMatch = rest.thumb && rest.thumb === getters.GET_HOST_GRACE_PREVIOUS_HOST_THUMB;
-    const nameMatch = rest.username
-      && stripUsernameSuffix(rest.username)
-        === stripUsernameSuffix(getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME);
-    if (getters.IS_HOST_GRACE_PERIOD && (thumbMatch || nameMatch)) {
-      const amPendingHost = getters.GET_PENDING_HOST_ID === getters.GET_SOCKET_ID;
-
-      // Only the server-selected pending host may reclaim on behalf of the room.
-      // Bystanders keep grace state and wait for the server's newHost broadcast.
-      if (!amPendingHost) {
-        return;
-      }
-
-      await dispatch('CLEAR_HOST_GRACE_PERIOD');
-      commit('SET_HOST_ID', id);
-      dispatch('TRANSFER_HOST', id);
-
-      await dispatch('ADD_MESSAGE_AND_CACHE_AND_NOTIFY', {
-        senderId: id,
-        text: `${rest.username} is now the host`,
-      });
-
-      try {
-        await dispatch('CANCEL_IN_PROGRESS_SYNC');
-        await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
-      } catch (e) {
-        console.error('Error syncing after host reclaim:', e);
+    if (getters.IS_HOST_GRACE_PERIOD && matchesPreviousHost(getters, rest)) {
+      if (matchesPreviousHostPlayback(getters, rest)) {
+        await reclaimReturningHost({ getters, commit, dispatch }, id);
+      } else {
+        startReturningHostRestoreWindow({ getters, commit, dispatch });
       }
     }
   },
@@ -93,6 +238,7 @@ export default {
     }
 
     commit('DELETE_USER', id);
+    commit('RECORD_USER_EVENT', { id, fields: ['membership'] });
   },
 
   HANDLE_NEW_HOST: async ({ getters, dispatch, commit }, rawArg) => {
@@ -103,6 +249,9 @@ export default {
     if (hostId === getters.GET_HOST_ID && !getters.IS_HOST_GRACE_PERIOD) {
       return;
     }
+
+    await dispatch('CLEAR_PENDING_PARTY_PAUSE');
+    await dispatch('CLEAR_HOST_RESTORE_PENDING');
 
     // Socket-originated newHost (explicit transfer, auto-host, reclaim confirmation):
     // Accept immediately — grace period only applies when previous host disconnected
@@ -129,6 +278,10 @@ export default {
       && stripUsernameSuffix(newUser?.username)
         === stripUsernameSuffix(getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME);
     if (getters.IS_HOST_GRACE_PERIOD && (newThumbMatch || newNameMatch)) {
+      const isReady = matchesPreviousHostPlayback(getters, newUser);
+      const expectedState = getters.GET_HOST_GRACE_PREVIOUS_HOST_STATE;
+      const restoreDeadline = getters.GET_HOST_GRACE_RESTORE_DEADLINE_AT
+        ?? Date.now() + HOST_RESTORE_TIMEOUT;
       await dispatch('CLEAR_HOST_GRACE_PERIOD');
       commit('SET_HOST_ID', hostId);
 
@@ -138,7 +291,16 @@ export default {
       });
 
       await dispatch('CANCEL_IN_PROGRESS_SYNC');
-      await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+      if (isReady) {
+        await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+      } else {
+        startHostRestoreTimeout(
+          { getters, commit, dispatch },
+          hostId,
+          expectedState,
+          restoreDeadline - Date.now(),
+        );
+      }
       return;
     }
 
@@ -164,12 +326,13 @@ export default {
       }
       commit('SET_HOST_GRACE_PREVIOUS_HOST_USERNAME', previousHost.username);
       commit('SET_HOST_GRACE_PREVIOUS_HOST_THUMB', previousHost.thumb || null);
-    }
-
-    // Clear any existing timeout from a previous grace period cascade
-    if (getters.GET_HOST_GRACE_TIMEOUT_ID != null) {
-      clearTimeout(getters.GET_HOST_GRACE_TIMEOUT_ID);
-      commit('SET_HOST_GRACE_TIMEOUT_ID', null);
+      commit(
+        'SET_HOST_GRACE_PREVIOUS_HOST_STATE',
+        previousHost.state === 'playing' || previousHost.state === 'paused'
+          ? previousHost.state
+          : null,
+      );
+      commit('SET_HOST_GRACE_RESTORE_DEADLINE_AT', null);
     }
 
     commit('SET_PENDING_HOST_ID', hostId);
@@ -180,25 +343,8 @@ export default {
       text: `${getters.GET_USER(hostId).username} is now the host`,
     });
 
-    // Start 10s grace timer — if original host doesn't return, accept the new host
-    const timeoutId = setTimeout(async () => {
-      if (!getters.IS_HOST_GRACE_PERIOD || getters.GET_PENDING_HOST_ID == null) {
-        return; // Grace period already resolved
-      }
-
-      const pendingHostId = getters.GET_PENDING_HOST_ID;
-      await dispatch('CLEAR_HOST_GRACE_PERIOD');
-      commit('SET_HOST_ID', pendingHostId);
-
-      try {
-        await dispatch('CANCEL_IN_PROGRESS_SYNC');
-        await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
-      } catch (e) {
-        console.error('Error syncing after grace period timeout:', e);
-      }
-    }, 10000);
-
-    commit('SET_HOST_GRACE_TIMEOUT_ID', timeoutId);
+    // Give the previous host 10 seconds to reconnect before accepting the elected host.
+    startHostGraceTimeout({ getters, commit, dispatch }, 10000);
   },
 
   HANDLE_DISCONNECT: async ({ dispatch }) => {
@@ -250,6 +396,21 @@ export default {
     const previousState = previousUser?.state;
     const previousTime = previousUser?.time;
     commit('SET_USER_PLAYER_STATE', data);
+    commit('RECORD_USER_EVENT', { id: data.id, fields: ['player'] });
+
+    const updatedUser = getters.GET_USER(data.id);
+    if (data.id === getters.GET_HOST_RESTORE_PENDING_ID) {
+      await completeHostRestore({ getters, commit, dispatch }, data.id);
+      return;
+    }
+
+    if (getters.IS_HOST_GRACE_PERIOD
+      && getters.GET_PENDING_HOST_ID === getters.GET_SOCKET_ID
+      && matchesPreviousHostPlayback(getters, updatedUser)
+      && matchesPreviousHost(getters, updatedUser)) {
+      await reclaimReturningHost({ getters, commit, dispatch }, data.id);
+      return;
+    }
 
     if (data.state === 'buffering' && previousState !== 'buffering'
       && data.id !== getters.GET_SOCKET_ID) {
@@ -325,9 +486,24 @@ export default {
       id,
       media,
     });
+    commit('RECORD_USER_EVENT', { id, fields: ['player', 'media'] });
 
     if (makeHost) {
       await dispatch('HANDLE_NEW_HOST', id);
+      return;
+    }
+
+    const user = getters.GET_USER(id);
+    if (id === getters.GET_HOST_RESTORE_PENDING_ID) {
+      await completeHostRestore({ getters, commit, dispatch }, id);
+      return;
+    }
+
+    if (getters.IS_HOST_GRACE_PERIOD
+      && getters.GET_PENDING_HOST_ID === getters.GET_SOCKET_ID
+      && matchesPreviousHostPlayback(getters, user)
+      && matchesPreviousHost(getters, user)) {
+      await reclaimReturningHost({ getters, commit, dispatch }, id);
       return;
     }
 
@@ -339,28 +515,28 @@ export default {
 
   HANDLE_SYNC_FLEXIBILITY_UPDATE: ({ commit }, data) => {
     commit('SET_USER_SYNC_FLEXIBILITY', data);
+    commit('RECORD_USER_EVENT', { id: data.id, fields: ['syncFlexibility'] });
   },
 
-  HANDLE_PARTY_PAUSE: async ({ getters, dispatch }, { senderId, isPause }) => {
-    // TODO: maybe stop it from looking at host after party pausing until host also updates or acks
-    // that it got the party pause ?
-    const text = `${getters.GET_USER(senderId).username} pressed ${isPause ? 'pause' : 'play'}`;
-    await dispatch('ADD_MESSAGE_AND_CACHE_AND_NOTIFY', {
-      senderId,
-      text,
+  HANDLE_PARTY_PAUSE: (context, data) => {
+    const pending = context.dispatch('MARK_PARTY_PAUSE_RECEIVED', {
+      isPause: data.isPause,
+      requestId: data.requestId,
     });
+    const command = partyPauseCommandQueue.then(async () => {
+      await pending;
+      return applyPartyPause(context, data);
+    });
+    partyPauseCommandQueue = command.catch(() => {});
+    return command;
+  },
 
-    await dispatch('DISPLAY_NOTIFICATION', {
-      text,
-      color: 'info',
-    }, { root: true });
-
-    await dispatch('CANCEL_IN_PROGRESS_SYNC');
-    if (isPause) {
-      await dispatch('plexclients/PRESS_PAUSE', null, { root: true });
-    } else {
-      await dispatch('plexclients/PRESS_PLAY', null, { root: true });
+  HANDLE_PARTY_PAUSE_ACK: async ({ dispatch }, { requestId }) => {
+    if (!await dispatch('ACKNOWLEDGE_PARTY_PAUSE', requestId)) {
+      return;
     }
+    await dispatch('CANCEL_IN_PROGRESS_SYNC');
+    await dispatch('SYNC_PLAYER_STATE');
   },
 
   HANDLE_KICKED: async ({ dispatch }) => {
