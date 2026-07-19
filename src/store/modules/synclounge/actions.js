@@ -123,6 +123,7 @@ export default {
       user: { id, ...rest }, users, isPartyPausingEnabled, isAutoHostEnabled, hostId,
     } = await dispatch('JOIN_ROOM');
     clearPendingPartyPause();
+    await dispatch('CLEAR_HOST_GRACE_PERIOD');
     await dispatch('CLEAR_HOST_RESTORE_PENDING');
     const updatedAt = Date.now();
     const currentUsers = getters.GET_USERS;

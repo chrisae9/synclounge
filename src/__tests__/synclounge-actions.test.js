@@ -216,6 +216,7 @@ describe('synclounge actions', () => {
       const users = commit.mock.calls.find(([type]) => type === 'SET_USERS')[1];
       expect(users['host-1'].media.ratingKey).toBe('new');
       expect(users['host-1'].updatedAt).not.toBe(1);
+      expect(dispatch).toHaveBeenCalledWith('CLEAR_HOST_GRACE_PERIOD');
       expect(dispatch).toHaveBeenCalledWith('CLEAR_HOST_RESTORE_PENDING');
     });
 
