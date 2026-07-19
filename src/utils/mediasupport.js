@@ -18,6 +18,11 @@ const h264Profiles = {
   ucscalableconstrainedhigh: 259,
 };
 
+const isMediaTypeSupported = (mime) => {
+  const mediaSource = window.ManagedMediaSource || window.MediaSource;
+  return mediaSource ? mediaSource.isTypeSupported(mime) : false;
+};
+
 const getH264Mime = ({ profile, level }) => {
   // https://blog.pearce.org.nz/2013/11/what-does-h264avc1-codecs-parameters.html
   // Making avc1.PPCCLL
@@ -102,7 +107,7 @@ export const isVideoSupported = (videoStream) => {
       break;
     }
   }
-  const supported = MediaSource.isTypeSupported(mime);
+  const supported = isMediaTypeSupported(mime);
   console.debug(`isVideoSupported: ${codec} → ${mime} → ${supported}`);
   return supported;
 };
@@ -136,7 +141,7 @@ export const isAudioSupported = ({ codec, profile }) => {
       break;
     }
   }
-  const supported = MediaSource.isTypeSupported(mime);
+  const supported = isMediaTypeSupported(mime);
   console.debug(`isAudioSupported: ${codec} → ${mime} → ${supported}`);
   return supported;
 };
