@@ -453,6 +453,17 @@ describe('HANDLE_USER_JOINED', () => {
     });
 
     expect(ctx.dispatch).toHaveBeenCalledWith('TRANSFER_HOST', 'u1');
+    expect(ctx.dispatch).toHaveBeenCalledWith('INVALIDATE_PARTY_PAUSE_COMMANDS');
+    expect(ctx.dispatch).toHaveBeenCalledWith('CLEAR_PENDING_PARTY_PAUSE');
+    const invalidateCall = ctx.dispatch.mock.invocationCallOrder[
+      ctx.dispatch.mock.calls.findIndex(
+        ([action]) => action === 'INVALIDATE_PARTY_PAUSE_COMMANDS',
+      )
+    ];
+    const hostCall = ctx.commit.mock.invocationCallOrder[
+      ctx.commit.mock.calls.findIndex(([mutation]) => mutation === 'SET_HOST_ID')
+    ];
+    expect(invalidateCall).toBeLessThan(hostCall);
   });
 
   it('catches sync error after host reclaim (Bug 4)', async () => {

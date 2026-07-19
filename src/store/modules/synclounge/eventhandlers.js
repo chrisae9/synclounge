@@ -44,6 +44,8 @@ const reclaimReturningHost = async ({ getters, commit, dispatch }, id) => {
     return;
   }
 
+  await dispatch('INVALIDATE_PARTY_PAUSE_COMMANDS');
+  await dispatch('CLEAR_PENDING_PARTY_PAUSE');
   await dispatch('CLEAR_HOST_GRACE_PERIOD');
   commit('SET_HOST_ID', id);
   dispatch('TRANSFER_HOST', id);
