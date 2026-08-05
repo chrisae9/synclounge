@@ -51,6 +51,19 @@ describe('server', () => {
         res.end('not found');
         return;
       }
+      if (req.url === '/text/plain') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('not an image');
+        return;
+      }
+      if (req.url === '/image/too-large') {
+        res.writeHead(200, {
+          'Content-Type': 'image/jpeg',
+          'Content-Length': String(6 * 1024 * 1024),
+        });
+        res.end('too large');
+        return;
+      }
       res.writeHead(500, { 'Content-Type': 'text/plain' });
       res.end('unexpected fixture path');
     });
@@ -67,6 +80,8 @@ describe('server', () => {
         PORT: String(port),
         SL_METADATA_RATE_LIMIT: '0',
         SL_POSTER_RATE_LIMIT: '0',
+        NODE_ENV: 'test',
+        SL_POSTER_TEST_HOST: os.hostname(),
       },
       stdio: 'pipe',
     });
@@ -945,7 +960,7 @@ describe('server', () => {
         body: {
           title: 'Bad Upstream',
           type: 'movie',
-          posterUrl: 'http://192.0.2.1:1/nonexistent',
+          posterUrl: 'https://example.invalid/nonexistent',
           machineIdentifier: 'badupstream',
           ratingKey: '701',
         },
@@ -969,6 +984,40 @@ describe('server', () => {
       });
 
       const res = await request('/share/poster/upstream4xx/702');
+      assert.equal(res.status, 502);
+    });
+
+    it('returns 502 when upstream content is not an image', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Text Upstream',
+          type: 'movie',
+          posterUrl: `${posterFixtureBase}/text/plain`,
+          machineIdentifier: 'upstream-text',
+          ratingKey: '703',
+        },
+      });
+
+      const res = await request('/share/poster/upstream-text/703');
+      assert.equal(res.status, 502);
+    });
+
+    it('returns 502 when the declared image size exceeds the limit', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Large Upstream',
+          type: 'movie',
+          posterUrl: `${posterFixtureBase}/image/too-large`,
+          machineIdentifier: 'upstream-large',
+          ratingKey: '704',
+        },
+      });
+
+      const res = await request('/share/poster/upstream-large/704');
       assert.equal(res.status, 502);
     });
   });

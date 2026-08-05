@@ -8,6 +8,7 @@
     "dist",
     "config",
     "server.js",
+    "poster-proxy.js",
     "packages/syncloungeserver"
   ],
   "scripts": {
@@ -15,12 +16,13 @@
     "build": "npm run build:server && vite build",
     "build:server": "babel packages/syncloungeserver/src --out-dir packages/syncloungeserver/dist --config-file ./packages/syncloungeserver/.babelrc.json",
     "preview": "vite preview",
-    "lint": "eslint src/ packages/syncloungeserver/src/",
+    "lint": "eslint src/ packages/syncloungeserver/src/ poster-proxy.js",
     "audit": "npm audit --audit-level=high",
     "test": "npm run build && node --test test/*.test.js && vitest run",
     "prepare": "if-env SKIP_BUILD=true && echo 'Skipping build' || npm run build"
   },
   "dependencies": {
+    "express": "^4.22.2",
     "nconf": "^0.13.0",
     "syncloungeserver": "file:packages/syncloungeserver"
   },
