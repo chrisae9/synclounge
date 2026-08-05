@@ -48,8 +48,9 @@ function generateConfigPlugin() {
     buildStart() {
       const config = require('./config');
       const configFile = 'public/config.json';
-      const appConfig = config.get(configFile);
-      console.log(appConfig);
+      // Generate from defaults/environment every time. Reading the previous generated file here
+      // made local builds stateful and allowed stale keys to leak into later images.
+      const appConfig = config.get(null);
       config.save(appConfig, configFile);
     },
   };

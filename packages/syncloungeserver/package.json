@@ -4,6 +4,12 @@
   "description": "SyncLounge socket server with local production fixes",
   "bin": "./dist/index.js",
   "main": "./dist/lib.js",
+  "files": [
+    "dist",
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.22.2",

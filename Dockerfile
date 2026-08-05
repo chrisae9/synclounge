@@ -35,7 +35,11 @@ COPY --link --chown=1000:1000 server.js cache.js ./
 COPY --link --chown=1000:1000 config config
 COPY --link --chown=1000:1000 packages packages
 COPY --link --chown=1000:1000 --from=dependency-stage /app/node_modules node_modules
+COPY --link --chown=1000:1000 --from=build-stage /app/packages/syncloungeserver/dist packages/syncloungeserver/dist
 COPY --link --chown=1000:1000 --from=build-stage /app/dist dist
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget --quiet --output-document=- http://127.0.0.1:8088/health >/dev/null || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/app/server.js"]
