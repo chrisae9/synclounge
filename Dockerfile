@@ -35,6 +35,7 @@ COPY --link --chown=1000:1000 server.js cache.js ./
 COPY --link --chown=1000:1000 config config
 COPY --link --chown=1000:1000 packages packages
 COPY --link --chown=1000:1000 --from=dependency-stage /app/node_modules node_modules
+COPY --link --chown=1000:1000 --from=build-stage /app/packages/syncloungeserver/dist packages/syncloungeserver/dist
 COPY --link --chown=1000:1000 --from=build-stage /app/dist dist
 
 ENTRYPOINT ["/sbin/tini", "--"]

@@ -12,11 +12,12 @@
   ],
   "scripts": {
     "serve": "vite",
-    "build": "vite build",
+    "build": "npm run build:server && vite build",
+    "build:server": "babel packages/syncloungeserver/src --out-dir packages/syncloungeserver/dist --config-file ./packages/syncloungeserver/.babelrc.json",
     "preview": "vite preview",
-    "lint": "eslint src/",
+    "lint": "eslint src/ packages/syncloungeserver/src/",
     "audit": "npm audit --audit-level=high",
-    "test": "node --test test/*.test.js && vitest run",
+    "test": "npm run build && node --test test/*.test.js && vitest run",
     "prepare": "if-env SKIP_BUILD=true && echo 'Skipping build' || npm run build"
   },
   "dependencies": {
@@ -24,6 +25,9 @@
     "syncloungeserver": "file:packages/syncloungeserver"
   },
   "devDependencies": {
+    "@babel/cli": "^7.29.7",
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
     "@delucis/if-env": "^1.1.2",
     "@vitejs/plugin-vue": "^5.2.0",
     "@vue/test-utils": "^2.4.6",
