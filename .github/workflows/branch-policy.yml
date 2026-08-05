@@ -1,0 +1,36 @@
+name: Branch policy
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  enforce:
+    name: Branch policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BASE_REF: ${{ github.base_ref }}
+      HEAD_REF: ${{ github.head_ref }}
+      HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+      REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Enforce integration and promotion lanes
+        run: |
+          set -euo pipefail
+
+          if [ "$BASE_REF" = "dev" ]; then
+            exit 0
+          fi
+
+          if [ "$BASE_REF" = "main" ] \
+            && [ "$HEAD_REF" = "dev" ] \
+            && [ "$HEAD_REPOSITORY" = "$REPOSITORY" ]; then
+            exit 0
+          fi
+
+          echo "Pull requests must target dev; only the repository's dev branch may target main." >&2
+          exit 1
