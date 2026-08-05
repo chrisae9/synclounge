@@ -9,6 +9,8 @@ reviews:
   auto_review:
     enabled: true
     drafts: true
+    base_branches:
+      - '^dev$'
   path_filters:
     - '!package-lock.json'
     - '!packages/syncloungeserver/dist/**'
