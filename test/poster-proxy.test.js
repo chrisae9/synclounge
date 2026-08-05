@@ -1,6 +1,8 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
+const http = require('node:http');
 const {
+  fetchPoster,
   PosterProxyError,
   isPrivateAddress,
   resolvePosterTarget,
@@ -39,13 +41,40 @@ describe('poster proxy network validation', () => {
     );
   });
 
-  it('pins requests to approved public DNS answers', async () => {
-    const lookup = async () => [
-      { address: '10.0.0.5', family: 4 },
-      { address: '1.1.1.1', family: 4 },
-    ];
-    const result = await resolvePosterTarget('https://poster.example/image.jpg', { lookup });
-    assert.deepEqual(result.addresses, [{ address: '1.1.1.1', family: 4 }]);
+  it('pins the outbound request to the approved DNS answer', async () => {
+    let receivedRequest = false;
+    const fixture = http.createServer((req, res) => {
+      receivedRequest = true;
+      res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+      res.end(Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+    });
+    await new Promise((resolve) => {
+      fixture.listen(0, '127.0.0.1', resolve);
+    });
+
+    try {
+      const origin = `http://poster.example:${fixture.address().port}`;
+      let lookupCount = 0;
+      const lookup = async (hostname) => {
+        lookupCount += 1;
+        assert.equal(hostname, 'poster.example');
+        if (lookupCount > 1) throw new Error('hostname was resolved more than once');
+        return [{ address: '127.0.0.1', family: 4 }];
+      };
+
+      const poster = await fetchPoster(`${origin}/image.jpg`, {
+        lookup,
+        allowedPrivateOrigin: origin,
+      });
+      assert.equal(receivedRequest, true);
+      assert.equal(lookupCount, 1);
+      assert.equal(poster.contentType, 'image/jpeg');
+      assert.deepEqual(poster.body, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+    } finally {
+      await new Promise((resolve) => {
+        fixture.close(resolve);
+      });
+    }
   });
 
   it('rejects non-HTTP protocols and credential-bearing URLs', async () => {

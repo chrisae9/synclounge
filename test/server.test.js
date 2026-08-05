@@ -63,10 +63,20 @@ describe('server', () => {
         res.end('too large');
         return;
       }
+      if (req.url === '/image/stream-too-large') {
+        res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+        for (let chunk = 0; chunk < 6; chunk += 1) {
+          res.write(Buffer.alloc(1024 * 1024));
+        }
+        res.end();
+        return;
+      }
       res.writeHead(500, { 'Content-Type': 'text/plain' });
       res.end('unexpected fixture path');
     });
-    await new Promise((resolve) => posterFixtureServer.listen(0, '127.0.0.1', resolve));
+    await new Promise((resolve) => {
+      posterFixtureServer.listen(0, '127.0.0.1', resolve);
+    });
     posterFixtureBase = `http://127.0.0.1:${posterFixtureServer.address().port}`;
 
     const { spawn } = require('node:child_process');
@@ -1017,6 +1027,23 @@ describe('server', () => {
       });
 
       const res = await request('/share/poster/upstream-large/704');
+      assert.equal(res.status, 502);
+    });
+
+    it('returns 502 when a streamed image exceeds the limit', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Streamed Large Upstream',
+          type: 'movie',
+          posterUrl: `${posterFixtureBase}/image/stream-too-large`,
+          machineIdentifier: 'upstream-stream-large',
+          ratingKey: '705',
+        },
+      });
+
+      const res = await request('/share/poster/upstream-stream-large/705');
       assert.equal(res.status, 502);
     });
   });
