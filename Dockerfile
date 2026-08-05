@@ -1,5 +1,5 @@
 # build environment
-FROM --platform=$BUILDPLATFORM node:25-alpine AS build-stage
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build-stage
 RUN mkdir /app && chown -R node:node /app
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
@@ -14,7 +14,7 @@ ARG VERSION
 RUN npm run build
 
 # dependency environment
-FROM node:25-alpine AS dependency-stage
+FROM node:24-alpine AS dependency-stage
 RUN mkdir /app && chown -R node:node /app
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
@@ -25,7 +25,7 @@ RUN SKIP_BUILD=true npm ci
 RUN npm prune --production
 
 # production environment
-FROM node:25-alpine AS production-stage
+FROM node:24-alpine AS production-stage
 RUN mkdir /app && chown -R node:node /app
 WORKDIR /app
 RUN apk add --no-cache tini
