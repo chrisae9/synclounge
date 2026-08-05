@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "express": "^4.22.2",
+    "ipaddr.js": "^2.5.0",
     "nconf": "^0.13.0",
     "syncloungeserver": "file:packages/syncloungeserver"
   },
