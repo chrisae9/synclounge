@@ -57,8 +57,25 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
+          load: true
+          tags: synclounge:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Smoke test container
+        run: |
+          container_id="$(docker run --detach --publish 127.0.0.1:18088:8088 synclounge:ci)"
+          trap 'docker rm --force "$container_id" >/dev/null' EXIT
+
+          for attempt in {1..15}; do
+            if curl --fail --silent http://127.0.0.1:18088/health | grep --quiet '"load"'; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs "$container_id"
+          exit 1
 
   dependency-review:
     name: Dependency review
