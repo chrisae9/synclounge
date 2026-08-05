@@ -4,9 +4,9 @@ const syncloungeServer = require('syncloungeserver');
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
-const { Readable } = require('node:stream');
 const config = require('./config');
 const { createCache } = require('./cache');
+const { fetchPoster, PosterProxyError } = require('./poster-proxy');
 
 const blockList = Object.keys(syncloungeServer.defaultConfig);
 const appConfig = config.get(null, blockList);
@@ -19,22 +19,6 @@ const safeConfig = Object.fromEntries(
 console.log(safeConfig);
 
 const { setMetadata, getMetadata } = createCache();
-
-// --- SSRF prevention for poster proxy ---
-function isPrivateUrl(urlStr) {
-  let parsed;
-  try { parsed = new URL(urlStr); } catch { return true; }
-  if (!['http:', 'https:'].includes(parsed.protocol)) return true;
-  // Strip IPv6 brackets for hostname comparison
-  const host = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase();
-  if (host === 'localhost' || host === '0.0.0.0') return true;
-  // IPv6 loopback and IPv4-mapped loopback
-  if (host === '::1' || host === '::ffff:127.0.0.1') return true;
-  if (/^0+:0+:0+:0+:0+:0+:0+:0*1$/.test(host)) return true; // expanded ::1
-  if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
-  return false;
-}
 
 // --- HTML escaping for XSS prevention ---
 function escapeHtml(str) {
@@ -180,26 +164,20 @@ const preStaticInjection = (router) => {
       return res.status(404).send('Not found');
     }
 
-    if (isPrivateUrl(meta.posterUrl)) {
-      return res.status(403).send('Forbidden');
-    }
-
     try {
-      const response = await fetch(meta.posterUrl, {
-        redirect: 'error',
-        signal: AbortSignal.timeout(10000),
+      const allowedPrivateOrigin = process.env.NODE_ENV === 'test'
+        ? process.env.SL_POSTER_TEST_ORIGIN
+        : undefined;
+      const poster = await fetchPoster(meta.posterUrl, {
+        allowedPrivateOrigin,
       });
-      if (!response.ok) {
-        return res.status(502).send('Failed to fetch poster');
-      }
-
-      res.set('Content-Type', response.headers.get('content-type') || 'image/jpeg');
+      res.set('Content-Type', poster.contentType);
       res.set('Cache-Control', 'public, max-age=86400');
-
-      Readable.fromWeb(response.body).pipe(res);
+      return res.send(poster.body);
     } catch (e) {
       console.error('Poster proxy error:', e.message);
-      return res.status(502).send('Failed to fetch poster');
+      const statusCode = e instanceof PosterProxyError ? e.statusCode : 502;
+      return res.status(statusCode).send(statusCode === 403 ? 'Forbidden' : 'Failed to fetch poster');
     }
   });
 
