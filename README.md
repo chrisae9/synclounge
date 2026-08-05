@@ -1,4 +1,4 @@
-![SyncLounge](https://github.com/synclounge/synclounge/raw/master/src/assets/images/logos/logo-long-dark.png)
+![SyncLounge](src/assets/images/logos/logo-long-dark.png)
 
 # SyncLounge
 
@@ -37,7 +37,7 @@ SyncLounge keeps multiple viewing sessions in sync using a WebSocket server as a
 - Library browsing with sorting, filtering, and A-Z quick navigation
 - Search across all connected Plex servers
 - Chat with room members
-- Password-protected rooms
+- Optional Plex user and server authorization allowlists
 - Shareable invite links with rich social previews
 - Configurable sync flexibility and sync method (clean seek / skip ahead)
 
