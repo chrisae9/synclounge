@@ -1,7 +1,6 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
-const os = require('node:os');
 
 let baseUrl;
 let serverProcess;
@@ -67,8 +66,8 @@ describe('server', () => {
       res.writeHead(500, { 'Content-Type': 'text/plain' });
       res.end('unexpected fixture path');
     });
-    await new Promise((resolve) => posterFixtureServer.listen(0, '0.0.0.0', resolve));
-    posterFixtureBase = `http://${os.hostname()}:${posterFixtureServer.address().port}`;
+    await new Promise((resolve) => posterFixtureServer.listen(0, '127.0.0.1', resolve));
+    posterFixtureBase = `http://127.0.0.1:${posterFixtureServer.address().port}`;
 
     const { spawn } = require('node:child_process');
     const port = await getFreePort();
@@ -81,7 +80,7 @@ describe('server', () => {
         SL_METADATA_RATE_LIMIT: '0',
         SL_POSTER_RATE_LIMIT: '0',
         NODE_ENV: 'test',
-        SL_POSTER_TEST_HOST: os.hostname(),
+        SL_POSTER_TEST_ORIGIN: posterFixtureBase,
       },
       stdio: 'pipe',
     });

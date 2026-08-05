@@ -165,11 +165,11 @@ const preStaticInjection = (router) => {
     }
 
     try {
-      const allowedPrivateHost = process.env.NODE_ENV === 'test'
-        ? process.env.SL_POSTER_TEST_HOST
+      const allowedPrivateOrigin = process.env.NODE_ENV === 'test'
+        ? process.env.SL_POSTER_TEST_ORIGIN
         : undefined;
       const poster = await fetchPoster(meta.posterUrl, {
-        allowedPrivateHost,
+        allowedPrivateOrigin,
       });
       res.set('Content-Type', poster.contentType);
       res.set('Cache-Control', 'public, max-age=86400');

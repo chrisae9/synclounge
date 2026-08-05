@@ -94,7 +94,7 @@ function isPrivateAddress(address) {
 
 async function resolvePosterTarget(urlString, {
   lookup = dns.lookup,
-  allowedPrivateHost,
+  allowedPrivateOrigin,
 } = {}) {
   let url;
   try {
@@ -113,7 +113,7 @@ async function resolvePosterTarget(urlString, {
     throw new PosterProxyError('Poster host did not resolve');
   }
 
-  const allowPrivate = allowedPrivateHost && hostname === allowedPrivateHost;
+  const allowPrivate = allowedPrivateOrigin && url.origin === allowedPrivateOrigin;
   const addresses = allowPrivate
     ? records
     : records.filter(({ address }) => !isPrivateAddress(address));
