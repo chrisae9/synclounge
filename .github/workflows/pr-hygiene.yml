@@ -46,7 +46,9 @@ jobs:
               per_page: 100,
             });
             const changesBehavior = files.some(({ filename, status }) => status !== 'removed' && (
-              filename.startsWith('src/')
+              (filename.startsWith('src/')
+                && !filename.startsWith('src/assets/')
+                && !filename.startsWith('src/__tests__/'))
               || filename.startsWith('packages/syncloungeserver/src/')
               || ['server.js', 'cache.js', 'poster-proxy.js'].includes(filename)
             ));
