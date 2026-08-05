@@ -1,0 +1,10 @@
+* @chrisae9
+
+# Runtime, automation, and release boundaries
+/server.js @chrisae9
+/packages/syncloungeserver/ @chrisae9
+/.github/ @chrisae9
+/Dockerfile @chrisae9
+/package.json @chrisae9
+/package-lock.json @chrisae9
+/SECURITY.md @chrisae9

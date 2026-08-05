@@ -2,6 +2,10 @@
 
 # SyncLounge
 
+[![CI](https://github.com/chrisae9/synclounge/actions/workflows/ci.yml/badge.svg)](https://github.com/chrisae9/synclounge/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/chrisae9/synclounge/actions/workflows/codeql.yml/badge.svg)](https://github.com/chrisae9/synclounge/actions/workflows/codeql.yml)
+[![Latest release](https://img.shields.io/github/v/release/chrisae9/synclounge)](https://github.com/chrisae9/synclounge/releases/latest)
+
 SyncLounge is a tool to sync [Plex](https://plex.tv) content across multiple players in multiple locations. Watch movies and TV shows together with friends and family, no matter where they are.
 
 This is a continuation of the original [SyncLounge](https://github.com/synclounge/synclounge) project, modernized with Vue 3, Vuetify 3, and Vite.
@@ -56,15 +60,17 @@ services:
     restart: unless-stopped
 ```
 
+Development builds are published separately as `ghcr.io/chrisae9/synclounge:dev`. Every development build also has an immutable `dev-<commit SHA>` tag. These images may be unstable and never replace `latest`.
+
 ### Node.js
 
 ```sh
-npm install
+SKIP_BUILD=true npm ci
 npm run build
 node server.js
 ```
 
-Listens on port 8088 by default. All paths are relative, so you can use a reverse proxy at any subdirectory or subdomain without additional SyncLounge configuration.
+Listens on port 8088 by default. The documented deployment serves SyncLounge at the root of a hostname; path-prefix deployments require additional asset-base configuration and are not currently supported by the published image.
 
 ## Configuration
 
@@ -107,11 +113,13 @@ server {
 ## Development
 
 ```sh
-npm install
+SKIP_BUILD=true npm ci
 npm run serve   # Vite dev server with HMR
 npm run build   # Production build to dist/
 npm test        # Run tests
 ```
+
+Pull requests target `dev`; `main` is reserved for stable release promotions. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete verification and review contract.
 
 ## Chromecast
 
@@ -125,6 +133,6 @@ Continued by [chrisae9](https://github.com/chrisae9).
 
 ## License
 
-MIT License. See [LICENSE.txt](LICENSE.txt).
+MIT License. See [LICENSE](LICENSE).
 
 SyncLounge is in no way affiliated with Plex Inc.

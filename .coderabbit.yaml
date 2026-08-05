@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+early_access: false
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: true
+  path_filters:
+    - '!package-lock.json'
+    - '!packages/syncloungeserver/dist/**'
+    - '!public/**'
+  path_instructions:
+    - path: '.github/workflows/**'
+      instructions: >-
+        Check least-privilege permissions, immutable action pins, untrusted input handling,
+        release provenance, and whether publishing can occur from an unreviewed ref.
+    - path: 'server.js'
+      instructions: >-
+        Prioritize input validation, SSRF and DNS-rebinding resistance, bounded resource use,
+        trusted proxy behavior, response streaming safety, and tests for failure paths.
+    - path: 'packages/syncloungeserver/**'
+      instructions: >-
+        Treat every Socket.IO payload as untrusted. Require bounded schemas, safe failure behavior,
+        room membership and host authorization checks, and denial-of-service regression coverage.
+    - path: '{test,src/**/__tests__}/**'
+      instructions: >-
+        Check that tests assert externally observable behavior, cleanup spawned resources, avoid
+        timing flakiness, and cover malformed and boundary inputs.
+chat:
+  auto_reply: true
