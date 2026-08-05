@@ -1,0 +1,86 @@
+name: PR hygiene
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-hygiene-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: PR hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate pull request contract
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const pullRequest = context.payload.pull_request;
+            const isAutomation = pullRequest.user.login.endsWith('[bot]');
+            const failures = [];
+
+            const conventionalTitle = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: .+/;
+            if (!conventionalTitle.test(pullRequest.title)) {
+              failures.push('Use a Conventional Commit title such as `fix(socket): reject malformed events`.');
+            }
+
+            if (!isAutomation) {
+              const body = pullRequest.body || '';
+              for (const heading of ['Summary', 'Verification']) {
+                if (!new RegExp(`^## +${heading}$`, 'im').test(body)) {
+                  failures.push(`Add a \`## ${heading}\` section to the pull request description.`);
+                }
+              }
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              ...context.repo,
+              pull_number: pullRequest.number,
+              per_page: 100,
+            });
+            const changesBehavior = files.some(({ filename, status }) => status !== 'removed' && (
+              filename.startsWith('src/')
+              || filename.startsWith('packages/syncloungeserver/src/')
+              || ['server.js', 'cache.js', 'poster-proxy.js'].includes(filename)
+            ));
+            const changesTests = files.some(({ filename }) => (
+              filename.startsWith('test/') || filename.startsWith('src/__tests__/')
+            ));
+            if (changesBehavior && !changesTests) {
+              failures.push('Behavior changed without a focused regression test.');
+            }
+
+            const generatedOutput = files
+              .filter(({ filename, status }) => (
+                status !== 'removed' && filename.startsWith('packages/syncloungeserver/dist/')
+              ))
+              .map(({ filename }) => filename);
+            if (generatedOutput.length > 0) {
+              failures.push(`Do not commit generated socket-server output: ${generatedOutput.join(', ')}`);
+            }
+
+            const focusedTests = files.flatMap(({ filename, patch }) => {
+              if (!patch || !(filename.startsWith('test/') || filename.startsWith('src/__tests__/'))) {
+                return [];
+              }
+              const addedLines = patch.split('\n')
+                .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+                .join('\n');
+              return /\b(?:describe|it|test)\.(?:only|skip)\s*\(/.test(addedLines) ? [filename] : [];
+            });
+            if (focusedTests.length > 0) {
+              failures.push(`Remove focused or skipped tests: ${focusedTests.join(', ')}`);
+            }
+
+            if (failures.length > 0) {
+              core.setFailed(failures.join('\n'));
+            } else {
+              core.notice('Pull request hygiene checks passed.');
+            }
