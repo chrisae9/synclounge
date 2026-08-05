@@ -29,6 +29,8 @@ jobs:
 
       - run: npm test
 
+      - run: npm run audit
+
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 30

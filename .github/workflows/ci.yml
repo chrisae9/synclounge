@@ -40,6 +40,8 @@ jobs:
 
       - run: npm test
 
+      - run: npm run audit
+
   container:
     name: Container build
     runs-on: ubuntu-latest
