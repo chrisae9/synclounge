@@ -270,7 +270,7 @@ const preStaticInjection = (router) => {
       const meta = getMetadata(key);
 
       if (meta) {
-        const protocol = req.protocol;
+        const { protocol } = req;
         const host = req.get('host');
         const baseUrl = `${protocol}://${host}`;
         const posterProxyUrl = meta.posterUrl
@@ -290,7 +290,7 @@ const preStaticInjection = (router) => {
       const meta = getMetadata(`room\0${roomCode}`);
 
       if (meta) {
-        const protocol = req.protocol;
+        const { protocol } = req;
         const host = req.get('host');
         const baseUrl = `${protocol}://${host}`;
         const posterProxyUrl = meta.posterUrl
