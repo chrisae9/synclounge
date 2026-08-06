@@ -171,6 +171,55 @@ describe('INIT_PLAYER_STATE', () => {
     expect(commit).toHaveBeenCalledWith('SET_SHOULD_PLAY_ON_LOAD', null);
     expect(dispatch).toHaveBeenCalledWith('START_PERIODIC_PLEX_TIMELINE_UPDATE');
   });
+
+  it('rolls back partial initialization and propagates the failure', async () => {
+    const error = new Error('media load failed');
+    const commit = vi.fn();
+    const dispatch = vi.fn((type) => {
+      if (type === 'CHANGE_PLAYER_SRC') return Promise.reject(error);
+      return Promise.resolve();
+    });
+    const getters = {
+      GET_PLAYER_INITIALIZED_DEFERRED_PROMISE: null,
+      GET_SHOULD_PLAY_ON_LOAD: null,
+    };
+    const rootGetters = {
+      'settings/GET_SLPLAYERVOLUME': 1,
+      'plexclients/GET_ACTIVE_MEDIA_METADATA': { ratingKey: 'episode-2' },
+      'plexclients/GET_ACTIVE_SERVER_ID': 'server-1',
+      'synclounge/GET_HOST_USER': { state: 'playing' },
+    };
+
+    await expect(slplayerActions.INIT_PLAYER_STATE({
+      getters,
+      rootGetters,
+      commit,
+      dispatch,
+    })).rejects.toThrow('media load failed');
+
+    expect(dispatch).toHaveBeenCalledWith('ROLLBACK_PLAYER_INITIALIZATION');
+    expect(commit).not.toHaveBeenCalledWith('SET_IS_PLAYER_INITIALIZED', true);
+  });
+
+  it('releases partial player resources during rollback', async () => {
+    const abort = vi.fn();
+    const commit = vi.fn();
+    const dispatch = vi.fn().mockResolvedValue(undefined);
+    const { destroy } = await import('@/player');
+
+    await slplayerActions.ROLLBACK_PLAYER_INITIALIZATION({
+      getters: { GET_PLAYER_DESTROY_CANCEL_TOKEN: { abort } },
+      commit,
+      dispatch,
+    });
+
+    expect(abort).toHaveBeenCalledOnce();
+    expect(dispatch).toHaveBeenCalledWith('UNREGISTER_PLAYER_EVENTS');
+    expect(dispatch).toHaveBeenCalledWith('CANCEL_PERIODIC_PLEX_TIMELINE_UPDATE');
+    expect(dispatch).toHaveBeenCalledWith('DESTROY_SUBTITLES');
+    expect(destroy).toHaveBeenCalledOnce();
+    expect(commit).toHaveBeenCalledWith('SET_IS_PLAYER_INITIALIZED', false);
+  });
 });
 
 describe('autoplay recovery', () => {

@@ -25,6 +25,7 @@ describe('synclounge actions', () => {
   let actions;
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     vi.resetModules();
     vi.stubGlobal('Audio', createAudioMock());
     actions = (await import('@/store/modules/synclounge/actions')).default;
@@ -93,6 +94,49 @@ describe('synclounge actions', () => {
       });
 
       expect(dispatch).toHaveBeenLastCalledWith('CONNECT_AND_JOIN_ROOM', { syncOnJoin: false });
+    });
+  });
+
+  describe('socket event deadlines', () => {
+    it('bounds the initial server ping wait', async () => {
+      socketMocks.open.mockResolvedValue({ id: 'socket-1' });
+      socketMocks.waitForEvent.mockResolvedValue('secret');
+      const dispatch = vi.fn().mockResolvedValue(undefined);
+
+      await actions.ESTABLISH_SOCKET_CONNECTION({
+        getters: { GET_SERVER: '' },
+        rootGetters: { GET_CONFIG: { socket_event_timeout: 4321 } },
+        commit: vi.fn(),
+        dispatch,
+      });
+
+      expect(socketMocks.waitForEvent).toHaveBeenCalledWith('slPing', 4321);
+      expect(dispatch).toHaveBeenCalledWith('HANDLE_SLPING', 'secret');
+    });
+
+    it('bounds the room join result wait', async () => {
+      socketMocks.waitForEvent.mockResolvedValue({
+        success: true,
+        user: { id: 'socket-1' },
+      });
+      const dispatch = vi.fn().mockResolvedValue({ state: 'stopped' });
+
+      await actions.JOIN_ROOM({
+        getters: {
+          GET_ROOM: 'room-1',
+          GET_DISPLAY_USERNAME: 'viewer',
+          IS_PARTY_PAUSING_ENABLED: false,
+          IS_AUTO_HOST_ENABLED: false,
+        },
+        rootGetters: {
+          GET_CONFIG: { socket_event_timeout: 6789 },
+          'plex/GET_PLEX_USER': { thumb: 'avatar' },
+          'settings/GET_SYNCFLEXIBILITY': {},
+        },
+        dispatch,
+      });
+
+      expect(socketMocks.waitForEvent).toHaveBeenCalledWith('joinResult', 6789);
     });
   });
 

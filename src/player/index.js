@@ -179,5 +179,7 @@ export const destroy = async () => {
   const savedOverlay = getOverlay();
   setPlayer(null);
   setOverlay(null);
-  await savedOverlay.destroy();
+  if (savedOverlay) {
+    await savedOverlay.destroy();
+  }
 };

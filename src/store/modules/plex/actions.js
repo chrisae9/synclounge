@@ -62,6 +62,7 @@ export default {
     state: { areDevicesCached }, commit, dispatch, getters, rootGetters,
   }) => {
     const oldServersIds = rootGetters['plexservers/GET_PLEX_SERVER_IDS'];
+    const refreshedServerIds = [];
 
     let devices;
     try {
@@ -105,6 +106,7 @@ export default {
             libraries,
             chosenConnection,
           }, { root: true });
+          refreshedServerIds.push(device.clientIdentifier);
         } catch (e) {
           const text = `Unable to find working connection to plex server: ${device.name}`;
           await dispatch('DISPLAY_NOTIFICATION', {
@@ -118,7 +120,7 @@ export default {
 
     const staleServerIds = difference([
       oldServersIds,
-      rootGetters['plexservers/GET_PLEX_SERVER_IDS'],
+      refreshedServerIds,
     ]);
 
     staleServerIds.forEach((serverId) => {
