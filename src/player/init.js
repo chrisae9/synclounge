@@ -26,7 +26,9 @@ const initialize = async ({
 
     setOverlay(new shaka.ui.Overlay(getPlayer(), videoContainer, mediaElement));
     const controls = getOverlay().getControls();
-    controls.onMouseMove_ = suppressStationaryMouseMoves(controls);
+    const { mouseMoveHandler, mouseLeaveHandler } = suppressStationaryMouseMoves(controls);
+    controls.onMouseMove_ = mouseMoveHandler;
+    if (mouseLeaveHandler) controls.onMouseLeave_ = mouseLeaveHandler;
     getOverlay().configure(overlayConfig);
     console.debug('Shaka player initialized, version:', shaka.Player.version);
   } catch (e) {

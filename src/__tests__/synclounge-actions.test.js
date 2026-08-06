@@ -139,7 +139,7 @@ describe('synclounge actions', () => {
       expect(socketMocks.waitForEvent).toHaveBeenCalledWith('joinResult', 6789);
     });
 
-    it.each([0, -1, 1.5, 2_147_483_648])(
+    it.each([undefined, null, 0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2_147_483_648])(
       'falls back to a safe timeout for invalid value %s',
       async (socketEventTimeout) => {
         socketMocks.open.mockResolvedValue({ id: 'socket-1' });
@@ -155,6 +155,44 @@ describe('synclounge actions', () => {
         expect(socketMocks.waitForEvent).toHaveBeenCalledWith('slPing', 15000);
       },
     );
+
+    it.each([undefined, null, 0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+      'uses a safe room join timeout for invalid value %s',
+      async (socketEventTimeout) => {
+        socketMocks.waitForEvent.mockResolvedValue({ success: true });
+
+        await actions.JOIN_ROOM({
+          getters: {
+            GET_ROOM: 'room-1',
+            GET_DISPLAY_USERNAME: 'viewer',
+            IS_PARTY_PAUSING_ENABLED: false,
+            IS_AUTO_HOST_ENABLED: false,
+          },
+          rootGetters: {
+            GET_CONFIG: { socket_event_timeout: socketEventTimeout },
+            'plex/GET_PLEX_USER': {},
+            'settings/GET_SYNCFLEXIBILITY': {},
+          },
+          dispatch: vi.fn().mockResolvedValue({}),
+        });
+
+        expect(socketMocks.waitForEvent).toHaveBeenCalledWith('joinResult', 15000);
+      },
+    );
+
+    it('accepts the maximum browser timer deadline', async () => {
+      socketMocks.open.mockResolvedValue({ id: 'socket-1' });
+      socketMocks.waitForEvent.mockResolvedValue('secret');
+
+      await actions.ESTABLISH_SOCKET_CONNECTION({
+        getters: { GET_SERVER: '' },
+        rootGetters: { GET_CONFIG: { socket_event_timeout: 2_147_483_647 } },
+        commit: vi.fn(),
+        dispatch: vi.fn().mockResolvedValue(undefined),
+      });
+
+      expect(socketMocks.waitForEvent).toHaveBeenCalledWith('slPing', 2_147_483_647);
+    });
   });
 
   describe('PLAY_MEDIA_AND_SYNC_TIME', () => {

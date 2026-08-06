@@ -220,6 +220,38 @@ describe('INIT_PLAYER_STATE', () => {
     expect(destroy).toHaveBeenCalledOnce();
     expect(commit).toHaveBeenCalledWith('SET_IS_PLAYER_INITIALIZED', false);
   });
+
+  it('finishes rollback after cleanup failures and remains repeatable', async () => {
+    const cleanupError = new Error('event cleanup failed');
+    const commit = vi.fn();
+    let shouldRejectCleanup = true;
+    const dispatch = vi.fn((type) => {
+      if (type === 'UNREGISTER_PLAYER_EVENTS' && shouldRejectCleanup) {
+        shouldRejectCleanup = false;
+        return Promise.reject(cleanupError);
+      }
+      return Promise.resolve();
+    });
+    const { destroy } = await import('@/player');
+
+    await expect(slplayerActions.ROLLBACK_PLAYER_INITIALIZATION({
+      getters: {},
+      commit,
+      dispatch,
+    })).resolves.toBeUndefined();
+    await expect(slplayerActions.ROLLBACK_PLAYER_INITIALIZATION({
+      getters: {},
+      commit,
+      dispatch,
+    })).resolves.toBeUndefined();
+
+    expect(dispatch).toHaveBeenCalledWith('CANCEL_PERIODIC_PLEX_TIMELINE_UPDATE');
+    expect(dispatch).toHaveBeenCalledWith('DESTROY_SUBTITLES');
+    expect(destroy).toHaveBeenCalledTimes(2);
+    expect(commit).toHaveBeenCalledWith('SET_IS_PLAYER_INITIALIZED', false);
+    expect(commit.mock.calls.filter(([type]) => type === 'SET_IS_PLAYER_INITIALIZED'))
+      .toHaveLength(2);
+  });
 });
 
 describe('autoplay recovery', () => {
