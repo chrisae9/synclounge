@@ -31,7 +31,7 @@ WORKDIR /app
 RUN apk add --no-cache tini
 
 USER node
-COPY --link --chown=1000:1000 server.js cache.js poster-proxy.js ./
+COPY --link --chown=1000:1000 server.js cache.js poster-proxy.js request-abort.js ./
 COPY --link --chown=1000:1000 config config
 COPY --link --chown=1000:1000 packages packages
 COPY --link --chown=1000:1000 --from=dependency-stage /app/node_modules node_modules
