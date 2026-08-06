@@ -8,6 +8,17 @@ import {
 import notificationSound from '@/assets/sounds/notification_simple-01.wav';
 
 const notificationAudio = new Audio(notificationSound);
+const DEFAULT_SOCKET_EVENT_TIMEOUT = 15000;
+const MAX_TIMEOUT_MS = 2_147_483_647;
+
+const getSocketEventTimeout = (rootGetters) => {
+  const configuredTimeout = rootGetters.GET_CONFIG?.socket_event_timeout;
+  return Number.isSafeInteger(configuredTimeout)
+    && configuredTimeout > 0
+    && configuredTimeout <= MAX_TIMEOUT_MS
+    ? configuredTimeout
+    : DEFAULT_SOCKET_EVENT_TIMEOUT;
+};
 
 // Hold the requested party-pause state until the host confirms the matching command.
 let pendingPartyPause = null;
@@ -80,7 +91,7 @@ export default {
     // handler might be fired first, which means it will do stuff before actually responding to the
     // ping(which the normal handler does). I am not very happy with this but I don't know of a easy
     // better way atm. Maybe reactive streams in the future, but that's a bit over my head now
-    const eventTimeout = rootGetters.GET_CONFIG?.socket_event_timeout ?? 15000;
+    const eventTimeout = getSocketEventTimeout(rootGetters);
     const secret = await waitForEvent('slPing', eventTimeout);
 
     // Explicitly handling the slping because we haven't registered the events yet
@@ -108,7 +119,7 @@ export default {
       },
     });
 
-    const eventTimeout = rootGetters.GET_CONFIG?.socket_event_timeout ?? 15000;
+    const eventTimeout = getSocketEventTimeout(rootGetters);
     const { success, error, ...rest } = await waitForEvent('joinResult', eventTimeout);
     if (!success) {
       throw new Error(error);

@@ -138,6 +138,23 @@ describe('synclounge actions', () => {
 
       expect(socketMocks.waitForEvent).toHaveBeenCalledWith('joinResult', 6789);
     });
+
+    it.each([0, -1, 1.5, 2_147_483_648])(
+      'falls back to a safe timeout for invalid value %s',
+      async (socketEventTimeout) => {
+        socketMocks.open.mockResolvedValue({ id: 'socket-1' });
+        socketMocks.waitForEvent.mockResolvedValue('secret');
+
+        await actions.ESTABLISH_SOCKET_CONNECTION({
+          getters: { GET_SERVER: '' },
+          rootGetters: { GET_CONFIG: { socket_event_timeout: socketEventTimeout } },
+          commit: vi.fn(),
+          dispatch: vi.fn().mockResolvedValue(undefined),
+        });
+
+        expect(socketMocks.waitForEvent).toHaveBeenCalledWith('slPing', 15000);
+      },
+    );
   });
 
   describe('PLAY_MEDIA_AND_SYNC_TIME', () => {
