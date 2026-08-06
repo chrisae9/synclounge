@@ -13,7 +13,7 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.22.2",
-    "nconf": "^0.12.1",
+    "nconf": "^0.13.0",
     "socket.io": "^4.8.3",
     "uuid": "^11.1.1"
   },
