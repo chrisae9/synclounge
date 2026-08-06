@@ -10,9 +10,16 @@ import attachEventHandlers from './handlers';
 import { getHealth } from './state';
 
 const socketServer = ({
-  base_url: baseUrl, static_path: staticPath, port, ping_interval: pingInterval,
-  ping_timeout: pingTimeout, preStaticInjection, trust_proxy: trustProxy,
+  base_url: baseUrl, static_path: staticPath, port, ping_interval: pingInterval = 10000,
+  ping_timeout: pingTimeout = 10000, preStaticInjection, trust_proxy: trustProxy,
 }) => {
+  if (!Number.isFinite(pingInterval) || pingInterval <= 0) {
+    throw new TypeError('ping_interval must be a positive number');
+  }
+  if (!Number.isFinite(pingTimeout) || pingTimeout <= 0) {
+    throw new TypeError('ping_timeout must be a positive number');
+  }
+
   http.globalAgent.keepAlive = true;
 
   const app = express();

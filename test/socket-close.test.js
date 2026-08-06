@@ -66,7 +66,6 @@ describe('embedded socket server lifecycle', () => {
         base_url: '/',
         port: 0,
         ping_interval: 10000,
-        ping_timeout: 10000,
       });
       const { port } = await router.ready;
       await waitForHealth(`http://127.0.0.1:${port}/health`);
@@ -76,6 +75,8 @@ describe('embedded socket server lifecycle', () => {
         transports: ['websocket'],
       });
       await waitForEvent(client, 'connect');
+      await delay(25);
+      assert.equal(client.connected, true);
       const disconnected = waitForEvent(client, 'disconnect');
 
       await router.close();
