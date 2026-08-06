@@ -69,6 +69,7 @@ describe('socket event validation', () => {
       env: {
         ...process.env,
         PORT: String(port),
+        PING_TIMEOUT: '250',
         SL_METADATA_RATE_LIMIT: '0',
         SL_POSTER_RATE_LIMIT: '0',
       },
@@ -80,6 +81,17 @@ describe('socket event validation', () => {
 
   after(() => {
     if (serverProcess) serverProcess.kill('SIGTERM');
+  });
+
+  it('disconnects a client that does not answer the application ping', async () => {
+    const socket = connectClient();
+    try {
+      await waitForEvent(socket, 'slPing');
+      await waitForEvent(socket, 'disconnect');
+      await assertServerHealthy();
+    } finally {
+      socket.close();
+    }
   });
 
   it('disconnects a malformed join without crashing the server', async () => {
@@ -131,6 +143,43 @@ describe('socket event validation', () => {
       await respondToPing(socket);
       const disconnected = waitForEvent(socket, 'disconnect');
       socket.emit('sendMessage', 'x'.repeat(70 * 1024));
+      await disconnected;
+      await assertServerHealthy();
+    } finally {
+      socket.close();
+    }
+  });
+
+  it('disconnects a joined client that floods room fanout events', async () => {
+    const socket = connectClient();
+    try {
+      await respondToPing(socket);
+      const joined = waitForEvent(socket, 'joinResult');
+      socket.emit('join', {
+        roomId: `flood-${Date.now()}`,
+        desiredUsername: 'flood-user',
+        desiredPartyPausingEnabled: true,
+        desiredAutoHostEnabled: true,
+        thumb: '',
+        playerProduct: 'test',
+        state: 'stopped',
+        time: 0,
+        duration: 0,
+        playbackRate: 1,
+        media: null,
+        syncFlexibility: 3000,
+      });
+      assert.equal((await joined).success, true);
+
+      const disconnected = waitForEvent(socket, 'disconnect');
+      for (let event = 0; event < 31; event += 1) {
+        socket.emit('playerStateUpdate', {
+          state: 'playing',
+          time: event,
+          duration: 1000,
+          playbackRate: 1,
+        });
+      }
       await disconnected;
       await assertServerHealthy();
     } finally {

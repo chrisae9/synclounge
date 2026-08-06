@@ -11,7 +11,7 @@ import { getHealth } from './state';
 
 const socketServer = ({
   base_url: baseUrl, static_path: staticPath, port, ping_interval: pingInterval,
-  preStaticInjection, trust_proxy: trustProxy,
+  ping_timeout: pingTimeout, preStaticInjection, trust_proxy: trustProxy,
 }) => {
   http.globalAgent.keepAlive = true;
 
@@ -42,7 +42,7 @@ const socketServer = ({
     transports: ['websocket', 'polling'],
   });
 
-  attachEventHandlers({ server: socketio, pingInterval });
+  attachEventHandlers({ server: socketio, pingInterval, pingTimeout });
 
   router.get('/health', (req, res) => {
     res.json(getHealth());
@@ -68,6 +68,19 @@ const socketServer = ({
   server.listen(port, () => {
     console.log('SyncLounge Server successfully started on port', port);
     console.log('Running with base URL:', baseUrl);
+  });
+
+  router.close = () => new Promise((resolve, reject) => {
+    socketio.close(() => {
+      if (!server.listening) {
+        resolve();
+        return;
+      }
+      server.close((error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
   });
 
   // Return router so users can attach more routes if desired
