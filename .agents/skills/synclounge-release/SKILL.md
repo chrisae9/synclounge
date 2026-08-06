@@ -27,8 +27,14 @@ two-lane branch model: changes merge into `dev`, then `dev` is promoted to
 
    ```sh
    LAST_TAG=$(git tag --merged origin/main --sort=-v:refname | head -1)
-   git log --oneline "${LAST_TAG:-origin/main~20}"..origin/dev
-   git diff --stat "${LAST_TAG:-origin/main~20}"..origin/dev
+   if [ -n "$LAST_TAG" ]; then
+     git log --oneline "$LAST_TAG"..origin/dev
+     git diff --stat "$LAST_TAG"..origin/dev
+   else
+     EMPTY_TREE=$(git hash-object -t tree /dev/null)
+     git log --oneline origin/dev
+     git diff --stat "$EMPTY_TREE" origin/dev
+   fi
    ```
 
    Read the relevant diffs and merged pull requests; do not rely only on commit
@@ -124,14 +130,29 @@ unattended release tagging in the same request.
 3. Monitor the tag-triggered release workflow:
 
    ```sh
-   gh run list --repo chrisae9/synclounge --workflow release.yml --limit 3
+   RELEASE_COMMIT=$(git rev-parse "v$VERSION^{commit}")
+   RUN_ID=""
+   for _ in $(seq 1 12); do
+     RUN_ID=$(gh run list --repo chrisae9/synclounge \
+       --workflow release.yml --event push --commit "$RELEASE_COMMIT" --limit 1 \
+       --json databaseId --jq '.[0].databaseId')
+     [ -n "$RUN_ID" ] && break
+     sleep 5
+   done
+   test -n "$RUN_ID"
+   gh run watch "$RUN_ID" --repo chrisae9/synclounge --exit-status
    gh release view "v$VERSION" --repo chrisae9/synclounge
-   docker buildx imagetools inspect "ghcr.io/chrisae9/synclounge:$VERSION"
+   for IMAGE_TAG in latest "$VERSION" "${VERSION%.*}" "${VERSION%%.*}"; do
+     MANIFEST=$(docker buildx imagetools inspect \
+       "ghcr.io/chrisae9/synclounge:$IMAGE_TAG")
+     printf '%s\n' "$MANIFEST" | grep -q 'Platform:.*linux/amd64'
+     printf '%s\n' "$MANIFEST" | grep -q 'Platform:.*linux/arm64'
+   done
    ```
 
-   Verify that the workflow succeeded, the GitHub Release contains the approved
-   notes, and the GHCR manifest includes `linux/amd64` and `linux/arm64`.
-   Release images should also expose `latest`, `x.y.z`, `x.y`, and `x` tags.
+   Stop if the exact commit's workflow does not succeed. Verify that the GitHub
+   Release contains the approved notes and that the `latest`, `x.y.z`, `x.y`,
+   and `x` GHCR tags each include `linux/amd64` and `linux/arm64`.
 
 If publishing is still running, report the workflow URL and current status. If
 any check fails, stop and report the exact failure; do not move or recreate the
