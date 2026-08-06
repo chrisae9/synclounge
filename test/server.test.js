@@ -87,6 +87,7 @@ describe('server', () => {
       env: {
         ...process.env,
         PORT: String(port),
+        TRUST_PROXY: 'false',
         SL_METADATA_RATE_LIMIT: '0',
         SL_POSTER_RATE_LIMIT: '0',
         NODE_ENV: 'test',
@@ -303,6 +304,19 @@ describe('server', () => {
       const html = await res.text();
       assert.ok(html.includes('/share/poster/og-machine/200'));
       assert.ok(!html.includes('example.com/poster.jpg'));
+    });
+
+    it('ignores forwarded origin headers from an untrusted client', async () => {
+      const res = await request('/room/test/browse/server/og-machine/ratingKey/200', {
+        headers: {
+          'X-Forwarded-Host': 'attacker.example',
+          'X-Forwarded-Proto': 'https',
+        },
+      });
+      const html = await res.text();
+
+      assert.ok(html.includes(`${baseUrl}/share/poster/og-machine/200`));
+      assert.ok(!html.includes('attacker.example'));
     });
 
     it('still includes the SPA shell (index.html) with OG tags', async () => {

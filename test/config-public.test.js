@@ -1,7 +1,13 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
-const { getPublic } = require('../config');
+const config = require('../config');
+
+const { getPublic } = config;
 
 describe('public configuration projection', () => {
   it('keeps documented browser settings and removes nested or arbitrary secrets', () => {
@@ -76,5 +82,50 @@ describe('public configuration projection', () => {
     assert.equal('autojoin' in result, false);
     assert.equal('default_slplayer_quality' in result, false);
     assert.equal(JSON.stringify(result).includes('secret'), false);
+  });
+
+  it('always supplies safe authorization arrays for a minimal Plex configuration', () => {
+    const result = getPublic({
+      authentication: { mechanism: 'plex' },
+    });
+
+    assert.deepEqual(result.authentication, {
+      mechanism: 'plex',
+      type: [],
+      authorized: [],
+    });
+  });
+
+  it('filters nested secrets from the static build artifact', async () => {
+    const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'synclounge-config-'));
+    const outputFile = path.join(temporaryDirectory, 'config.json');
+
+    try {
+      const viteConfigUrl = pathToFileURL(path.join(__dirname, '..', 'vite.config.js'));
+      const { generateConfigPlugin } = await import(viteConfigUrl.href);
+      const plugin = generateConfigPlugin({
+        configModule: config,
+        configFile: outputFile,
+        loadConfig: () => ({
+          authentication: {
+            mechanism: 'plex',
+            token: 'static-build-secret',
+          },
+          deployment: { password: 'nested-secret' },
+        }),
+      });
+
+      plugin.buildStart();
+
+      const generatedConfig = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+      assert.deepEqual(generatedConfig.authentication, {
+        mechanism: 'plex',
+        type: [],
+        authorized: [],
+      });
+      assert.equal(JSON.stringify(generatedConfig).includes('secret'), false);
+    } finally {
+      fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+    }
   });
 });

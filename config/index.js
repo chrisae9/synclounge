@@ -6,6 +6,7 @@ const defaults = require('./defaults');
 const PUBLIC_AUTHENTICATION_KEYS = ['mechanism', 'type', 'authorized'];
 const PUBLIC_AUTOJOIN_KEYS = ['server', 'room'];
 const PUBLIC_SERVER_KEYS = ['name', 'location', 'url', 'image'];
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 const omit = (keys, obj) => keys.reduce((a, e) => {
   const { [e]: no, ...rest } = a;
@@ -60,9 +61,12 @@ const pickDefined = (value, keys) => Object.fromEntries(
   keys.filter((key) => value?.[key] !== undefined).map((key) => [key, value[key]]),
 );
 
-const isSafeScalar = (value, defaultValue) => (
+const isSafeScalar = (key, value, defaultValue) => (
   typeof value === typeof defaultValue
   && (typeof value !== 'number' || Number.isFinite(value))
+  && (key !== 'socket_event_timeout' || (
+    Number.isSafeInteger(value) && value > 0 && value <= MAX_TIMEOUT_MS
+  ))
 );
 
 const projectServer = (server) => Object.fromEntries(
@@ -82,7 +86,7 @@ const getPublic = (config) => {
       .filter(([key]) => key !== 'authentication' && key !== 'servers')
       .map(([key, defaultValue]) => [
         key,
-        isSafeScalar(config[key], defaultValue) ? config[key] : defaultValue,
+        isSafeScalar(key, config[key], defaultValue) ? config[key] : defaultValue,
       ]),
   );
 
@@ -96,10 +100,8 @@ const getPublic = (config) => {
     mechanism: typeof authentication.mechanism === 'string'
       ? authentication.mechanism
       : defaults.authentication.mechanism,
-    ...(authentication.type !== undefined && { type: stringArray(authentication.type) }),
-    ...(authentication.authorized !== undefined && {
-      authorized: stringArray(authentication.authorized),
-    }),
+    type: stringArray(authentication.type),
+    authorized: stringArray(authentication.authorized),
   };
 
   const autojoin = pickDefined(config.autojoin, PUBLIC_AUTOJOIN_KEYS);

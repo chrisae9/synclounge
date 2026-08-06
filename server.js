@@ -270,8 +270,8 @@ const preStaticInjection = (router) => {
       const meta = getMetadata(key);
 
       if (meta) {
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers['x-forwarded-host'] || req.get('host');
+        const protocol = req.protocol;
+        const host = req.get('host');
         const baseUrl = `${protocol}://${host}`;
         const posterProxyUrl = meta.posterUrl
           ? `${baseUrl}/share/poster/${machineIdentifier}/${ratingKey}`
@@ -290,8 +290,8 @@ const preStaticInjection = (router) => {
       const meta = getMetadata(`room\0${roomCode}`);
 
       if (meta) {
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers['x-forwarded-host'] || req.get('host');
+        const protocol = req.protocol;
+        const host = req.get('host');
         const baseUrl = `${protocol}://${host}`;
         const posterProxyUrl = meta.posterUrl
           ? `${baseUrl}/share/poster/${meta.machineIdentifier}/${meta.ratingKey}`

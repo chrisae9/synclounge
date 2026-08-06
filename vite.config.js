@@ -42,16 +42,18 @@ function patchShakaControlsPlugin() {
   };
 }
 
-function generateConfigPlugin() {
+export function generateConfigPlugin({
+  configModule = require('./config'),
+  configFile = 'public/config.json',
+  loadConfig = () => configModule.get(null),
+} = {}) {
   return {
     name: 'generate-config',
     buildStart() {
-      const config = require('./config');
-      const configFile = 'public/config.json';
       // Generate from defaults/environment every time. Reading the previous generated file here
       // made local builds stateful and allowed stale keys to leak into later images.
-      const appConfig = config.get(null);
-      config.save(appConfig, configFile);
+      const appConfig = loadConfig();
+      configModule.save(configModule.getPublic(appConfig), configFile);
     },
   };
 }
