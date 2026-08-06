@@ -4,6 +4,7 @@ const {
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const http = require('node:http');
+const path = require('node:path');
 const { io } = require('socket.io-client');
 
 let baseUrl;
@@ -13,20 +14,30 @@ const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 async function getFreePort() {
   const server = http.createServer();
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
   const { port } = server.address();
-  await new Promise((resolve) => server.close(resolve));
+  await new Promise((resolve) => {
+    server.close(resolve);
+  });
   return port;
 }
 
 async function waitForServer(url, retries = 30, delay = 200) {
   for (let i = 0; i < retries; i += 1) {
     try {
+      // Sequential polling is intentional: each request observes a later server state.
+      // eslint-disable-next-line no-await-in-loop
       const response = await fetch(url);
-      if (response.ok) return;
+      const healthy = response.ok;
+      // eslint-disable-next-line no-await-in-loop
+      await response.body?.cancel();
+      if (healthy) return;
     } catch {
       // Retry until the child process starts listening.
     }
+    // eslint-disable-next-line no-await-in-loop
     await wait(delay);
   }
   throw new Error('Server did not start in time');
@@ -65,7 +76,7 @@ describe('socket event validation', () => {
     const port = await getFreePort();
     baseUrl = `http://127.0.0.1:${port}`;
     serverProcess = spawn('node', ['server.js'], {
-      cwd: __dirname + '/..',
+      cwd: path.join(__dirname, '..'),
       env: {
         ...process.env,
         PORT: String(port),
@@ -144,6 +155,43 @@ describe('socket event validation', () => {
       const disconnected = waitForEvent(socket, 'disconnect');
       socket.emit('sendMessage', 'x'.repeat(70 * 1024));
       await disconnected;
+      await assertServerHealthy();
+    } finally {
+      socket.close();
+    }
+  });
+
+  it('keeps a joined client connected at the room fanout limit', async () => {
+    const socket = connectClient();
+    try {
+      await respondToPing(socket);
+      const joined = waitForEvent(socket, 'joinResult');
+      socket.emit('join', {
+        roomId: `boundary-${Date.now()}`,
+        desiredUsername: 'boundary-user',
+        desiredPartyPausingEnabled: true,
+        desiredAutoHostEnabled: true,
+        thumb: '',
+        playerProduct: 'test',
+        state: 'stopped',
+        time: 0,
+        duration: 0,
+        playbackRate: 1,
+        media: null,
+        syncFlexibility: 3000,
+      });
+      assert.equal((await joined).success, true);
+
+      for (let event = 0; event < 30; event += 1) {
+        socket.emit('playerStateUpdate', {
+          state: 'playing',
+          time: event,
+          duration: 1000,
+          playbackRate: 1,
+        });
+      }
+      await wait(100);
+      assert.equal(socket.connected, true);
       await assertServerHealthy();
     } finally {
       socket.close();

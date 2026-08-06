@@ -1,44 +1,104 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
+const { io } = require('socket.io-client');
+const { socketServer } = require('../packages/syncloungeserver/dist/lib');
 
-async function getFreePort() {
-  const server = http.createServer();
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address();
-  await new Promise((resolve) => server.close(resolve));
-  return port;
-}
+const delay = (milliseconds) => new Promise((resolve) => {
+  setTimeout(resolve, milliseconds);
+});
 
-const waitForHealth = async (port) => {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+const listen = (server, port) => new Promise((resolve, reject) => {
+  const handleError = (error) => reject(error);
+  server.once('error', handleError);
+  server.listen(port, '127.0.0.1', () => {
+    server.off('error', handleError);
+    resolve(server.address());
+  });
+});
+
+const close = (server) => new Promise((resolve, reject) => {
+  server.close((error) => {
+    if (error) reject(error);
+    else resolve();
+  });
+});
+
+const waitForEvent = (socket, eventName, timeoutMs = 3000) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error(`Timed out waiting for ${eventName}`)), timeoutMs);
+  socket.once(eventName, (value) => {
+    clearTimeout(timer);
+    resolve(value);
+  });
+});
+
+const waitForHealth = async (url, startupTimeoutMs = 3000) => {
+  const deadline = Date.now() + startupTimeoutMs;
+  while (Date.now() < deadline) {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/health`);
-      if (response.ok) return;
+      // Sequential polling is intentional: each request observes a later listener state.
+      // eslint-disable-next-line no-await-in-loop
+      const response = await fetch(url, { signal: AbortSignal.timeout(250) });
+      const healthy = response.ok;
+      // eslint-disable-next-line no-await-in-loop
+      await response.body?.cancel();
+      if (healthy) return;
     } catch {
       // Wait for the listener.
     }
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // eslint-disable-next-line no-await-in-loop
+    await delay(20);
   }
   throw new Error('Server did not start in time');
 };
 
 describe('embedded socket server lifecycle', () => {
-  it('closes all listeners and allows its port to be reused', async () => {
-    const { socketServer } = require('../packages/syncloungeserver/dist/lib');
-    const port = await getFreePort();
-    const router = socketServer({
-      base_url: '/',
-      port,
-      ping_interval: 10000,
-      ping_timeout: 10000,
-    });
-    await waitForHealth(port);
-    await router.close();
+  it('disconnects clients, closes its listener, and allows its port to be reused', async () => {
+    let client;
+    let cleanupError;
+    let replacement;
+    let router;
+    let routerClosed = false;
+    let testError;
 
-    const replacement = http.createServer();
-    await new Promise((resolve) => replacement.listen(port, '127.0.0.1', resolve));
-    assert.equal(replacement.address().port, port);
-    await new Promise((resolve) => replacement.close(resolve));
+    try {
+      router = socketServer({
+        base_url: '/',
+        port: 0,
+        ping_interval: 10000,
+        ping_timeout: 10000,
+      });
+      const { port } = await router.ready;
+      await waitForHealth(`http://127.0.0.1:${port}/health`);
+
+      client = io(`http://127.0.0.1:${port}`, {
+        path: '/socket.io',
+        transports: ['websocket'],
+      });
+      await waitForEvent(client, 'connect');
+      const disconnected = waitForEvent(client, 'disconnect');
+
+      await router.close();
+      routerClosed = true;
+      await disconnected;
+      assert.equal(client.connected, false);
+
+      replacement = http.createServer();
+      const replacementAddress = await listen(replacement, port);
+      assert.equal(replacementAddress.port, port);
+    } catch (error) {
+      testError = error;
+    } finally {
+      client?.close();
+      const cleanup = [];
+      if (router && !routerClosed) cleanup.push(router.close());
+      if (replacement?.listening) cleanup.push(close(replacement));
+      const outcomes = await Promise.allSettled(cleanup);
+      const failedCleanup = outcomes.find(({ status }) => status === 'rejected');
+      cleanupError = failedCleanup?.reason;
+    }
+
+    if (testError) throw testError;
+    if (cleanupError) throw cleanupError;
   });
 });

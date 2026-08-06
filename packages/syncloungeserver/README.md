@@ -113,8 +113,9 @@ syncloungeserver --ping_timeout 10000
 PING_TIMEOUT=10000 syncloungeserver
 ```
 
-When embedded as a library, `socketServer()` continues to return its Express router. The router
-also exposes an asynchronous `close()` method that disconnects clients and releases the HTTP
+When embedded as a library, `socketServer()` continues to return its Express router. The router's
+`ready` promise resolves with the bound address, including the OS-assigned port when configured
+with `port: 0`. Its asynchronous `close()` method disconnects clients and releases the HTTP
 listener.
 
 ## Manual Building

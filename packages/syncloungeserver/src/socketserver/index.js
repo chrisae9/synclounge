@@ -65,9 +65,16 @@ const socketServer = ({
     });
   }
 
-  server.listen(port, () => {
-    console.log('SyncLounge Server successfully started on port', port);
-    console.log('Running with base URL:', baseUrl);
+  router.ready = new Promise((resolve, reject) => {
+    const handleStartupError = (error) => reject(error);
+    server.once('error', handleStartupError);
+    server.listen(port, () => {
+      server.off('error', handleStartupError);
+      const address = server.address();
+      console.log('SyncLounge Server successfully started on port', address.port);
+      console.log('Running with base URL:', baseUrl);
+      resolve(address);
+    });
   });
 
   router.close = () => new Promise((resolve, reject) => {
@@ -82,6 +89,7 @@ const socketServer = ({
       });
     });
   });
+  router.address = () => server.address();
 
   // Return router so users can attach more routes if desired
   return router;
