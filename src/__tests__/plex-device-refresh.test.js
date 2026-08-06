@@ -18,7 +18,7 @@ describe('Plex device refresh', () => {
     vi.clearAllMocks();
   });
 
-  it('removes servers that were not successfully refreshed', async () => {
+  it('removes servers that are absent from the Plex resources response', async () => {
     fetchMocks.fetchJson.mockResolvedValue([{
       name: 'Current server',
       provides: ['server'],
@@ -50,6 +50,39 @@ describe('Plex device refresh', () => {
       'stale-server',
       { root: true },
     );
+    expect(commit).not.toHaveBeenCalledWith(
+      'plexservers/DELETE_PLEX_SERVER',
+      'current-server',
+      { root: true },
+    );
+  });
+
+  it('retains a cached server when refreshing its connection fails', async () => {
+    fetchMocks.fetchJson.mockResolvedValue([{
+      name: 'Temporarily unavailable server',
+      provides: ['server'],
+      connections: [{ uri: 'https://current.example' }],
+      accessToken: 'token',
+      clientIdentifier: 'current-server',
+    }]);
+    const commit = vi.fn();
+    const dispatch = vi.fn((type) => {
+      if (type === 'FIND_WORKING_CONNECTION_PREFERRED') {
+        return Promise.reject(new Error('temporary connection failure'));
+      }
+      return Promise.resolve();
+    });
+
+    await actions._FETCH_PLEX_DEVICES({
+      state: { areDevicesCached: true },
+      commit,
+      dispatch,
+      getters: { GET_PLEX_BASE_PARAMS: vi.fn(() => ({})) },
+      rootGetters: {
+        'plexservers/GET_PLEX_SERVER_IDS': ['current-server'],
+      },
+    });
+
     expect(commit).not.toHaveBeenCalledWith(
       'plexservers/DELETE_PLEX_SERVER',
       'current-server',

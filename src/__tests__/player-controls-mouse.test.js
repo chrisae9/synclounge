@@ -12,8 +12,9 @@ describe('Shaka controls mouse handling', () => {
     controls.onMouseMove_({ type: 'mousemove', screenX: 10, screenY: 20 });
     controls.onMouseMove_({ type: 'mousemove', screenX: 10, screenY: 20 });
     controls.onMouseMove_({ type: 'mousemove', screenX: 11, screenY: 20 });
+    controls.onMouseMove_({ type: 'mousemove' });
     controls.onMouseMove_({ type: 'touchmove', screenX: 11, screenY: 20 });
 
-    expect(originalHandler).toHaveBeenCalledTimes(3);
+    expect(originalHandler).toHaveBeenCalledTimes(4);
   });
 });
