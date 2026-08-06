@@ -48,6 +48,7 @@
 import { mapActions, mapGetters, mapMutations } from 'vuex';
 
 import getCookie from '@/utils/getcookie';
+import parseSavedPlexAuthPin from '@/utils/plexAuthPin';
 
 const PIN_STORAGE_KEY = 'plex_auth_pin';
 
@@ -92,8 +93,11 @@ export default {
     const savedPin = sessionStorage.getItem(PIN_STORAGE_KEY);
     if (savedPin) {
       sessionStorage.removeItem(PIN_STORAGE_KEY);
-      await this.completeRedirectAuth(JSON.parse(savedPin));
-      return;
+      const parsedPin = parseSavedPlexAuthPin(savedPin);
+      if (parsedPin) {
+        await this.completeRedirectAuth(parsedPin);
+        return;
+      }
     }
 
     await this.fetchInitialAuthCode();
