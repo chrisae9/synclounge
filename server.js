@@ -10,13 +10,10 @@ const { fetchPoster, PosterProxyError } = require('./poster-proxy');
 
 const blockList = Object.keys(syncloungeServer.defaultConfig);
 const appConfig = config.get(null, blockList);
+const publicAppConfig = config.getPublic(appConfig);
 
-// Log config with sensitive values redacted
-const SENSITIVE_RE = /secret|password|token|key/i;
-const safeConfig = Object.fromEntries(
-  Object.entries(appConfig).map(([k, v]) => [k, SENSITIVE_RE.test(k) ? '[REDACTED]' : v]),
-);
-console.log(safeConfig);
+// Log exactly the browser-safe projection rather than deployment-only configuration.
+console.log(publicAppConfig);
 
 const { setMetadata, getMetadata } = createCache();
 
@@ -73,10 +70,34 @@ const POSTER_RATE_LIMIT = parseInt(process.env.SL_POSTER_RATE_LIMIT || '60', 10)
 function createRateLimiter(maxRequests, windowMs) {
   if (maxRequests <= 0) return (req, res, next) => next();
   const hits = new Map(); // ip -> [timestamp, ...]
+  const maxBuckets = 10000;
+  let nextPruneAt = Date.now() + windowMs;
+
+  const pruneExpiredBuckets = (cutoff) => {
+    for (const [ip, timestamps] of hits) {
+      const activeTimestamps = timestamps.filter((timestamp) => timestamp > cutoff);
+      if (activeTimestamps.length === 0) {
+        hits.delete(ip);
+      } else {
+        hits.set(ip, activeTimestamps);
+      }
+    }
+  };
+
   return (req, res, next) => {
     const ip = req.ip;
     const now = Date.now();
     const cutoff = now - windowMs;
+
+    if (now >= nextPruneAt || (!hits.has(ip) && hits.size >= maxBuckets)) {
+      pruneExpiredBuckets(cutoff);
+      nextPruneAt = now + windowMs;
+    }
+
+    if (!hits.has(ip) && hits.size >= maxBuckets) {
+      return res.status(429).json({ error: 'Too many clients' });
+    }
+
     let timestamps = hits.get(ip);
     if (timestamps) {
       timestamps = timestamps.filter((t) => t > cutoff);
@@ -101,7 +122,7 @@ const STATIC_EXT_RE = /\.\w{2,}$/;
 const preStaticInjection = (router) => {
   // Add route for config
   router.get('/config.json', (req, res) => {
-    res.json(appConfig);
+    res.json(publicAppConfig);
   });
 
   // --- POST /api/metadata: receive metadata from client ---
@@ -164,12 +185,18 @@ const preStaticInjection = (router) => {
       return res.status(404).send('Not found');
     }
 
+    const controller = new AbortController();
+    const abortUpstream = () => controller.abort();
+    req.once('aborted', abortUpstream);
+    res.once('close', abortUpstream);
+
     try {
       const allowedPrivateOrigin = process.env.NODE_ENV === 'test'
         ? process.env.SL_POSTER_TEST_ORIGIN
         : undefined;
       const poster = await fetchPoster(meta.posterUrl, {
         allowedPrivateOrigin,
+        signal: controller.signal,
       });
       res.set('Content-Type', poster.contentType);
       res.set('Cache-Control', 'public, max-age=86400');
@@ -178,6 +205,9 @@ const preStaticInjection = (router) => {
       console.error('Poster proxy error:', e.message);
       const statusCode = e instanceof PosterProxyError ? e.statusCode : 502;
       return res.status(statusCode).send(statusCode === 403 ? 'Forbidden' : 'Failed to fetch poster');
+    } finally {
+      req.removeListener('aborted', abortUpstream);
+      res.removeListener('close', abortUpstream);
     }
   });
 

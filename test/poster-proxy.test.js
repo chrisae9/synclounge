@@ -84,4 +84,57 @@ describe('poster proxy network validation', () => {
       PosterProxyError,
     );
   });
+
+  it('closes rejected upstream responses instead of draining their bodies', async () => {
+    let closedResolve;
+    const closed = new Promise((resolve) => {
+      closedResolve = resolve;
+    });
+    const fixture = http.createServer((req, res) => {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      const interval = setInterval(() => res.write(Buffer.alloc(1024)), 10);
+      res.on('close', () => {
+        clearInterval(interval);
+        closedResolve();
+      });
+    });
+    await new Promise((resolve) => fixture.listen(0, '127.0.0.1', resolve));
+
+    try {
+      const origin = `http://poster.example:${fixture.address().port}`;
+      await assert.rejects(fetchPoster(`${origin}/missing`, {
+        lookup: async () => [{ address: '127.0.0.1', family: 4 }],
+        allowedPrivateOrigin: origin,
+      }), /returned 404/);
+      await Promise.race([
+        closed,
+        new Promise((resolve, reject) => setTimeout(
+          () => reject(new Error('upstream response was not closed')),
+          500,
+        )),
+      ]);
+    } finally {
+      await new Promise((resolve) => fixture.close(resolve));
+    }
+  });
+
+  it('enforces a total deadline even when the upstream keeps sending data', async () => {
+    const fixture = http.createServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+      const interval = setInterval(() => res.write(Buffer.from([0xff])), 10);
+      res.on('close', () => clearInterval(interval));
+    });
+    await new Promise((resolve) => fixture.listen(0, '127.0.0.1', resolve));
+
+    try {
+      const origin = `http://poster.example:${fixture.address().port}`;
+      await assert.rejects(fetchPoster(`${origin}/slow`, {
+        lookup: async () => [{ address: '127.0.0.1', family: 4 }],
+        allowedPrivateOrigin: origin,
+        timeoutMs: 50,
+      }), /timed out/);
+    } finally {
+      await new Promise((resolve) => fixture.close(resolve));
+    }
+  });
 });

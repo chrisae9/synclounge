@@ -81,6 +81,12 @@ AUTHENTICATION='{"mechanism":"plex","type":["server"],"authorized":["MACHINE_ID"
 SERVERS='[{"name":"My Server","location":"Mothership","url":"https://myserver.com"}]'
 ```
 
+Only documented browser configuration is returned from `/config.json`; arbitrary keys in a
+configuration file remain server-side. `TRUST_PROXY` controls which reverse proxies may supply
+client addresses. It defaults to `loopback`, matching the Nginx example below. For a proxy on a
+private container network, set it to an explicit hop count or trusted CIDR/named range such as
+`uniquelocal`. Do not use `TRUST_PROXY=true`.
+
 ## Reverse Proxy (Nginx)
 
 ```nginx

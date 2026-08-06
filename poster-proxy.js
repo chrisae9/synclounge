@@ -83,33 +83,65 @@ function makePinnedLookup(addresses) {
 async function fetchPoster(urlString, options = {}) {
   const { url, addresses } = await resolvePosterTarget(urlString, options);
   const transport = url.protocol === 'https:' ? https : http;
+  const { signal, timeoutMs = 10000 } = options;
+
+  if (signal?.aborted) {
+    throw new PosterProxyError('Poster request was aborted');
+  }
 
   return new Promise((resolve, reject) => {
-    const request = transport.get(url, {
+    let responseStream;
+    let request;
+    let settled = false;
+    let deadline;
+    let abortRequest = () => {};
+
+    const cleanup = () => {
+      clearTimeout(deadline);
+      signal?.removeEventListener('abort', abortRequest);
+    };
+
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback(value);
+    };
+
+    const fail = (error) => {
+      if (settled) return;
+      responseStream?.destroy();
+      request.destroy();
+      finish(reject, error);
+    };
+
+    abortRequest = () => {
+      fail(new PosterProxyError('Poster request was aborted'));
+    };
+
+    request = transport.get(url, {
       headers: {
         Accept: 'image/avif,image/webp,image/png,image/jpeg,image/gif',
         'User-Agent': 'SyncLounge poster proxy',
       },
       lookup: makePinnedLookup(addresses),
     }, (response) => {
+      responseStream = response;
       const statusCode = response.statusCode || 500;
       if (statusCode < 200 || statusCode >= 300) {
-        response.resume();
-        reject(new PosterProxyError(`Poster upstream returned ${statusCode}`));
+        fail(new PosterProxyError(`Poster upstream returned ${statusCode}`));
         return;
       }
 
       const contentType = (response.headers['content-type'] || '').split(';')[0].toLowerCase();
       if (!ALLOWED_CONTENT_TYPES.has(contentType)) {
-        response.resume();
-        reject(new PosterProxyError('Poster upstream did not return a supported image'));
+        fail(new PosterProxyError('Poster upstream did not return a supported image'));
         return;
       }
 
       const contentLength = Number.parseInt(response.headers['content-length'], 10);
       if (Number.isFinite(contentLength) && contentLength > MAX_POSTER_BYTES) {
-        response.resume();
-        reject(new PosterProxyError('Poster upstream response is too large'));
+        fail(new PosterProxyError('Poster upstream response is too large'));
         return;
       }
 
@@ -118,22 +150,22 @@ async function fetchPoster(urlString, options = {}) {
       response.on('data', (chunk) => {
         totalBytes += chunk.length;
         if (totalBytes > MAX_POSTER_BYTES) {
-          response.destroy(new PosterProxyError('Poster upstream response is too large'));
+          fail(new PosterProxyError('Poster upstream response is too large'));
           return;
         }
         chunks.push(chunk);
       });
-      response.on('end', () => resolve({
+      response.on('end', () => finish(resolve, {
         body: Buffer.concat(chunks),
         contentType,
       }));
-      response.on('error', reject);
+      response.on('error', fail);
     });
 
-    request.setTimeout(10000, () => {
-      request.destroy(new PosterProxyError('Poster upstream timed out'));
-    });
-    request.on('error', reject);
+    deadline = setTimeout(() => fail(new PosterProxyError('Poster upstream timed out')), timeoutMs);
+    request.setTimeout(timeoutMs, () => fail(new PosterProxyError('Poster upstream timed out')));
+    request.on('error', fail);
+    signal?.addEventListener('abort', abortRequest, { once: true });
   });
 }
 
