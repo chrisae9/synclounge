@@ -123,36 +123,71 @@ unattended release tagging in the same request.
    only that tag:
 
    ```sh
-   git tag -a "v$VERSION" -F /path/to/approved-release-notes.md
+   APPROVED_NOTES_FILE=/path/to/approved-release-notes.md
+   test -s "$APPROVED_NOTES_FILE"
+   git tag -a "v$VERSION" -F "$APPROVED_NOTES_FILE"
    git push origin "v$VERSION"
    ```
 
 3. Monitor the tag-triggered release workflow:
 
    ```sh
+   set -eu
+   command -v jq >/dev/null
+   APPROVED_NOTES_FILE=/path/to/approved-release-notes.md
+   test -s "$APPROVED_NOTES_FILE"
    RELEASE_COMMIT=$(git rev-parse "v$VERSION^{commit}")
    RUN_ID=""
-   for _ in $(seq 1 12); do
+   for _ in $(seq 1 60); do
      RUN_ID=$(gh run list --repo chrisae9/synclounge \
        --workflow release.yml --event push --commit "$RELEASE_COMMIT" --limit 1 \
        --json databaseId --jq '.[0].databaseId')
      [ -n "$RUN_ID" ] && break
      sleep 5
    done
-   test -n "$RUN_ID"
+   if [ -z "$RUN_ID" ]; then
+     echo "Release workflow run not visible after 5 minutes: https://github.com/chrisae9/synclounge/actions/workflows/release.yml" >&2
+     exit 1
+   fi
    gh run watch "$RUN_ID" --repo chrisae9/synclounge --exit-status
-   gh release view "v$VERSION" --repo chrisae9/synclounge
+
+   PREV_TAG=$(git tag --sort=-v:refname | grep -A1 "^v$VERSION$" | tail -1)
+   if [ "$PREV_TAG" != "v$VERSION" ] && [ -n "$PREV_TAG" ]; then
+     CHANGELOG_LINK="**Full Changelog**: https://github.com/chrisae9/synclounge/compare/$PREV_TAG...v$VERSION"
+   else
+     CHANGELOG_LINK="**Full Changelog**: https://github.com/chrisae9/synclounge/commits/v$VERSION"
+   fi
+   EXPECTED_BODY=$(printf '%s\n\n%s' \
+     "$(cat "$APPROVED_NOTES_FILE")" "$CHANGELOG_LINK")
+   RELEASE_JSON=$(gh release view "v$VERSION" --repo chrisae9/synclounge \
+     --json body,isDraft)
+   test "$(printf '%s' "$RELEASE_JSON" | jq -r '.isDraft')" = "false"
+   test "$(printf '%s' "$RELEASE_JSON" | jq -r '.body')" = "$EXPECTED_BODY"
+
+   VERSION_IMAGE=$(docker buildx imagetools inspect \
+     --format '{{json .}}' "ghcr.io/chrisae9/synclounge:$VERSION")
+   VERSION_DIGEST=$(printf '%s' "$VERSION_IMAGE" | jq -er '.manifest.digest')
    for IMAGE_TAG in latest "$VERSION" "${VERSION%.*}" "${VERSION%%.*}"; do
-     MANIFEST=$(docker buildx imagetools inspect \
+     IMAGE=$(docker buildx imagetools inspect --format '{{json .}}' \
        "ghcr.io/chrisae9/synclounge:$IMAGE_TAG")
-     printf '%s\n' "$MANIFEST" | grep -q 'Platform:.*linux/amd64'
-     printf '%s\n' "$MANIFEST" | grep -q 'Platform:.*linux/arm64'
+     test "$(printf '%s' "$IMAGE" | jq -er '.manifest.digest')" = "$VERSION_DIGEST"
+     printf '%s' "$IMAGE" | jq -e \
+       '.manifest.manifests | any(.platform.os == "linux" and .platform.architecture == "amd64")' >/dev/null
+     printf '%s' "$IMAGE" | jq -e \
+       '.manifest.manifests | any(.platform.os == "linux" and .platform.architecture == "arm64")' >/dev/null
+     for PLATFORM in linux/amd64 linux/arm64; do
+       REVISION=$(printf '%s' "$IMAGE" | jq -er --arg platform "$PLATFORM" \
+         '.image[$platform].config.Labels["org.opencontainers.image.revision"]')
+       test "$REVISION" = "$RELEASE_COMMIT"
+     done
    done
    ```
 
-   Stop if the exact commit's workflow does not succeed. Verify that the GitHub
-   Release contains the approved notes and that the `latest`, `x.y.z`, `x.y`,
-   and `x` GHCR tags each include `linux/amd64` and `linux/arm64`.
+   Stop if the exact commit's workflow does not succeed or does not appear by
+   the stated deadline. Verify that the published, non-draft GitHub Release body
+   exactly matches the approved notes plus its changelog link. The `latest`,
+   `x.y.z`, `x.y`, and `x` GHCR tags must share one digest, point to the release
+   commit, and each include `linux/amd64` and `linux/arm64`.
 
 If publishing is still running, report the workflow URL and current status. If
 any check fails, stop and report the exact failure; do not move or recreate the
