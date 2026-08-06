@@ -98,7 +98,9 @@ describe('poster proxy network validation', () => {
         closedResolve();
       });
     });
-    await new Promise((resolve) => fixture.listen(0, '127.0.0.1', resolve));
+    await new Promise((resolve) => {
+      fixture.listen(0, '127.0.0.1', resolve);
+    });
 
     try {
       const origin = `http://poster.example:${fixture.address().port}`;
@@ -108,13 +110,17 @@ describe('poster proxy network validation', () => {
       }), /returned 404/);
       await Promise.race([
         closed,
-        new Promise((resolve, reject) => setTimeout(
-          () => reject(new Error('upstream response was not closed')),
-          500,
-        )),
+        new Promise((resolve, reject) => {
+          setTimeout(
+            () => reject(new Error('upstream response was not closed')),
+            500,
+          );
+        }),
       ]);
     } finally {
-      await new Promise((resolve) => fixture.close(resolve));
+      await new Promise((resolve) => {
+        fixture.close(resolve);
+      });
     }
   });
 
@@ -124,7 +130,9 @@ describe('poster proxy network validation', () => {
       const interval = setInterval(() => res.write(Buffer.from([0xff])), 10);
       res.on('close', () => clearInterval(interval));
     });
-    await new Promise((resolve) => fixture.listen(0, '127.0.0.1', resolve));
+    await new Promise((resolve) => {
+      fixture.listen(0, '127.0.0.1', resolve);
+    });
 
     try {
       const origin = `http://poster.example:${fixture.address().port}`;
@@ -134,7 +142,27 @@ describe('poster proxy network validation', () => {
         timeoutMs: 50,
       }), /timed out/);
     } finally {
-      await new Promise((resolve) => fixture.close(resolve));
+      await new Promise((resolve) => {
+        fixture.close(resolve);
+      });
     }
+  });
+
+  it('enforces the total deadline while DNS resolution is pending', async () => {
+    await assert.rejects(fetchPoster('https://poster.example/slow-dns.jpg', {
+      lookup: async () => new Promise(() => {}),
+      timeoutMs: 25,
+    }), /timed out/);
+  });
+
+  it('cancels while DNS resolution is pending', async () => {
+    const controller = new AbortController();
+    const request = fetchPoster('https://poster.example/cancelled.jpg', {
+      lookup: async () => new Promise(() => {}),
+      signal: controller.signal,
+      timeoutMs: 1000,
+    });
+    controller.abort();
+    await assert.rejects(request, /aborted/);
   });
 });

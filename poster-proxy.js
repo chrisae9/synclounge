@@ -81,13 +81,49 @@ function makePinnedLookup(addresses) {
 }
 
 async function fetchPoster(urlString, options = {}) {
-  const { url, addresses } = await resolvePosterTarget(urlString, options);
-  const transport = url.protocol === 'https:' ? https : http;
   const { signal, timeoutMs = 10000 } = options;
 
   if (signal?.aborted) {
     throw new PosterProxyError('Poster request was aborted');
   }
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new PosterProxyError('Poster timeout must be a positive number');
+  }
+
+  const startedAt = Date.now();
+  const {
+    promise: resolutionCancelled,
+    reject: rejectResolution,
+  } = Promise.withResolvers();
+  const resolutionDeadline = setTimeout(
+    () => rejectResolution(new PosterProxyError('Poster upstream timed out')),
+    timeoutMs,
+  );
+  const abortResolution = () => rejectResolution(new PosterProxyError('Poster request was aborted'));
+  signal?.addEventListener('abort', abortResolution, { once: true });
+
+  let target;
+  try {
+    target = await Promise.race([
+      resolvePosterTarget(urlString, options),
+      resolutionCancelled,
+    ]);
+  } finally {
+    clearTimeout(resolutionDeadline);
+    signal?.removeEventListener('abort', abortResolution);
+  }
+
+  if (signal?.aborted) {
+    throw new PosterProxyError('Poster request was aborted');
+  }
+
+  const remainingMs = timeoutMs - (Date.now() - startedAt);
+  if (remainingMs <= 0) {
+    throw new PosterProxyError('Poster upstream timed out');
+  }
+
+  const { url, addresses } = target;
+  const transport = url.protocol === 'https:' ? https : http;
 
   return new Promise((resolve, reject) => {
     let responseStream;
@@ -162,8 +198,8 @@ async function fetchPoster(urlString, options = {}) {
       response.on('error', fail);
     });
 
-    deadline = setTimeout(() => fail(new PosterProxyError('Poster upstream timed out')), timeoutMs);
-    request.setTimeout(timeoutMs, () => fail(new PosterProxyError('Poster upstream timed out')));
+    deadline = setTimeout(() => fail(new PosterProxyError('Poster upstream timed out')), remainingMs);
+    request.setTimeout(remainingMs, () => fail(new PosterProxyError('Poster upstream timed out')));
     request.on('error', fail);
     signal?.addEventListener('abort', abortRequest, { once: true });
   });

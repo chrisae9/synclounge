@@ -64,11 +64,26 @@ function injectOgTags(html, meta) {
 
 // --- In-memory rate limiter (sliding window, no external deps) ---
 // Limits configurable via env vars; set to 0 to disable (e.g. in tests)
-const METADATA_RATE_LIMIT = parseInt(process.env.SL_METADATA_RATE_LIMIT || '30', 10);
-const POSTER_RATE_LIMIT = parseInt(process.env.SL_POSTER_RATE_LIMIT || '60', 10);
+function parseRateLimit(name, defaultValue) {
+  const rawValue = process.env[name] ?? String(defaultValue);
+  if (!/^\d+$/.test(rawValue)) {
+    throw new TypeError(`${name} must be a non-negative integer`);
+  }
+  const parsedValue = Number(rawValue);
+  if (!Number.isSafeInteger(parsedValue)) {
+    throw new TypeError(`${name} must be a non-negative integer`);
+  }
+  return parsedValue;
+}
+
+const METADATA_RATE_LIMIT = parseRateLimit('SL_METADATA_RATE_LIMIT', 30);
+const POSTER_RATE_LIMIT = parseRateLimit('SL_POSTER_RATE_LIMIT', 60);
 
 function createRateLimiter(maxRequests, windowMs) {
-  if (maxRequests <= 0) return (req, res, next) => next();
+  if (!Number.isSafeInteger(maxRequests) || maxRequests < 0) {
+    throw new TypeError('Rate limit must be a non-negative integer');
+  }
+  if (maxRequests === 0) return (req, res, next) => next();
   const hits = new Map(); // ip -> [timestamp, ...]
   const maxBuckets = 10000;
   let nextPruneAt = Date.now() + windowMs;
@@ -85,7 +100,7 @@ function createRateLimiter(maxRequests, windowMs) {
   };
 
   return (req, res, next) => {
-    const ip = req.ip;
+    const { ip } = req;
     const now = Date.now();
     const cutoff = now - windowMs;
 
