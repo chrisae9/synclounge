@@ -14,6 +14,10 @@ import { createVuetify } from 'vuetify';
 import * as components from 'vuetify/components';
 import * as directives from 'vuetify/directives';
 
+vi.mock('vanilla-tilt', () => ({
+  default: { init: vi.fn() },
+}));
+
 // Load all .vue files as raw source for template auditing and source verification
 const vueFileSources = import.meta.glob('@/**/*.vue', { query: '?raw', import: 'default', eager: true });
 
@@ -495,9 +499,6 @@ describe('PlexThumbnail Component', () => {
   let PlexThumbnail;
 
   beforeEach(async () => {
-    vi.mock('vanilla-tilt', () => ({
-      default: { init: vi.fn() },
-    }));
     const mod = await import('@/components/PlexThumbnail.vue');
     PlexThumbnail = mod.default;
   });
