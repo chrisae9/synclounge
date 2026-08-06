@@ -9,6 +9,7 @@
     "config",
     "server.js",
     "poster-proxy.js",
+    "request-abort.js",
     "packages/syncloungeserver"
   ],
   "scripts": {

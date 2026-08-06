@@ -7,16 +7,43 @@ const express = require('express');
 const config = require('./config');
 const { createCache } = require('./cache');
 const { fetchPoster, PosterProxyError } = require('./poster-proxy');
+const { createDisconnectController } = require('./request-abort');
 
 const blockList = Object.keys(syncloungeServer.defaultConfig);
 const appConfig = config.get(null, blockList);
+const publicAppConfig = config.getPublic(appConfig);
+const socketConfig = syncloungeServer.getConfig();
 
-// Log config with sensitive values redacted
-const SENSITIVE_RE = /secret|password|token|key/i;
-const safeConfig = Object.fromEntries(
-  Object.entries(appConfig).map(([k, v]) => [k, SENSITIVE_RE.test(k) ? '[REDACTED]' : v]),
+function parsePublicOrigin(value) {
+  if (!value) return null;
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new TypeError('PUBLIC_ORIGIN must be an absolute HTTP(S) origin');
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)
+    || parsed.username
+    || parsed.password
+    || parsed.pathname !== '/'
+    || parsed.search
+    || parsed.hash) {
+    throw new TypeError('PUBLIC_ORIGIN must be an absolute HTTP(S) origin');
+  }
+
+  return parsed.origin;
+}
+
+const publicOrigin = parsePublicOrigin(socketConfig.public_origin);
+
+const posterPath = (machineIdentifier, ratingKey) => (
+  `/share/poster/${encodeURIComponent(machineIdentifier)}/${encodeURIComponent(ratingKey)}`
 );
-console.log(safeConfig);
+
+// Log exactly the browser-safe projection rather than deployment-only configuration.
+console.log(publicAppConfig);
 
 const { setMetadata, getMetadata } = createCache();
 
@@ -67,16 +94,59 @@ function injectOgTags(html, meta) {
 
 // --- In-memory rate limiter (sliding window, no external deps) ---
 // Limits configurable via env vars; set to 0 to disable (e.g. in tests)
-const METADATA_RATE_LIMIT = parseInt(process.env.SL_METADATA_RATE_LIMIT || '30', 10);
-const POSTER_RATE_LIMIT = parseInt(process.env.SL_POSTER_RATE_LIMIT || '60', 10);
+function parseRateLimit(name, defaultValue) {
+  const rawValue = process.env[name] ?? String(defaultValue);
+  if (!/^\d+$/.test(rawValue)) {
+    throw new TypeError(`${name} must be a non-negative integer`);
+  }
+  const parsedValue = Number(rawValue);
+  if (!Number.isSafeInteger(parsedValue)) {
+    throw new TypeError(`${name} must be a non-negative integer`);
+  }
+  return parsedValue;
+}
 
-function createRateLimiter(maxRequests, windowMs) {
-  if (maxRequests <= 0) return (req, res, next) => next();
+const METADATA_RATE_LIMIT = parseRateLimit('SL_METADATA_RATE_LIMIT', 30);
+const POSTER_RATE_LIMIT = parseRateLimit('SL_POSTER_RATE_LIMIT', 60);
+const RATE_LIMIT_MAX_BUCKETS = parseRateLimit('SL_RATE_LIMIT_MAX_BUCKETS', 10000);
+const RATE_LIMIT_WINDOW_MS = parseRateLimit('SL_RATE_LIMIT_WINDOW_MS', 60 * 1000);
+if (RATE_LIMIT_MAX_BUCKETS === 0 || RATE_LIMIT_WINDOW_MS === 0) {
+  throw new TypeError('Rate-limit bucket count and window must be positive integers');
+}
+
+function createRateLimiter(maxRequests, windowMs, maxBuckets) {
+  if (!Number.isSafeInteger(maxRequests) || maxRequests < 0) {
+    throw new TypeError('Rate limit must be a non-negative integer');
+  }
+  if (maxRequests === 0) return (req, res, next) => next();
   const hits = new Map(); // ip -> [timestamp, ...]
+  let nextPruneAt = Date.now() + windowMs;
+
+  const pruneExpiredBuckets = (cutoff) => {
+    for (const [ip, timestamps] of hits) {
+      const activeTimestamps = timestamps.filter((timestamp) => timestamp > cutoff);
+      if (activeTimestamps.length === 0) {
+        hits.delete(ip);
+      } else {
+        hits.set(ip, activeTimestamps);
+      }
+    }
+  };
+
   return (req, res, next) => {
-    const ip = req.ip;
+    const { ip } = req;
     const now = Date.now();
     const cutoff = now - windowMs;
+
+    if (now >= nextPruneAt) {
+      pruneExpiredBuckets(cutoff);
+      nextPruneAt = now + windowMs;
+    }
+
+    if (!hits.has(ip) && hits.size >= maxBuckets) {
+      return res.status(429).json({ error: 'Too many clients' });
+    }
+
     let timestamps = hits.get(ip);
     if (timestamps) {
       timestamps = timestamps.filter((t) => t > cutoff);
@@ -92,8 +162,16 @@ function createRateLimiter(maxRequests, windowMs) {
   };
 }
 
-const metadataLimiter = createRateLimiter(METADATA_RATE_LIMIT, 60 * 1000);
-const posterLimiter = createRateLimiter(POSTER_RATE_LIMIT, 60 * 1000);
+const metadataLimiter = createRateLimiter(
+  METADATA_RATE_LIMIT,
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_MAX_BUCKETS,
+);
+const posterLimiter = createRateLimiter(
+  POSTER_RATE_LIMIT,
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_MAX_BUCKETS,
+);
 
 // --- File extension check for SPA fallback ---
 const STATIC_EXT_RE = /\.\w{2,}$/;
@@ -101,7 +179,7 @@ const STATIC_EXT_RE = /\.\w{2,}$/;
 const preStaticInjection = (router) => {
   // Add route for config
   router.get('/config.json', (req, res) => {
-    res.json(appConfig);
+    res.json(publicAppConfig);
   });
 
   // --- POST /api/metadata: receive metadata from client ---
@@ -164,20 +242,29 @@ const preStaticInjection = (router) => {
       return res.status(404).send('Not found');
     }
 
+    const disconnect = createDisconnectController(req, res);
+
     try {
       const allowedPrivateOrigin = process.env.NODE_ENV === 'test'
         ? process.env.SL_POSTER_TEST_ORIGIN
         : undefined;
       const poster = await fetchPoster(meta.posterUrl, {
         allowedPrivateOrigin,
+        signal: disconnect.signal,
       });
+      if (disconnect.signal.aborted) return undefined;
+
       res.set('Content-Type', poster.contentType);
       res.set('Cache-Control', 'public, max-age=86400');
       return res.send(poster.body);
     } catch (e) {
+      if (disconnect.signal.aborted) return undefined;
+
       console.error('Poster proxy error:', e.message);
       const statusCode = e instanceof PosterProxyError ? e.statusCode : 502;
       return res.status(statusCode).send(statusCode === 403 ? 'Forbidden' : 'Failed to fetch poster');
+    } finally {
+      disconnect.cleanup();
     }
   });
 
@@ -213,11 +300,8 @@ const preStaticInjection = (router) => {
       const meta = getMetadata(key);
 
       if (meta) {
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers['x-forwarded-host'] || req.get('host');
-        const baseUrl = `${protocol}://${host}`;
-        const posterProxyUrl = meta.posterUrl
-          ? `${baseUrl}/share/poster/${machineIdentifier}/${ratingKey}`
+        const posterProxyUrl = meta.posterUrl && publicOrigin
+          ? `${publicOrigin}${posterPath(machineIdentifier, ratingKey)}`
           : null;
 
         const html = injectOgTags(indexHtml, { ...meta, posterProxyUrl });
@@ -233,11 +317,8 @@ const preStaticInjection = (router) => {
       const meta = getMetadata(`room\0${roomCode}`);
 
       if (meta) {
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers['x-forwarded-host'] || req.get('host');
-        const baseUrl = `${protocol}://${host}`;
-        const posterProxyUrl = meta.posterUrl
-          ? `${baseUrl}/share/poster/${meta.machineIdentifier}/${meta.ratingKey}`
+        const posterProxyUrl = meta.posterUrl && publicOrigin
+          ? `${publicOrigin}${posterPath(meta.machineIdentifier, meta.ratingKey)}`
           : null;
 
         const html = injectOgTags(indexHtml, { ...meta, posterProxyUrl });
@@ -260,7 +341,6 @@ const preStaticInjection = (router) => {
   });
 };
 
-const socketConfig = syncloungeServer.getConfig();
 syncloungeServer.socketServer({
   ...socketConfig,
   static_path: path.join(__dirname, 'dist'),

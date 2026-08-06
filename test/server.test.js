@@ -6,6 +6,10 @@ let baseUrl;
 let serverProcess;
 let posterFixtureServer;
 let posterFixtureBase;
+let slowPosterStarted;
+let resolveSlowPosterStarted;
+let slowPosterClosed;
+let resolveSlowPosterClosed;
 
 async function getFreePort() {
   const server = http.createServer();
@@ -39,6 +43,12 @@ async function waitForServer(url, retries = 30, delay = 200) {
 
 describe('server', () => {
   before(async () => {
+    slowPosterStarted = new Promise((resolve) => {
+      resolveSlowPosterStarted = resolve;
+    });
+    slowPosterClosed = new Promise((resolve) => {
+      resolveSlowPosterClosed = resolve;
+    });
     posterFixtureServer = http.createServer((req, res) => {
       if (req.url === '/image/jpeg') {
         res.writeHead(200, { 'Content-Type': 'image/jpeg' });
@@ -71,6 +81,13 @@ describe('server', () => {
         res.end();
         return;
       }
+      if (req.url === '/image/slow') {
+        resolveSlowPosterStarted();
+        res.once('close', resolveSlowPosterClosed);
+        res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+        res.write(Buffer.from([0xff, 0xd8]));
+        return;
+      }
       res.writeHead(500, { 'Content-Type': 'text/plain' });
       res.end('unexpected fixture path');
     });
@@ -87,10 +104,12 @@ describe('server', () => {
       env: {
         ...process.env,
         PORT: String(port),
+        TRUST_PROXY: 'false',
         SL_METADATA_RATE_LIMIT: '0',
         SL_POSTER_RATE_LIMIT: '0',
         NODE_ENV: 'test',
         SL_POSTER_TEST_ORIGIN: posterFixtureBase,
+        PUBLIC_ORIGIN: baseUrl,
       },
       stdio: 'pipe',
     });
@@ -305,6 +324,50 @@ describe('server', () => {
       assert.ok(!html.includes('example.com/poster.jpg'));
     });
 
+    it('ignores forwarded origin headers from an untrusted client', async () => {
+      const res = await request('/room/test/browse/server/og-machine/ratingKey/200', {
+        headers: {
+          'X-Forwarded-Host': 'attacker.example',
+          'X-Forwarded-Proto': 'https',
+        },
+      });
+      const html = await res.text();
+
+      assert.ok(html.includes(`${baseUrl}/share/poster/og-machine/200`));
+      assert.ok(!html.includes('attacker.example'));
+    });
+
+    it('ignores a malicious Host header when constructing poster URLs', async () => {
+      const res = await request('/room/test/browse/server/og-machine/ratingKey/200', {
+        headers: { Host: 'attacker.example' },
+      });
+      const html = await res.text();
+
+      assert.ok(html.includes(`${baseUrl}/share/poster/og-machine/200`));
+      assert.ok(!html.includes('attacker.example'));
+    });
+
+    it('percent-encodes reserved characters in poster URL segments', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Reserved identifiers',
+          posterUrl: 'https://example.com/reserved.jpg',
+          machineIdentifier: 'machine/with?#%',
+          ratingKey: 'rating/with?#%',
+          room: 'reserved-room',
+        },
+      });
+
+      const res = await request('/join/reserved-room');
+      const html = await res.text();
+
+      assert.ok(html.includes(
+        '/share/poster/machine%2Fwith%3F%23%25/rating%2Fwith%3F%23%25',
+      ));
+    });
+
     it('still includes the SPA shell (index.html) with OG tags', async () => {
       const res = await request('/room/test/browse/server/og-machine/ratingKey/200');
       const html = await res.text();
@@ -446,6 +509,17 @@ describe('server', () => {
           ratingKey: '400',
         },
       });
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Slow Proxy Test',
+          type: 'movie',
+          posterUrl: `${posterFixtureBase}/image/slow`,
+          machineIdentifier: 'proxy-machine',
+          ratingKey: 'slow',
+        },
+      });
     });
 
     it('proxies the poster image', async () => {
@@ -458,6 +532,18 @@ describe('server', () => {
     it('returns 404 for uncached poster', async () => {
       const res = await request('/share/poster/unknown/999');
       assert.equal(res.status, 404);
+    });
+
+    it('stays healthy when a client disconnects during poster fetching', async () => {
+      const clientRequest = http.get(`${baseUrl}/share/poster/proxy-machine/slow`);
+      clientRequest.on('error', () => {});
+
+      await slowPosterStarted;
+      clientRequest.destroy();
+      await slowPosterClosed;
+
+      const health = await request('/health');
+      assert.equal(health.status, 200);
     });
   });
 

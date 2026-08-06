@@ -11,13 +11,18 @@ import { getHealth } from './state';
 
 const socketServer = ({
   base_url: baseUrl, static_path: staticPath, port, ping_interval: pingInterval,
-  preStaticInjection,
+  preStaticInjection, trust_proxy: trustProxy,
 }) => {
   http.globalAgent.keepAlive = true;
 
   const app = express();
   const server = http.Server(app);
   const router = express.Router();
+
+  if (trustProxy === true) {
+    throw new Error('trust_proxy=true is unsafe; configure a hop count, subnet, or named range');
+  }
+  app.set('trust proxy', trustProxy);
 
   app.use(cors());
 

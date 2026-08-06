@@ -68,11 +68,18 @@ jobs:
 
       - name: Smoke test container
         run: |
-          container_id="$(docker run --detach --publish 127.0.0.1:18088:8088 synclounge:ci)"
+          container_id="$(docker run --detach \
+            --env PORT=18089 \
+            --publish 127.0.0.1:18089:18089 \
+            --health-interval=1s \
+            --health-start-period=0s \
+            synclounge:ci)"
           trap 'docker rm --force "$container_id" >/dev/null' EXIT
 
           for attempt in {1..15}; do
-            if curl --fail --silent http://127.0.0.1:18088/health | grep --quiet '"load"'; then
+            health_status="$(docker inspect --format '{{.State.Health.Status}}' "$container_id")"
+            if [ "$health_status" = "healthy" ] \
+              && curl --fail --silent http://127.0.0.1:18089/health | grep --quiet '"load"'; then
               exit 0
             fi
             sleep 2
