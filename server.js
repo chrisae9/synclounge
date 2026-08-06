@@ -78,14 +78,18 @@ function parseRateLimit(name, defaultValue) {
 
 const METADATA_RATE_LIMIT = parseRateLimit('SL_METADATA_RATE_LIMIT', 30);
 const POSTER_RATE_LIMIT = parseRateLimit('SL_POSTER_RATE_LIMIT', 60);
+const RATE_LIMIT_MAX_BUCKETS = parseRateLimit('SL_RATE_LIMIT_MAX_BUCKETS', 10000);
+const RATE_LIMIT_WINDOW_MS = parseRateLimit('SL_RATE_LIMIT_WINDOW_MS', 60 * 1000);
+if (RATE_LIMIT_MAX_BUCKETS === 0 || RATE_LIMIT_WINDOW_MS === 0) {
+  throw new TypeError('Rate-limit bucket count and window must be positive integers');
+}
 
-function createRateLimiter(maxRequests, windowMs) {
+function createRateLimiter(maxRequests, windowMs, maxBuckets) {
   if (!Number.isSafeInteger(maxRequests) || maxRequests < 0) {
     throw new TypeError('Rate limit must be a non-negative integer');
   }
   if (maxRequests === 0) return (req, res, next) => next();
   const hits = new Map(); // ip -> [timestamp, ...]
-  const maxBuckets = 10000;
   let nextPruneAt = Date.now() + windowMs;
 
   const pruneExpiredBuckets = (cutoff) => {
@@ -104,7 +108,7 @@ function createRateLimiter(maxRequests, windowMs) {
     const now = Date.now();
     const cutoff = now - windowMs;
 
-    if (now >= nextPruneAt || (!hits.has(ip) && hits.size >= maxBuckets)) {
+    if (now >= nextPruneAt) {
       pruneExpiredBuckets(cutoff);
       nextPruneAt = now + windowMs;
     }
@@ -128,8 +132,16 @@ function createRateLimiter(maxRequests, windowMs) {
   };
 }
 
-const metadataLimiter = createRateLimiter(METADATA_RATE_LIMIT, 60 * 1000);
-const posterLimiter = createRateLimiter(POSTER_RATE_LIMIT, 60 * 1000);
+const metadataLimiter = createRateLimiter(
+  METADATA_RATE_LIMIT,
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_MAX_BUCKETS,
+);
+const posterLimiter = createRateLimiter(
+  POSTER_RATE_LIMIT,
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_MAX_BUCKETS,
+);
 
 // --- File extension check for SPA fallback ---
 const STATIC_EXT_RE = /\.\w{2,}$/;

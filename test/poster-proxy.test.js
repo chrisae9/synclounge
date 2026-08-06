@@ -2,11 +2,23 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const {
+  MAX_PENDING_DNS_LOOKUPS,
+  MAX_POSTER_TIMEOUT_MS,
   fetchPoster,
   PosterProxyError,
   isPrivateAddress,
   resolvePosterTarget,
 } = require('../poster-proxy');
+
+const withWatchdog = async (promise, timeoutMs = 1000) => {
+  const { promise: watchdog, reject } = Promise.withResolvers();
+  const timer = setTimeout(() => reject(new Error('Test watchdog timed out')), timeoutMs);
+  try {
+    return await Promise.race([promise, watchdog]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 describe('poster proxy network validation', () => {
   it('classifies private and special-use IPv4 and IPv6 addresses', () => {
@@ -108,15 +120,7 @@ describe('poster proxy network validation', () => {
         lookup: async () => [{ address: '127.0.0.1', family: 4 }],
         allowedPrivateOrigin: origin,
       }), /returned 404/);
-      await Promise.race([
-        closed,
-        new Promise((resolve, reject) => {
-          setTimeout(
-            () => reject(new Error('upstream response was not closed')),
-            500,
-          );
-        }),
-      ]);
+      await withWatchdog(closed, 500);
     } finally {
       await new Promise((resolve) => {
         fixture.close(resolve);
@@ -149,20 +153,70 @@ describe('poster proxy network validation', () => {
   });
 
   it('enforces the total deadline while DNS resolution is pending', async () => {
-    await assert.rejects(fetchPoster('https://poster.example/slow-dns.jpg', {
-      lookup: async () => new Promise(() => {}),
-      timeoutMs: 25,
-    }), /timed out/);
+    let finishLookup;
+    const lookup = () => new Promise((resolve) => {
+      finishLookup = resolve;
+    });
+    try {
+      await withWatchdog(assert.rejects(fetchPoster('https://poster.example/slow-dns.jpg', {
+        lookup,
+        timeoutMs: 25,
+      }), /timed out/));
+    } finally {
+      finishLookup?.([{ address: '1.1.1.1', family: 4 }]);
+      await Promise.resolve();
+    }
   });
 
   it('cancels while DNS resolution is pending', async () => {
+    let finishLookup;
+    const lookup = () => new Promise((resolve) => {
+      finishLookup = resolve;
+    });
     const controller = new AbortController();
     const request = fetchPoster('https://poster.example/cancelled.jpg', {
-      lookup: async () => new Promise(() => {}),
+      lookup,
       signal: controller.signal,
       timeoutMs: 1000,
     });
-    controller.abort();
-    await assert.rejects(request, /aborted/);
+    try {
+      controller.abort();
+      await withWatchdog(assert.rejects(request, /aborted/));
+    } finally {
+      finishLookup?.([{ address: '1.1.1.1', family: 4 }]);
+      await Promise.resolve();
+    }
+  });
+
+  it('rejects timeout values that exceed the Node timer range', async () => {
+    await assert.rejects(fetchPoster('https://poster.example/image.jpg', {
+      timeoutMs: MAX_POSTER_TIMEOUT_MS + 1,
+    }), /must be between/);
+  });
+
+  it('bounds unresolved DNS lookups', async () => {
+    const controllers = Array.from(
+      { length: MAX_PENDING_DNS_LOOKUPS },
+      () => new AbortController(),
+    );
+    const lookupResolvers = [];
+    const lookup = () => new Promise((resolve) => {
+      lookupResolvers.push(resolve);
+    });
+    const requests = controllers.map(({ signal }) => fetchPoster(
+      'https://poster.example/pending.jpg',
+      { lookup, signal, timeoutMs: 1000 },
+    ).catch((error) => error));
+
+    try {
+      await assert.rejects(fetchPoster('https://poster.example/over-capacity.jpg', {
+        lookup,
+        timeoutMs: 1000,
+      }), /resolver is busy/);
+    } finally {
+      controllers.forEach((controller) => controller.abort());
+      lookupResolvers.forEach((resolve) => resolve([{ address: '1.1.1.1', family: 4 }]));
+      await Promise.all(requests);
+    }
   });
 });

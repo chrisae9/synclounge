@@ -4,6 +4,9 @@ const https = require('node:https');
 const ipaddr = require('ipaddr.js');
 
 const MAX_POSTER_BYTES = 5 * 1024 * 1024;
+const MAX_POSTER_TIMEOUT_MS = 2_147_483_647;
+const MAX_PENDING_DNS_LOOKUPS = 32;
+let pendingDnsLookups = 0;
 const ALLOWED_CONTENT_TYPES = new Set([
   'image/avif',
   'image/gif',
@@ -47,7 +50,17 @@ async function resolvePosterTarget(urlString, {
   }
 
   const hostname = url.hostname.replace(/^\[|\]$/g, '');
-  const records = await lookup(hostname, { all: true, verbatim: true });
+  if (pendingDnsLookups >= MAX_PENDING_DNS_LOOKUPS) {
+    throw new PosterProxyError('Poster DNS resolver is busy', 503);
+  }
+
+  let records;
+  pendingDnsLookups += 1;
+  try {
+    records = await lookup(hostname, { all: true, verbatim: true });
+  } finally {
+    pendingDnsLookups -= 1;
+  }
   if (!Array.isArray(records) || records.length === 0) {
     throw new PosterProxyError('Poster host did not resolve');
   }
@@ -86,8 +99,8 @@ async function fetchPoster(urlString, options = {}) {
   if (signal?.aborted) {
     throw new PosterProxyError('Poster request was aborted');
   }
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    throw new PosterProxyError('Poster timeout must be a positive number');
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_POSTER_TIMEOUT_MS) {
+    throw new PosterProxyError(`Poster timeout must be between 1 and ${MAX_POSTER_TIMEOUT_MS}`);
   }
 
   const startedAt = Date.now();
@@ -206,7 +219,9 @@ async function fetchPoster(urlString, options = {}) {
 }
 
 module.exports = {
+  MAX_PENDING_DNS_LOOKUPS,
   MAX_POSTER_BYTES,
+  MAX_POSTER_TIMEOUT_MS,
   PosterProxyError,
   fetchPoster,
   isPrivateAddress,
