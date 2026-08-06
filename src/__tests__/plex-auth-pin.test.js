@@ -19,6 +19,8 @@ describe('saved Plex auth PIN parsing', () => {
     expect(parseSavedPlexAuthPin('{not-json')).toBeNull();
     expect(parseSavedPlexAuthPin('{"redirect":"/room/test"}')).toBeNull();
     expect(parseSavedPlexAuthPin('{"id":0}')).toBeNull();
+    expect(parseSavedPlexAuthPin('{"id":"../../users"}')).toBeNull();
+    expect(parseSavedPlexAuthPin('{"id":"9007199254740992"}')).toBeNull();
     expect(parseSavedPlexAuthPin('null')).toBeNull();
   });
 });

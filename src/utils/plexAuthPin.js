@@ -1,7 +1,8 @@
-const isValidPinId = (id) => (
-  (typeof id === 'string' && id.length > 0)
-  || (Number.isSafeInteger(id) && id > 0)
-);
+const isValidPinId = (id) => {
+  if (Number.isSafeInteger(id)) return id > 0;
+  if (typeof id !== 'string' || !/^[1-9]\d*$/.test(id)) return false;
+  return Number.isSafeInteger(Number(id));
+};
 
 const parseSavedPlexAuthPin = (serializedPin) => {
   try {
