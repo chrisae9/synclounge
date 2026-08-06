@@ -1,4 +1,6 @@
-const { describe, it, before, after } = require('node:test');
+const {
+  describe, it, before, after,
+} = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const { io } = require('socket.io-client');
@@ -10,11 +12,12 @@ const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 function waitForSocketEvent(socket, eventName, timeoutMs = 2000) {
   return new Promise((resolve, reject) => {
+    let onEvent;
     const timeout = setTimeout(() => {
       socket.off(eventName, onEvent);
       reject(new Error(`Timed out waiting for ${eventName}`));
     }, timeoutMs);
-    const onEvent = (data) => {
+    onEvent = (data) => {
       clearTimeout(timeout);
       resolve(data);
     };
@@ -23,11 +26,14 @@ function waitForSocketEvent(socket, eventName, timeoutMs = 2000) {
 }
 
 async function waitForServer(url, retries = 30, delay = 200) {
-  for (let i = 0; i < retries; i++) {
+  for (let i = 0; i < retries; i += 1) {
     try {
+      // Sequential polling is intentional: each request observes a later server state.
+      // eslint-disable-next-line no-await-in-loop
       await fetch(url);
       return;
     } catch {
+      // eslint-disable-next-line no-await-in-loop
       await wait(delay);
     }
   }
@@ -76,7 +82,7 @@ function joinClient({ roomId, username }) {
 describe('kick socket event', () => {
   before(async () => {
     serverProcess = spawn('node', ['server.js'], {
-      cwd: __dirname + '/..',
+      cwd: `${__dirname}/..`,
       env: {
         ...process.env,
         PORT: '18089',

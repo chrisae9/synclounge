@@ -74,7 +74,7 @@ describe('cache', () => {
       const { setMetadata, getMetadata, metadataCache } = createCache();
 
       // Fill cache to max
-      for (let i = 0; i < METADATA_MAX_SIZE; i++) {
+      for (let i = 0; i < METADATA_MAX_SIZE; i += 1) {
         setMetadata(`key${i}`, { title: `Entry ${i}` });
       }
       assert.equal(metadataCache.size, METADATA_MAX_SIZE);
@@ -90,7 +90,7 @@ describe('cache', () => {
     it('does not evict when updating an existing key', () => {
       const { setMetadata, getMetadata, metadataCache } = createCache();
 
-      for (let i = 0; i < METADATA_MAX_SIZE; i++) {
+      for (let i = 0; i < METADATA_MAX_SIZE; i += 1) {
         setMetadata(`key${i}`, { title: `Entry ${i}` });
       }
 

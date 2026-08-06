@@ -1,5 +1,8 @@
-const { describe, it, before, after } = require('node:test');
+const {
+  describe, it, before, after,
+} = require('node:test');
 const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
 const http = require('node:http');
 
 let baseUrl;
@@ -13,9 +16,13 @@ let resolveSlowPosterClosed;
 
 async function getFreePort() {
   const server = http.createServer();
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
   const { port } = server.address();
-  await new Promise((resolve) => server.close(resolve));
+  await new Promise((resolve) => {
+    server.close(resolve);
+  });
   return port;
 }
 
@@ -38,12 +45,17 @@ function metadataBodyWithExactSize(size) {
 }
 
 async function waitForServer(url, retries = 30, delay = 200) {
-  for (let i = 0; i < retries; i++) {
+  for (let i = 0; i < retries; i += 1) {
     try {
+      // Sequential polling is intentional: each request observes a later server state.
+      // eslint-disable-next-line no-await-in-loop
       await fetch(url);
       return;
     } catch {
-      await new Promise((r) => setTimeout(r, delay));
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => {
+        setTimeout(resolve, delay);
+      });
     }
   }
   throw new Error('Server did not start in time');
@@ -104,11 +116,10 @@ describe('server', () => {
     });
     posterFixtureBase = `http://127.0.0.1:${posterFixtureServer.address().port}`;
 
-    const { spawn } = require('node:child_process');
     const port = await getFreePort();
     baseUrl = `http://127.0.0.1:${port}`;
     serverProcess = spawn('node', ['server.js'], {
-      cwd: __dirname + '/..',
+      cwd: `${__dirname}/..`,
       env: {
         ...process.env,
         PORT: String(port),
