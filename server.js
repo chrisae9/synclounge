@@ -38,6 +38,10 @@ function parsePublicOrigin(value) {
 
 const publicOrigin = parsePublicOrigin(socketConfig.public_origin);
 
+const posterPath = (machineIdentifier, ratingKey) => (
+  `/share/poster/${encodeURIComponent(machineIdentifier)}/${encodeURIComponent(ratingKey)}`
+);
+
 // Log exactly the browser-safe projection rather than deployment-only configuration.
 console.log(publicAppConfig);
 
@@ -248,10 +252,14 @@ const preStaticInjection = (router) => {
         allowedPrivateOrigin,
         signal: disconnect.signal,
       });
+      if (disconnect.signal.aborted) return undefined;
+
       res.set('Content-Type', poster.contentType);
       res.set('Cache-Control', 'public, max-age=86400');
       return res.send(poster.body);
     } catch (e) {
+      if (disconnect.signal.aborted) return undefined;
+
       console.error('Poster proxy error:', e.message);
       const statusCode = e instanceof PosterProxyError ? e.statusCode : 502;
       return res.status(statusCode).send(statusCode === 403 ? 'Forbidden' : 'Failed to fetch poster');
@@ -293,7 +301,7 @@ const preStaticInjection = (router) => {
 
       if (meta) {
         const posterProxyUrl = meta.posterUrl && publicOrigin
-          ? `${publicOrigin}/share/poster/${machineIdentifier}/${ratingKey}`
+          ? `${publicOrigin}${posterPath(machineIdentifier, ratingKey)}`
           : null;
 
         const html = injectOgTags(indexHtml, { ...meta, posterProxyUrl });
@@ -310,7 +318,7 @@ const preStaticInjection = (router) => {
 
       if (meta) {
         const posterProxyUrl = meta.posterUrl && publicOrigin
-          ? `${publicOrigin}/share/poster/${meta.machineIdentifier}/${meta.ratingKey}`
+          ? `${publicOrigin}${posterPath(meta.machineIdentifier, meta.ratingKey)}`
           : null;
 
         const html = injectOgTags(indexHtml, { ...meta, posterProxyUrl });

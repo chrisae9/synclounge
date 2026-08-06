@@ -84,8 +84,10 @@ SERVERS='[{"name":"My Server","location":"Mothership","url":"https://myserver.co
 Only documented browser configuration is returned from `/config.json`; arbitrary keys in a
 configuration file remain server-side. `TRUST_PROXY` controls which reverse proxies may supply
 client addresses. It defaults to `loopback`, matching the Nginx example below. For a proxy on a
-private container network, set it to an explicit hop count or trusted CIDR/named range such as
-`uniquelocal`. Do not use `TRUST_PROXY=true`. Set `PUBLIC_ORIGIN` to the externally reachable
+private container network, prefer an explicit hop count or the proxy's exact CIDR. A named range
+such as `uniquelocal` is safe only when the application is directly reachable by that reverse
+proxy; other clients on the trusted network could otherwise spoof `X-Forwarded-For` and bypass
+per-IP limits. Do not use `TRUST_PROXY=true`. Set `PUBLIC_ORIGIN` to the externally reachable
 HTTP(S) origin (for example, `https://synclounge.example.com`) to enable absolute poster URLs in
 Open Graph previews. Incoming `Host` headers are never used to construct those URLs.
 

@@ -21,18 +21,29 @@ describe('request disconnect cancellation', () => {
     assert.equal(res.listenerCount('close'), 0);
   });
 
-  it('aborts future upstream work and removes both listeners during cleanup', () => {
+  it('aborts future upstream work when the request is aborted', () => {
     const req = createStream({ aborted: false, destroyed: false });
     const res = createStream({ destroyed: false, writableEnded: false });
 
     const disconnect = createDisconnectController(req, res);
     assert.equal(disconnect.signal.aborted, false);
 
-    res.emit('close');
+    req.emit('aborted');
     assert.equal(disconnect.signal.aborted, true);
 
     disconnect.cleanup();
     assert.equal(req.listenerCount('aborted'), 0);
     assert.equal(res.listenerCount('close'), 0);
+  });
+
+  it('aborts future upstream work when the response closes', () => {
+    const req = createStream({ aborted: false, destroyed: false });
+    const res = createStream({ destroyed: false, writableEnded: false });
+
+    const disconnect = createDisconnectController(req, res);
+    res.emit('close');
+
+    assert.equal(disconnect.signal.aborted, true);
+    disconnect.cleanup();
   });
 });
