@@ -92,6 +92,7 @@ describe('server', () => {
         SL_POSTER_RATE_LIMIT: '0',
         NODE_ENV: 'test',
         SL_POSTER_TEST_ORIGIN: posterFixtureBase,
+        PUBLIC_ORIGIN: baseUrl,
       },
       stdio: 'pipe',
     });
@@ -312,6 +313,16 @@ describe('server', () => {
           'X-Forwarded-Host': 'attacker.example',
           'X-Forwarded-Proto': 'https',
         },
+      });
+      const html = await res.text();
+
+      assert.ok(html.includes(`${baseUrl}/share/poster/og-machine/200`));
+      assert.ok(!html.includes('attacker.example'));
+    });
+
+    it('ignores a malicious Host header when constructing poster URLs', async () => {
+      const res = await request('/room/test/browse/server/og-machine/ratingKey/200', {
+        headers: { Host: 'attacker.example' },
       });
       const html = await res.text();
 

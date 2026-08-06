@@ -85,7 +85,9 @@ Only documented browser configuration is returned from `/config.json`; arbitrary
 configuration file remain server-side. `TRUST_PROXY` controls which reverse proxies may supply
 client addresses. It defaults to `loopback`, matching the Nginx example below. For a proxy on a
 private container network, set it to an explicit hop count or trusted CIDR/named range such as
-`uniquelocal`. Do not use `TRUST_PROXY=true`.
+`uniquelocal`. Do not use `TRUST_PROXY=true`. Set `PUBLIC_ORIGIN` to the externally reachable
+HTTP(S) origin (for example, `https://synclounge.example.com`) to enable absolute poster URLs in
+Open Graph previews. Incoming `Host` headers are never used to construct those URLs.
 
 ## Reverse Proxy (Nginx)
 

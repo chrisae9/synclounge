@@ -96,6 +96,16 @@ describe('public configuration projection', () => {
     });
   });
 
+  it('validates socket event timeout boundaries', () => {
+    const fallbackForZero = getPublic({ socket_event_timeout: 0 });
+    const fallbackAboveMaximum = getPublic({ socket_event_timeout: 2_147_483_648 });
+    const maximum = getPublic({ socket_event_timeout: 2_147_483_647 });
+
+    assert.equal(fallbackForZero.socket_event_timeout, 15000);
+    assert.equal(fallbackAboveMaximum.socket_event_timeout, 15000);
+    assert.equal(maximum.socket_event_timeout, 2_147_483_647);
+  });
+
   it('filters nested secrets from the static build artifact', async () => {
     const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'synclounge-config-'));
     const outputFile = path.join(temporaryDirectory, 'config.json');

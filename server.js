@@ -7,10 +7,36 @@ const express = require('express');
 const config = require('./config');
 const { createCache } = require('./cache');
 const { fetchPoster, PosterProxyError } = require('./poster-proxy');
+const { createDisconnectController } = require('./request-abort');
 
 const blockList = Object.keys(syncloungeServer.defaultConfig);
 const appConfig = config.get(null, blockList);
 const publicAppConfig = config.getPublic(appConfig);
+const socketConfig = syncloungeServer.getConfig();
+
+function parsePublicOrigin(value) {
+  if (!value) return null;
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new TypeError('PUBLIC_ORIGIN must be an absolute HTTP(S) origin');
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)
+    || parsed.username
+    || parsed.password
+    || parsed.pathname !== '/'
+    || parsed.search
+    || parsed.hash) {
+    throw new TypeError('PUBLIC_ORIGIN must be an absolute HTTP(S) origin');
+  }
+
+  return parsed.origin;
+}
+
+const publicOrigin = parsePublicOrigin(socketConfig.public_origin);
 
 // Log exactly the browser-safe projection rather than deployment-only configuration.
 console.log(publicAppConfig);
@@ -212,10 +238,7 @@ const preStaticInjection = (router) => {
       return res.status(404).send('Not found');
     }
 
-    const controller = new AbortController();
-    const abortUpstream = () => controller.abort();
-    req.once('aborted', abortUpstream);
-    res.once('close', abortUpstream);
+    const disconnect = createDisconnectController(req, res);
 
     try {
       const allowedPrivateOrigin = process.env.NODE_ENV === 'test'
@@ -223,7 +246,7 @@ const preStaticInjection = (router) => {
         : undefined;
       const poster = await fetchPoster(meta.posterUrl, {
         allowedPrivateOrigin,
-        signal: controller.signal,
+        signal: disconnect.signal,
       });
       res.set('Content-Type', poster.contentType);
       res.set('Cache-Control', 'public, max-age=86400');
@@ -233,8 +256,7 @@ const preStaticInjection = (router) => {
       const statusCode = e instanceof PosterProxyError ? e.statusCode : 502;
       return res.status(statusCode).send(statusCode === 403 ? 'Forbidden' : 'Failed to fetch poster');
     } finally {
-      req.removeListener('aborted', abortUpstream);
-      res.removeListener('close', abortUpstream);
+      disconnect.cleanup();
     }
   });
 
@@ -270,11 +292,8 @@ const preStaticInjection = (router) => {
       const meta = getMetadata(key);
 
       if (meta) {
-        const { protocol } = req;
-        const host = req.get('host');
-        const baseUrl = `${protocol}://${host}`;
-        const posterProxyUrl = meta.posterUrl
-          ? `${baseUrl}/share/poster/${machineIdentifier}/${ratingKey}`
+        const posterProxyUrl = meta.posterUrl && publicOrigin
+          ? `${publicOrigin}/share/poster/${machineIdentifier}/${ratingKey}`
           : null;
 
         const html = injectOgTags(indexHtml, { ...meta, posterProxyUrl });
@@ -290,11 +309,8 @@ const preStaticInjection = (router) => {
       const meta = getMetadata(`room\0${roomCode}`);
 
       if (meta) {
-        const { protocol } = req;
-        const host = req.get('host');
-        const baseUrl = `${protocol}://${host}`;
-        const posterProxyUrl = meta.posterUrl
-          ? `${baseUrl}/share/poster/${meta.machineIdentifier}/${meta.ratingKey}`
+        const posterProxyUrl = meta.posterUrl && publicOrigin
+          ? `${publicOrigin}/share/poster/${meta.machineIdentifier}/${meta.ratingKey}`
           : null;
 
         const html = injectOgTags(indexHtml, { ...meta, posterProxyUrl });
@@ -317,7 +333,6 @@ const preStaticInjection = (router) => {
   });
 };
 
-const socketConfig = syncloungeServer.getConfig();
 syncloungeServer.socketServer({
   ...socketConfig,
   static_path: path.join(__dirname, 'dist'),
