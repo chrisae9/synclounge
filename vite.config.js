@@ -23,25 +23,6 @@ function patchLibjassPlugin() {
   };
 }
 
-// Shaka Player's onMouseMove_ handler doesn't check if the cursor actually moved.
-// When controls hide, DOM layout changes fire synthetic mousemove events (same coords),
-// which Shaka interprets as real interaction and re-shows controls (infinite loop).
-// Patch onMouseMove_ to track screen coordinates and ignore zero-movement events.
-function patchShakaControlsPlugin() {
-  return {
-    name: 'patch-shaka-controls',
-    transform(code, id) {
-      if (id.includes('shaka-player')) {
-        return code.replace(
-          '.onMouseMove_=function(a){a.type=="mousemove"',
-          '.onMouseMove_=function(a){if(a.type=="mousemove"){if(this._slX===a.screenX&&this._slY===a.screenY)return;this._slX=a.screenX;this._slY=a.screenY}a.type=="mousemove"',
-        );
-      }
-      return undefined;
-    },
-  };
-}
-
 export function generateConfigPlugin({
   configModule = require('./config'),
   configFile = 'public/config.json',
@@ -63,7 +44,6 @@ const pkg = require('./package.json');
 export default defineConfig({
   plugins: [
     patchLibjassPlugin(),
-    patchShakaControlsPlugin(),
     generateConfigPlugin(),
     vue({
       template: {
