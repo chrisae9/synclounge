@@ -5,6 +5,7 @@ const defaults = require('./defaults');
 
 const PUBLIC_AUTHENTICATION_KEYS = ['mechanism', 'type', 'authorized'];
 const PUBLIC_AUTOJOIN_KEYS = ['server', 'room'];
+const PUBLIC_SERVER_KEYS = ['name', 'location', 'url', 'image'];
 
 const omit = (keys, obj) => keys.reduce((a, e) => {
   const { [e]: no, ...rest } = a;
@@ -59,26 +60,57 @@ const pickDefined = (value, keys) => Object.fromEntries(
   keys.filter((key) => value?.[key] !== undefined).map((key) => [key, value[key]]),
 );
 
+const isSafeScalar = (value, defaultValue) => (
+  typeof value === typeof defaultValue
+  && (typeof value !== 'number' || Number.isFinite(value))
+);
+
+const projectServer = (server) => Object.fromEntries(
+  PUBLIC_SERVER_KEYS
+    .filter((key) => typeof server?.[key] === 'string')
+    .map((key) => [key, server[key]]),
+);
+
+const stringArray = (value) => (Array.isArray(value)
+  && value.every((entry) => typeof entry === 'string') ? [...value] : []);
+
 // Return only configuration consumed by the browser. Config files can contain arbitrary
 // deployment-only values, so serving the raw nconf object would expose nested secrets.
 const getPublic = (config) => {
   const publicConfig = Object.fromEntries(
-    Object.keys(defaults)
-      .filter((key) => key !== 'authentication' && config[key] !== undefined)
-      .map((key) => [key, config[key]]),
+    Object.entries(defaults)
+      .filter(([key]) => key !== 'authentication' && key !== 'servers')
+      .map(([key, defaultValue]) => [
+        key,
+        isSafeScalar(config[key], defaultValue) ? config[key] : defaultValue,
+      ]),
   );
 
+  const configuredServers = Array.isArray(config.servers) ? config.servers : defaults.servers;
+  publicConfig.servers = configuredServers
+    .filter((server) => server && typeof server === 'object' && !Array.isArray(server))
+    .map(projectServer);
+
   const authentication = pickDefined(config.authentication, PUBLIC_AUTHENTICATION_KEYS);
-  if (Object.keys(authentication).length > 0) {
-    publicConfig.authentication = authentication;
-  }
+  publicConfig.authentication = {
+    mechanism: typeof authentication.mechanism === 'string'
+      ? authentication.mechanism
+      : defaults.authentication.mechanism,
+    ...(authentication.type !== undefined && { type: stringArray(authentication.type) }),
+    ...(authentication.authorized !== undefined && {
+      authorized: stringArray(authentication.authorized),
+    }),
+  };
 
   const autojoin = pickDefined(config.autojoin, PUBLIC_AUTOJOIN_KEYS);
-  if (Object.keys(autojoin).length > 0) {
-    publicConfig.autojoin = autojoin;
+  const safeAutojoin = Object.fromEntries(
+    Object.entries(autojoin).filter(([, value]) => typeof value === 'string'),
+  );
+  if (Object.keys(safeAutojoin).length > 0) {
+    publicConfig.autojoin = safeAutojoin;
   }
 
-  if (config.default_slplayer_quality !== undefined) {
+  if (Number.isFinite(config.default_slplayer_quality)) {
     publicConfig.default_slplayer_quality = config.default_slplayer_quality;
   }
 

@@ -62,7 +62,7 @@ async function stopServer(processToStop) {
   clearTimeout(forceKill);
 }
 
-async function startRateLimitServer() {
+async function startRateLimitServer(envOverrides = {}) {
   let lastError;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // A child process cannot atomically inherit this TCP reservation, so retry EADDRINUSE races.
@@ -80,6 +80,7 @@ async function startRateLimitServer() {
         SL_POSTER_RATE_LIMIT: '0',
         SL_RATE_LIMIT_MAX_BUCKETS: '4',
         SL_RATE_LIMIT_WINDOW_MS: '500',
+        ...envOverrides,
       },
       stdio: 'pipe',
     });
@@ -102,7 +103,7 @@ async function startRateLimitServer() {
   throw lastError;
 }
 
-const postMetadata = (forwardedFor) => fetch(`${baseUrl}/api/metadata`, {
+const postMetadataTo = (url, forwardedFor) => fetch(`${url}/api/metadata`, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -113,6 +114,7 @@ const postMetadata = (forwardedFor) => fetch(`${baseUrl}/api/metadata`, {
     ratingKey: 'rating',
   }),
 });
+const postMetadata = (forwardedFor) => postMetadataTo(baseUrl, forwardedFor);
 
 describe('reverse proxy rate limiting', () => {
   before(async () => {
@@ -133,16 +135,21 @@ describe('reverse proxy rate limiting', () => {
   });
 
   it('bounds client buckets and reuses capacity after the window expires', async () => {
-    assert.equal((await postMetadata('198.51.100.30')).status, 200);
-    assert.equal((await postMetadata('198.51.100.40')).status, 200);
-    const atCapacity = await postMetadata('198.51.100.50');
-    assert.equal(atCapacity.status, 429);
-    assert.deepEqual(await atCapacity.json(), { error: 'Too many clients' });
+    const isolated = await startRateLimitServer({ SL_RATE_LIMIT_MAX_BUCKETS: '2' });
+    try {
+      assert.equal((await postMetadataTo(isolated.url, '198.51.100.30')).status, 200);
+      assert.equal((await postMetadataTo(isolated.url, '198.51.100.40')).status, 200);
+      const atCapacity = await postMetadataTo(isolated.url, '198.51.100.50');
+      assert.equal(atCapacity.status, 429);
+      assert.deepEqual(await atCapacity.json(), { error: 'Too many clients' });
 
-    await new Promise((resolve) => {
-      setTimeout(resolve, 550);
-    });
-    assert.equal((await postMetadata('198.51.100.50')).status, 200);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 550);
+      });
+      assert.equal((await postMetadataTo(isolated.url, '198.51.100.50')).status, 200);
+    } finally {
+      await stopServer(isolated.child);
+    }
   });
 
   it('rejects invalid rate-limit configuration at startup', async (t) => {
