@@ -80,4 +80,27 @@ describe('createPersistedState', () => {
     expect(store.replaceState).not.toHaveBeenCalled();
     expect(store.subscribe).toHaveBeenCalledOnce();
   });
+
+  it('keeps mutations working when browser storage rejects writes', () => {
+    let subscriber;
+    const store = {
+      state: { settings: { theme: 'light' } },
+      replaceState: vi.fn(),
+      subscribe: vi.fn((callback) => {
+        subscriber = callback;
+      }),
+    };
+
+    createPersistedState({
+      paths: ['settings'],
+      storage: {
+        getItem: vi.fn(() => null),
+        setItem: vi.fn(() => {
+          throw new Error('storage quota exceeded');
+        }),
+      },
+    })(store);
+
+    expect(() => subscriber({}, store.state)).not.toThrow();
+  });
 });

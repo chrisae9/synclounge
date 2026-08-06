@@ -70,6 +70,14 @@ const readStoredState = (storage, key) => {
   }
 };
 
+const writeStoredState = (storage, key, value) => {
+  try {
+    storage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Persistence is best-effort: storage may be unavailable or over quota.
+  }
+};
+
 const createPersistedState = ({
   key = 'vuex',
   paths = [],
@@ -101,7 +109,7 @@ const createPersistedState = ({
         writePath(stateToPersist, path, selected.value);
       }
     });
-    storage.setItem(key, JSON.stringify(stateToPersist));
+    writeStoredState(storage, key, stateToPersist);
   });
 };
 
