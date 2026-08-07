@@ -103,4 +103,23 @@ describe('createPersistedState', () => {
 
     expect(() => subscriber({}, store.state)).not.toThrow();
   });
+
+  it('disables persistence when acquiring browser storage throws', () => {
+    const storageSpy = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new DOMException('Storage is disabled', 'SecurityError');
+    });
+    const store = {
+      state: { settings: { theme: 'light' } },
+      replaceState: vi.fn(),
+      subscribe: vi.fn(),
+    };
+
+    try {
+      expect(() => createPersistedState({ paths: ['settings'] })(store)).not.toThrow();
+      expect(store.replaceState).not.toHaveBeenCalled();
+      expect(store.subscribe).not.toHaveBeenCalled();
+    } finally {
+      storageSpy.mockRestore();
+    }
+  });
 });

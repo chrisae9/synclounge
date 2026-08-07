@@ -78,12 +78,23 @@ const writeStoredState = (storage, key, value) => {
   }
 };
 
+const getDefaultStorage = () => {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+};
+
 const createPersistedState = ({
   key = 'vuex',
   paths = [],
-  storage = window.localStorage,
+  storage,
 } = {}) => (store) => {
-  const storedState = readStoredState(storage, key);
+  const resolvedStorage = storage ?? getDefaultStorage();
+  if (!resolvedStorage) return;
+
+  const storedState = readStoredState(resolvedStorage, key);
 
   if (storedState && typeof storedState === 'object') {
     const restoredState = { ...store.state };
@@ -109,7 +120,7 @@ const createPersistedState = ({
         writePath(stateToPersist, path, selected.value);
       }
     });
-    writeStoredState(storage, key, stateToPersist);
+    writeStoredState(resolvedStorage, key, stateToPersist);
   });
 };
 
