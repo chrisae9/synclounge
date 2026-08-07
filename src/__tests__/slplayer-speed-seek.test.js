@@ -1,14 +1,8 @@
 import {
-  describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll,
+  describe, it, expect, vi, beforeEach, afterEach,
 } from 'vitest';
 import { CAF } from 'caf';
 import slplayerActions from '@/store/modules/slplayer/actions';
-
-// CAF's generator abort leaves orphaned CAF.delay rejections that are briefly unhandled
-// before being caught by CAF's internals. Suppress these expected rejections.
-const suppressRejection = () => {};
-beforeAll(() => { process.on('unhandledRejection', suppressRejection); });
-afterAll(() => { process.removeListener('unhandledRejection', suppressRejection); });
 
 vi.mock('@/player', () => ({
   setPlaybackRate: vi.fn(),
@@ -348,6 +342,7 @@ describe('SPEED_SEEK', () => {
       { dispatch, rootGetters },
       { cancelSignal: cancelToken.signal, seekToMs: 100000 },
     );
+    const rejection = expect(promise).rejects.toThrow();
 
     // Flush microtasks so the generator starts and setPlaybackRate(rate) runs
     await vi.advanceTimersByTimeAsync(100);
@@ -358,7 +353,7 @@ describe('SPEED_SEEK', () => {
     // Flush so the abort propagates through CAF
     await vi.advanceTimersByTimeAsync(0);
 
-    await expect(promise).rejects.toThrow();
+    await rejection;
 
     // Rate must still be reset to 1 in the finally block
     expect(setPlaybackRate).toHaveBeenLastCalledWith(1);
@@ -381,6 +376,7 @@ describe('SPEED_SEEK', () => {
       { dispatch, rootGetters },
       { cancelSignal: cancelToken.signal, seekToMs: 1000 },
     );
+    const rejection = expect(promise).rejects.toThrow();
 
     // Let generator start
     await vi.advanceTimersByTimeAsync(100);
@@ -390,7 +386,7 @@ describe('SPEED_SEEK', () => {
 
     // Should reject from CAF abort, but NOT leave an unhandled rejection
     // from PROCESS_STATE_UPDATE_ON_PLAYER_EVENT (handled by .catch(() => {}))
-    await expect(promise).rejects.toThrow();
+    await rejection;
 
     expect(setPlaybackRate).toHaveBeenLastCalledWith(1);
   });
