@@ -1,8 +1,34 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { createCache, METADATA_TTL, METADATA_MAX_SIZE } = require('../cache');
+const {
+  createCache,
+  metadataCacheKey,
+  roomMetadataCacheKey,
+  METADATA_TTL,
+  METADATA_MAX_SIZE,
+} = require('../cache');
 
 describe('cache', () => {
+  describe('metadata keys', () => {
+    it('does not collide when identifiers contain the old delimiter', () => {
+      assert.notEqual(
+        metadataCacheKey('a\0b', 'c'),
+        metadataCacheKey('a', 'b\0c'),
+      );
+    });
+
+    it('keeps room and media namespaces separate', () => {
+      assert.notEqual(
+        roomMetadataCacheKey('abc'),
+        metadataCacheKey('room', 'abc'),
+      );
+    });
+
+    it('normalizes numeric identifiers for URL lookups', () => {
+      assert.equal(metadataCacheKey('machine', 42), metadataCacheKey('machine', '42'));
+    });
+  });
+
   describe('TTL expiry', () => {
     it('returns entry before TTL expires', () => {
       let now = 1000;

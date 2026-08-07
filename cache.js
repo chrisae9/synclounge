@@ -1,6 +1,14 @@
 const METADATA_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 const METADATA_MAX_SIZE = 10000;
 
+const metadataCacheKey = (machineIdentifier, ratingKey) => JSON.stringify([
+  'media',
+  String(machineIdentifier),
+  String(ratingKey),
+]);
+
+const roomMetadataCacheKey = (room) => JSON.stringify(['room', String(room)]);
+
 function createCache({ nowFn = Date.now } = {}) {
   const metadataCache = new Map();
 
@@ -39,4 +47,10 @@ function createCache({ nowFn = Date.now } = {}) {
   return { setMetadata, getMetadata, metadataCache };
 }
 
-module.exports = { createCache, METADATA_TTL, METADATA_MAX_SIZE };
+module.exports = {
+  createCache,
+  metadataCacheKey,
+  roomMetadataCacheKey,
+  METADATA_TTL,
+  METADATA_MAX_SIZE,
+};

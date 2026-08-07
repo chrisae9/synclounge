@@ -5,7 +5,11 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const config = require('./config');
-const { createCache } = require('./cache');
+const {
+  createCache,
+  metadataCacheKey,
+  roomMetadataCacheKey,
+} = require('./cache');
 const { fetchPoster, PosterProxyError } = require('./poster-proxy');
 const { createDisconnectController } = require('./request-abort');
 
@@ -50,8 +54,11 @@ const { setMetadata, getMetadata } = createCache();
 // --- HTML escaping for XSS prevention ---
 function escapeHtml(str) {
   if (!str) return '';
-  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return str.replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 // --- Read index.html once at startup ---
@@ -87,7 +94,8 @@ function injectOgTags(html, meta) {
   ].filter(Boolean).join('\n    ');
 
   // Remove existing OG/Twitter meta tags from the static HTML so we replace rather than duplicate
-  let cleaned = html.replace(/<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*"|name="theme-color")[^>]*\/?\s*>\s*\n?/g, '');
+  const existingTags = /<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*"|name="theme-color")[^>]*\/?\s*>\s*\n?/g;
+  const cleaned = html.replace(existingTags, '');
 
   return cleaned.replace('</head>', `    ${tags}\n  </head>`);
 }
@@ -175,6 +183,134 @@ const posterLimiter = createRateLimiter(
 
 // --- File extension check for SPA fallback ---
 const STATIC_EXT_RE = /\.\w{2,}$/;
+const METADATA_BODY_LIMIT = '16kb';
+const MAX_METADATA_STRING_LENGTH = 500;
+const MAX_YEAR_STRING_LENGTH = 32;
+
+function isBoundedScalar(value, maxStringLength) {
+  if (typeof value === 'string') return value.length <= maxStringLength;
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isBoundedIdentifier(value) {
+  if (typeof value === 'string') {
+    if (value.length > MAX_METADATA_STRING_LENGTH) return false;
+    try {
+      encodeURIComponent(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
+function decodePathSegment(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
+function isBoundedIndex(value) {
+  if (typeof value === 'number') {
+    return Number.isSafeInteger(value) && value >= 0;
+  }
+  return typeof value === 'string' && /^\d{1,12}$/.test(value);
+}
+
+function handleMetadataJsonError(error, req, res, next) {
+  if (error?.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Metadata body exceeds 16 KiB' });
+  }
+  if (error?.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Malformed JSON' });
+  }
+  return next(error);
+}
+
+function handleMetadataRequest(req, res) {
+  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'Request body must be a JSON object' });
+  }
+
+  const {
+    title, year, summary, type, posterUrl, machineIdentifier, ratingKey,
+    grandparentTitle, parentIndex, index, room,
+  } = req.body;
+
+  if (machineIdentifier == null || machineIdentifier === ''
+    || ratingKey == null || ratingKey === '') {
+    return res.status(400).json({ error: 'machineIdentifier and ratingKey are required' });
+  }
+
+  const stringFields = {
+    title,
+    summary,
+    type,
+    posterUrl,
+    grandparentTitle,
+  };
+  for (const [name, val] of Object.entries(stringFields)) {
+    if (val != null && (typeof val !== 'string' || val.length > MAX_METADATA_STRING_LENGTH)) {
+      return res.status(400).json({
+        error: `${name} must be a string of at most ${MAX_METADATA_STRING_LENGTH} characters`,
+      });
+    }
+  }
+
+  // Numeric identifiers must round-trip through JSON without losing precision.
+  for (const [name, val] of Object.entries({ machineIdentifier, ratingKey })) {
+    if (!isBoundedIdentifier(val)) {
+      return res.status(400).json({
+        error: `${name} must be a non-negative safe integer or a string of at most `
+          + `${MAX_METADATA_STRING_LENGTH} characters`,
+      });
+    }
+  }
+  if (year != null && !isBoundedScalar(year, MAX_YEAR_STRING_LENGTH)) {
+    return res.status(400).json({
+      error: `year must be a finite number or a string of at most ${MAX_YEAR_STRING_LENGTH} characters`,
+    });
+  }
+  for (const [name, val] of Object.entries({ parentIndex, index })) {
+    if (val != null && !isBoundedIndex(val)) {
+      return res.status(400).json({
+        error: `${name} must be a non-negative safe integer or numeric string`,
+      });
+    }
+  }
+  if (room != null
+    && (typeof room !== 'string' || room === '' || !isBoundedIdentifier(room))) {
+    return res.status(400).json({
+      error: 'room must be a non-empty, well-formed Unicode string of at most '
+        + `${MAX_METADATA_STRING_LENGTH} characters`,
+    });
+  }
+
+  const key = metadataCacheKey(machineIdentifier, ratingKey);
+  const meta = {
+    title,
+    year,
+    summary,
+    type,
+    posterUrl,
+    machineIdentifier,
+    ratingKey,
+    grandparentTitle,
+    parentIndex,
+    index,
+  };
+  setMetadata(key, meta);
+
+  // Also index by room code so /join/:room gets OG tags
+  if (room) {
+    setMetadata(roomMetadataCacheKey(room), meta);
+  }
+
+  return res.json({ ok: true });
+}
 
 const preStaticInjection = (router) => {
   // Add route for config
@@ -183,59 +319,17 @@ const preStaticInjection = (router) => {
   });
 
   // --- POST /api/metadata: receive metadata from client ---
-  router.post('/api/metadata', express.json(), metadataLimiter, (req, res) => {
-    const {
-      title, year, summary, type, posterUrl, machineIdentifier, ratingKey,
-      grandparentTitle, parentIndex, index, room,
-    } = req.body;
-
-    if (!machineIdentifier || !ratingKey) {
-      return res.status(400).json({ error: 'machineIdentifier and ratingKey are required' });
-    }
-
-    // Validate string fields have correct types and reasonable lengths
-    const MAX_LEN = 500;
-    const stringFields = { title, summary, type, posterUrl, grandparentTitle };
-    for (const [name, val] of Object.entries(stringFields)) {
-      if (val != null && (typeof val !== 'string' || val.length > MAX_LEN)) {
-        return res.status(400).json({ error: `${name} must be a string of at most ${MAX_LEN} characters` });
-      }
-    }
-    // machineIdentifier and ratingKey can be string or number (coerced via template literals)
-    for (const [name, val] of Object.entries({ machineIdentifier, ratingKey })) {
-      if (val != null && typeof val !== 'string' && typeof val !== 'number') {
-        return res.status(400).json({ error: `${name} must be a string or number` });
-      }
-      if (typeof val === 'string' && val.length > MAX_LEN) {
-        return res.status(400).json({ error: `${name} must be at most ${MAX_LEN} characters` });
-      }
-    }
-    if (year != null && (typeof year !== 'string' && typeof year !== 'number')) {
-      return res.status(400).json({ error: 'year must be a string or number' });
-    }
-    if (room != null && (typeof room !== 'string' || room.length > MAX_LEN)) {
-      return res.status(400).json({ error: 'room must be a string of at most 500 characters' });
-    }
-
-    const key = `${machineIdentifier}\0${ratingKey}`;
-    const meta = {
-      title, year, summary, type, posterUrl,
-      machineIdentifier, ratingKey,
-      grandparentTitle, parentIndex, index,
-    };
-    setMetadata(key, meta);
-
-    // Also index by room code so /join/:room gets OG tags
-    if (room) {
-      setMetadata(`room\0${room}`, meta);
-    }
-
-    return res.json({ ok: true });
-  });
+  router.post(
+    '/api/metadata',
+    metadataLimiter,
+    express.json({ limit: METADATA_BODY_LIMIT }),
+    handleMetadataJsonError,
+    handleMetadataRequest,
+  );
 
   // --- GET /share/poster/:machineIdentifier/:ratingKey: proxy poster images ---
   router.get('/share/poster/:machineIdentifier/:ratingKey', posterLimiter, async (req, res) => {
-    const key = `${req.params.machineIdentifier}\0${req.params.ratingKey}`;
+    const key = metadataCacheKey(req.params.machineIdentifier, req.params.ratingKey);
     const meta = getMetadata(key);
 
     if (!meta || !meta.posterUrl) {
@@ -295,9 +389,11 @@ const preStaticInjection = (router) => {
     );
 
     if (mediaMatch) {
-      const [, machineIdentifier, ratingKey] = mediaMatch;
-      const key = `${machineIdentifier}\0${ratingKey}`;
-      const meta = getMetadata(key);
+      const machineIdentifier = decodePathSegment(mediaMatch[1]);
+      const ratingKey = decodePathSegment(mediaMatch[2]);
+      const meta = machineIdentifier != null && ratingKey != null
+        ? getMetadata(metadataCacheKey(machineIdentifier, ratingKey))
+        : null;
 
       if (meta) {
         const posterProxyUrl = meta.posterUrl && publicOrigin
@@ -313,8 +409,8 @@ const preStaticInjection = (router) => {
     // Check if this is a room invite link — inject OG tags for current room media
     const roomMatch = req.path.match(/^\/join\/([^/]+)/);
     if (roomMatch) {
-      const [, roomCode] = roomMatch;
-      const meta = getMetadata(`room\0${roomCode}`);
+      const roomCode = decodePathSegment(roomMatch[1]);
+      const meta = roomCode != null ? getMetadata(roomMetadataCacheKey(roomCode)) : null;
 
       if (meta) {
         const posterProxyUrl = meta.posterUrl && publicOrigin

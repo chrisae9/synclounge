@@ -29,6 +29,14 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   return res;
 }
 
+function metadataBodyWithExactSize(size) {
+  const prefix = '{"machineIdentifier":"boundary","ratingKey":"1","ignored":"';
+  const suffix = '"}';
+  const paddingLength = size - Buffer.byteLength(prefix) - Buffer.byteLength(suffix);
+  assert.ok(paddingLength >= 0);
+  return `${prefix}${'x'.repeat(paddingLength)}${suffix}`;
+}
+
 async function waitForServer(url, retries = 30, delay = 200) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -240,6 +248,72 @@ describe('server', () => {
         body: { title: 'Bad', machineIdentifier: 'abc' },
       });
       assert.equal(res.status, 400);
+    });
+
+    it('rejects oversized JSON bodies before retaining metadata', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Original Oversized Entry',
+          machineIdentifier: 'oversized',
+          ratingKey: '1',
+        },
+      });
+      const res = await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Rejected Oversized Replacement',
+          machineIdentifier: 'oversized',
+          ratingKey: '1',
+          ignored: 'x'.repeat(20 * 1024),
+        },
+      });
+
+      assert.equal(res.status, 413);
+      assert.match(res.headers.get('content-type'), /^application\/json/);
+      assert.deepEqual(await res.json(), { error: 'Metadata body exceeds 16 KiB' });
+
+      const mediaRes = await request('/room/r/browse/server/oversized/ratingKey/1');
+      const html = await mediaRes.text();
+      assert.ok(html.includes('Original Oversized Entry'));
+      assert.ok(!html.includes('Rejected Oversized Replacement'));
+    });
+
+    it('accepts exactly 16 KiB and rejects the next byte', async () => {
+      const sendBody = (size) => fetch(`${baseUrl}/api/metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: metadataBodyWithExactSize(size),
+      });
+
+      assert.equal((await sendBody(16 * 1024)).status, 200);
+      assert.equal((await sendBody((16 * 1024) + 1)).status, 413);
+    });
+
+    it('rejects unbounded retained scalar values', async () => {
+      const cases = [
+        { field: 'year', value: 'x'.repeat(33) },
+        { field: 'parentIndex', value: { nested: true } },
+        { field: 'index', value: -1 },
+      ];
+
+      const responses = await Promise.all(cases.map(({ field, value }) => (
+        request('/api/metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: {
+            machineIdentifier: 'bounded-values',
+            ratingKey: field,
+            [field]: value,
+          },
+        })
+      )));
+
+      responses.forEach((res, position) => {
+        assert.equal(res.status, 400, `${cases[position].field} should be rejected`);
+      });
     });
   });
 
@@ -562,23 +636,65 @@ describe('server', () => {
   // --- POST /api/metadata input edge cases ---
 
   describe('POST /api/metadata input edge cases', () => {
-    it('does not crash when Content-Type header is missing', async () => {
+    it('rejects a missing Content-Type header', async () => {
       const res = await fetch(`${baseUrl}/api/metadata`, {
         method: 'POST',
         body: JSON.stringify({ machineIdentifier: 'x', ratingKey: '1' }),
         // No Content-Type header
       });
-      // Should not be 500 (crash) — either 400 or 4xx
-      assert.notEqual(res.status, 500);
+      assert.equal(res.status, 400);
     });
 
-    it('does not crash when Content-Type is text/plain', async () => {
+    it('rejects an unsupported Content-Type', async () => {
       const res = await fetch(`${baseUrl}/api/metadata`, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ machineIdentifier: 'x', ratingKey: '1' }),
       });
-      assert.notEqual(res.status, 500);
+      assert.equal(res.status, 400);
+    });
+
+    it('rejects malformed JSON', async () => {
+      const res = await fetch(`${baseUrl}/api/metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      });
+      assert.equal(res.status, 400);
+      assert.match(res.headers.get('content-type'), /^application\/json/);
+      const body = await res.json();
+      assert.deepEqual(body, { error: 'Malformed JSON' });
+      assert.ok(!JSON.stringify(body).includes(__dirname));
+    });
+
+    it('rejects identifiers that cannot be safely URL-encoded', async () => {
+      const cases = [
+        { machineIdentifier: '\uD800', ratingKey: 'safe', room: 'safe-room' },
+        { machineIdentifier: 'safe', ratingKey: '\uDFFF', room: 'safe-room' },
+        { machineIdentifier: 'safe', ratingKey: 'empty-room', room: '' },
+        { machineIdentifier: 'safe', ratingKey: 'malformed-room', room: '\uD800' },
+      ];
+      const responses = await Promise.all(cases.map((body) => request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      })));
+
+      responses.forEach((res) => assert.equal(res.status, 400));
+      const roomRes = await request('/join/safe-room');
+      assert.equal(roomRes.status, 200);
+      assert.ok((await roomRes.text()).includes('content="SyncLounge"'));
+    });
+
+    it('rejects numeric identifiers that cannot round-trip safely', async () => {
+      const identifiers = ['9007199254740992', '9007199254740993'];
+      const responses = await Promise.all(identifiers.map((ratingKey) => fetch(`${baseUrl}/api/metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: `{"machineIdentifier":"unsafe-number","ratingKey":${ratingKey}}`,
+      })));
+
+      responses.forEach((res) => assert.equal(res.status, 400));
     });
 
     it('handles ratingKey sent as integer (not string)', async () => {
@@ -602,36 +718,63 @@ describe('server', () => {
       assert.ok(html.includes('Integer Key Movie'));
     });
 
-    it('does not collide cache keys when machineIdentifier contains a colon', async () => {
+    it('does not collide room and media cache namespaces', async () => {
       await request('/api/metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: {
-          title: 'First Entry',
+          title: 'Room Entry',
           type: 'movie',
-          machineIdentifier: 'a:b',
-          ratingKey: 'c',
+          machineIdentifier: 'room-source',
+          ratingKey: 'source-rating',
+          room: 'abc',
         },
       });
       await request('/api/metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: {
-          title: 'Second Entry',
+          title: 'Media Entry',
           type: 'movie',
-          machineIdentifier: 'a',
-          ratingKey: 'b:c',
+          machineIdentifier: 'room',
+          ratingKey: 'abc',
         },
       });
 
-      const res1 = await request('/room/r/browse/server/a:b/ratingKey/c');
-      const html1 = await res1.text();
-      const res2 = await request('/room/r/browse/server/a/ratingKey/b:c');
-      const html2 = await res2.text();
+      const roomRes = await request('/join/abc');
+      const roomHtml = await roomRes.text();
+      const mediaRes = await request('/room/r/browse/server/room/ratingKey/abc');
+      const mediaHtml = await mediaRes.text();
 
-      // These should have different titles (not collide)
-      assert.ok(html1.includes('First Entry'));
-      assert.ok(html2.includes('Second Entry'));
+      assert.ok(roomHtml.includes('Room Entry'));
+      assert.ok(!roomHtml.includes('Media Entry'));
+      assert.ok(mediaHtml.includes('Media Entry'));
+      assert.ok(!mediaHtml.includes('Room Entry'));
+    });
+
+    it('retrieves metadata through percent-encoded route identifiers', async () => {
+      const machineIdentifier = 'machine space';
+      const ratingKey = 'rating?mark';
+      const room = 'room space';
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Encoded Route Entry',
+          type: 'movie',
+          machineIdentifier,
+          ratingKey,
+          room,
+        },
+      });
+
+      const mediaPath = `/room/r/browse/server/${encodeURIComponent(machineIdentifier)}`
+        + `/ratingKey/${encodeURIComponent(ratingKey)}`;
+      const mediaRes = await request(mediaPath);
+      const roomRes = await request(`/join/${encodeURIComponent(room)}`);
+
+      assert.ok((await mediaRes.text()).includes('Encoded Route Entry'));
+      assert.ok((await roomRes.text()).includes('Encoded Route Entry'));
     });
   });
 
