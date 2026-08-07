@@ -8,6 +8,7 @@
     "dist",
     "config",
     "server.js",
+    "cache.js",
     "poster-proxy.js",
     "request-abort.js",
     "packages/syncloungeserver"

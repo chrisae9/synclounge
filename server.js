@@ -5,7 +5,11 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const config = require('./config');
-const { createCache } = require('./cache');
+const {
+  createCache,
+  metadataCacheKey,
+  roomMetadataCacheKey,
+} = require('./cache');
 const { fetchPoster, PosterProxyError } = require('./poster-proxy');
 const { createDisconnectController } = require('./request-abort');
 
@@ -175,6 +179,21 @@ const posterLimiter = createRateLimiter(
 
 // --- File extension check for SPA fallback ---
 const STATIC_EXT_RE = /\.\w{2,}$/;
+const METADATA_BODY_LIMIT = '16kb';
+const MAX_METADATA_STRING_LENGTH = 500;
+const MAX_YEAR_STRING_LENGTH = 32;
+
+function isBoundedScalar(value, maxStringLength) {
+  if (typeof value === 'string') return value.length <= maxStringLength;
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isBoundedIndex(value) {
+  if (typeof value === 'number') {
+    return Number.isSafeInteger(value) && value >= 0;
+  }
+  return typeof value === 'string' && /^\d{1,12}$/.test(value);
+}
 
 const preStaticInjection = (router) => {
   // Add route for config
@@ -183,7 +202,7 @@ const preStaticInjection = (router) => {
   });
 
   // --- POST /api/metadata: receive metadata from client ---
-  router.post('/api/metadata', express.json(), metadataLimiter, (req, res) => {
+  router.post('/api/metadata', metadataLimiter, express.json({ limit: METADATA_BODY_LIMIT }), (req, res) => {
     const {
       title, year, summary, type, posterUrl, machineIdentifier, ratingKey,
       grandparentTitle, parentIndex, index, room,
@@ -194,40 +213,65 @@ const preStaticInjection = (router) => {
     }
 
     // Validate string fields have correct types and reasonable lengths
-    const MAX_LEN = 500;
-    const stringFields = { title, summary, type, posterUrl, grandparentTitle };
+    const stringFields = {
+      title,
+      summary,
+      type,
+      posterUrl,
+      grandparentTitle,
+    };
     for (const [name, val] of Object.entries(stringFields)) {
-      if (val != null && (typeof val !== 'string' || val.length > MAX_LEN)) {
-        return res.status(400).json({ error: `${name} must be a string of at most ${MAX_LEN} characters` });
+      if (val != null && (typeof val !== 'string' || val.length > MAX_METADATA_STRING_LENGTH)) {
+        return res.status(400).json({
+          error: `${name} must be a string of at most ${MAX_METADATA_STRING_LENGTH} characters`,
+        });
       }
     }
-    // machineIdentifier and ratingKey can be string or number (coerced via template literals)
+    // Identifiers can be strings or finite numbers and are normalized by the cache key helper.
     for (const [name, val] of Object.entries({ machineIdentifier, ratingKey })) {
-      if (val != null && typeof val !== 'string' && typeof val !== 'number') {
-        return res.status(400).json({ error: `${name} must be a string or number` });
-      }
-      if (typeof val === 'string' && val.length > MAX_LEN) {
-        return res.status(400).json({ error: `${name} must be at most ${MAX_LEN} characters` });
+      if (!isBoundedScalar(val, MAX_METADATA_STRING_LENGTH)) {
+        return res.status(400).json({
+          error: `${name} must be a finite number or a string of at most ${MAX_METADATA_STRING_LENGTH} characters`,
+        });
       }
     }
-    if (year != null && (typeof year !== 'string' && typeof year !== 'number')) {
-      return res.status(400).json({ error: 'year must be a string or number' });
+    if (year != null && !isBoundedScalar(year, MAX_YEAR_STRING_LENGTH)) {
+      return res.status(400).json({
+        error: `year must be a finite number or a string of at most ${MAX_YEAR_STRING_LENGTH} characters`,
+      });
     }
-    if (room != null && (typeof room !== 'string' || room.length > MAX_LEN)) {
-      return res.status(400).json({ error: 'room must be a string of at most 500 characters' });
+    for (const [name, val] of Object.entries({ parentIndex, index })) {
+      if (val != null && !isBoundedIndex(val)) {
+        return res.status(400).json({
+          error: `${name} must be a non-negative safe integer or numeric string`,
+        });
+      }
+    }
+    if (room != null
+      && (typeof room !== 'string' || room.length > MAX_METADATA_STRING_LENGTH)) {
+      return res.status(400).json({
+        error: `room must be a string of at most ${MAX_METADATA_STRING_LENGTH} characters`,
+      });
     }
 
-    const key = `${machineIdentifier}\0${ratingKey}`;
+    const key = metadataCacheKey(machineIdentifier, ratingKey);
     const meta = {
-      title, year, summary, type, posterUrl,
-      machineIdentifier, ratingKey,
-      grandparentTitle, parentIndex, index,
+      title,
+      year,
+      summary,
+      type,
+      posterUrl,
+      machineIdentifier,
+      ratingKey,
+      grandparentTitle,
+      parentIndex,
+      index,
     };
     setMetadata(key, meta);
 
     // Also index by room code so /join/:room gets OG tags
     if (room) {
-      setMetadata(`room\0${room}`, meta);
+      setMetadata(roomMetadataCacheKey(room), meta);
     }
 
     return res.json({ ok: true });
@@ -235,7 +279,7 @@ const preStaticInjection = (router) => {
 
   // --- GET /share/poster/:machineIdentifier/:ratingKey: proxy poster images ---
   router.get('/share/poster/:machineIdentifier/:ratingKey', posterLimiter, async (req, res) => {
-    const key = `${req.params.machineIdentifier}\0${req.params.ratingKey}`;
+    const key = metadataCacheKey(req.params.machineIdentifier, req.params.ratingKey);
     const meta = getMetadata(key);
 
     if (!meta || !meta.posterUrl) {
@@ -296,7 +340,7 @@ const preStaticInjection = (router) => {
 
     if (mediaMatch) {
       const [, machineIdentifier, ratingKey] = mediaMatch;
-      const key = `${machineIdentifier}\0${ratingKey}`;
+      const key = metadataCacheKey(machineIdentifier, ratingKey);
       const meta = getMetadata(key);
 
       if (meta) {
@@ -314,7 +358,7 @@ const preStaticInjection = (router) => {
     const roomMatch = req.path.match(/^\/join\/([^/]+)/);
     if (roomMatch) {
       const [, roomCode] = roomMatch;
-      const meta = getMetadata(`room\0${roomCode}`);
+      const meta = getMetadata(roomMetadataCacheKey(roomCode));
 
       if (meta) {
         const posterProxyUrl = meta.posterUrl && publicOrigin
