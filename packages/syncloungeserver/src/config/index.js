@@ -2,9 +2,9 @@ import nconf from 'nconf';
 import defaults from './defaults';
 
 const get = () => {
-  nconf.reset();
+  const provider = new nconf.Provider();
 
-  nconf
+  provider
     .argv({
       separator: '__',
       parseValues: true,
@@ -14,9 +14,9 @@ const get = () => {
       lowerCase: true,
       parseValues: true,
     })
-    .defaults(defaults);
+    .defaults({ ...defaults });
 
-  return nconf.get();
+  return provider.get();
 };
 
 export default get;

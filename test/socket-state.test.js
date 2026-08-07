@@ -1,10 +1,11 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const state = require('../packages/syncloungeserver/dist/socketserver/state');
+const { createState } = require('../packages/syncloungeserver/dist/socketserver/state');
 
 describe('socket server room state', () => {
   it('allocates duplicate usernames when an existing similar name has a non-numeric suffix', () => {
+    const state = createState();
     const roomId = `username-${Date.now()}-${Math.random()}`;
     state.createRoom({
       id: roomId,
