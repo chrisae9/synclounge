@@ -282,9 +282,10 @@ function handleMetadataRequest(req, res) {
     }
   }
   if (room != null
-    && (typeof room !== 'string' || room.length > MAX_METADATA_STRING_LENGTH)) {
+    && (typeof room !== 'string' || room === '' || !isBoundedIdentifier(room))) {
     return res.status(400).json({
-      error: `room must be a string of at most ${MAX_METADATA_STRING_LENGTH} characters`,
+      error: 'room must be a non-empty, well-formed Unicode string of at most '
+        + `${MAX_METADATA_STRING_LENGTH} characters`,
     });
   }
 

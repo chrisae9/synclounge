@@ -251,10 +251,20 @@ describe('server', () => {
     });
 
     it('rejects oversized JSON bodies before retaining metadata', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Original Oversized Entry',
+          machineIdentifier: 'oversized',
+          ratingKey: '1',
+        },
+      });
       const res = await request('/api/metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: {
+          title: 'Rejected Oversized Replacement',
           machineIdentifier: 'oversized',
           ratingKey: '1',
           ignored: 'x'.repeat(20 * 1024),
@@ -264,6 +274,11 @@ describe('server', () => {
       assert.equal(res.status, 413);
       assert.match(res.headers.get('content-type'), /^application\/json/);
       assert.deepEqual(await res.json(), { error: 'Metadata body exceeds 16 KiB' });
+
+      const mediaRes = await request('/room/r/browse/server/oversized/ratingKey/1');
+      const html = await mediaRes.text();
+      assert.ok(html.includes('Original Oversized Entry'));
+      assert.ok(!html.includes('Rejected Oversized Replacement'));
     });
 
     it('accepts exactly 16 KiB and rejects the next byte', async () => {
@@ -654,13 +669,15 @@ describe('server', () => {
 
     it('rejects identifiers that cannot be safely URL-encoded', async () => {
       const cases = [
-        { machineIdentifier: '\uD800', ratingKey: 'safe' },
-        { machineIdentifier: 'safe', ratingKey: '\uDFFF' },
+        { machineIdentifier: '\uD800', ratingKey: 'safe', room: 'safe-room' },
+        { machineIdentifier: 'safe', ratingKey: '\uDFFF', room: 'safe-room' },
+        { machineIdentifier: 'safe', ratingKey: 'empty-room', room: '' },
+        { machineIdentifier: 'safe', ratingKey: 'malformed-room', room: '\uD800' },
       ];
       const responses = await Promise.all(cases.map((body) => request('/api/metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: { ...body, room: 'safe-room' },
+        body,
       })));
 
       responses.forEach((res) => assert.equal(res.status, 400));
