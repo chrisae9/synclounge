@@ -117,8 +117,7 @@ export default {
       this.loading = true;
 
       const startedOnRoomJoin = this.$route.name === 'RoomJoin';
-      const redirect = this.$route.query.redirect;
-      const watching = this.$route.query.watching;
+      const { redirect, watching } = this.$route.query;
       const safeRedirect = this.getSafeRoomRedirect(redirect);
       const syncOnJoin = !safeRedirect || this.$router.resolve(safeRedirect).name === 'WebPlayer';
 
