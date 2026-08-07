@@ -41,8 +41,13 @@ let visibilityChangeHandler = null;
 
 export default {
   CONNECT_AND_JOIN_ROOM: async ({ dispatch }, options) => {
-    await dispatch('ESTABLISH_SOCKET_CONNECTION');
-    await dispatch('JOIN_ROOM_AND_INIT', options);
+    try {
+      await dispatch('ESTABLISH_SOCKET_CONNECTION');
+      await dispatch('JOIN_ROOM_AND_INIT', options);
+    } catch (error) {
+      await dispatch('DISCONNECT');
+      throw error;
+    }
   },
 
   SET_AND_CONNECT_AND_JOIN_ROOM: async (

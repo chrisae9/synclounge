@@ -98,6 +98,22 @@ describe('synclounge actions', () => {
   });
 
   describe('socket event deadlines', () => {
+    it.each([
+      ['slPing', 'ESTABLISH_SOCKET_CONNECTION'],
+      ['joinResult', 'JOIN_ROOM_AND_INIT'],
+    ])('disconnects and rethrows when the %s deadline expires', async (eventName, failingAction) => {
+      const timeoutError = new Error(`Timed out waiting for ${eventName}`);
+      const dispatch = vi.fn(async (type) => {
+        if (type === failingAction) throw timeoutError;
+      });
+
+      await expect(actions.CONNECT_AND_JOIN_ROOM({ dispatch }, { syncOnJoin: true }))
+        .rejects.toBe(timeoutError);
+
+      expect(dispatch).toHaveBeenCalledWith('DISCONNECT');
+      expect(dispatch).toHaveBeenLastCalledWith('DISCONNECT');
+    });
+
     it('bounds the initial server ping wait', async () => {
       socketMocks.open.mockResolvedValue({ id: 'socket-1' });
       socketMocks.waitForEvent.mockResolvedValue('secret');

@@ -1,7 +1,9 @@
 import {
   beforeEach, describe, expect, it, vi,
 } from 'vitest';
-import { destroy, getDurationMs } from '@/player';
+import {
+  destroy, getDurationMs, load, unload,
+} from '@/player';
 
 const playerState = vi.hoisted(() => ({
   overlay: null,
@@ -33,6 +35,24 @@ describe('player duration cache', () => {
 
     await destroy();
     playerState.player = { getMediaElement: () => mediaElement };
+    expect(getDurationMs()).toBe(0);
+  });
+
+  it.each([
+    ['load', load],
+    ['unload', unload],
+  ])('clears the previous media duration before %s', async (_name, changeSource) => {
+    const mediaElement = { duration: 12 };
+    playerState.player = {
+      getMediaElement: () => mediaElement,
+      load: vi.fn().mockResolvedValue(undefined),
+      unload: vi.fn().mockResolvedValue(undefined),
+    };
+    expect(getDurationMs()).toBe(12000);
+
+    mediaElement.duration = Number.NaN;
+    await changeSource('next-source');
+
     expect(getDurationMs()).toBe(0);
   });
 });
