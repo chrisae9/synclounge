@@ -1,5 +1,8 @@
-const { describe, it, before, after } = require('node:test');
+const {
+  describe, it, before, after,
+} = require('node:test');
 const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
 const http = require('node:http');
 
 let baseUrl;
@@ -13,9 +16,13 @@ let resolveSlowPosterClosed;
 
 async function getFreePort() {
   const server = http.createServer();
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
   const { port } = server.address();
-  await new Promise((resolve) => server.close(resolve));
+  await new Promise((resolve) => {
+    server.close(resolve);
+  });
   return port;
 }
 
@@ -38,16 +45,67 @@ function metadataBodyWithExactSize(size) {
 }
 
 async function waitForServer(url, retries = 30, delay = 200) {
-  for (let i = 0; i < retries; i++) {
+  for (let i = 0; i < retries; i += 1) {
     try {
-      await fetch(url);
-      return;
+      // Sequential polling is intentional: each request observes a later server state.
+      // eslint-disable-next-line no-await-in-loop
+      const response = await fetch(url, { signal: AbortSignal.timeout(500) });
+      const healthy = response.ok;
+      // eslint-disable-next-line no-await-in-loop
+      await response.body?.cancel();
+      if (healthy) return;
     } catch {
-      await new Promise((r) => setTimeout(r, delay));
+      // Retry connection failures and per-attempt timeouts.
     }
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((resolve) => {
+      setTimeout(resolve, delay);
+    });
   }
   throw new Error('Server did not start in time');
 }
+
+async function stopServer(processToStop) {
+  if (!processToStop
+    || processToStop.exitCode !== null
+    || processToStop.signalCode !== null) return;
+
+  const exited = new Promise((resolve) => {
+    processToStop.once('error', resolve);
+    processToStop.once('close', resolve);
+  });
+  const waitForExit = async () => {
+    let timeout;
+    const didExit = await Promise.race([
+      exited.then(() => true),
+      new Promise((resolve) => {
+        timeout = setTimeout(() => resolve(false), 2000);
+      }),
+    ]);
+    clearTimeout(timeout);
+    return didExit;
+  };
+
+  if (processToStop.exitCode !== null || processToStop.signalCode !== null) return;
+  processToStop.kill('SIGTERM');
+  if (!await waitForExit()
+    && processToStop.exitCode === null
+    && processToStop.signalCode === null) {
+    processToStop.kill('SIGKILL');
+    assert.ok(await waitForExit(), 'server did not exit after SIGKILL');
+  }
+}
+
+const closeServer = (server) => new Promise((resolve, reject) => {
+  if (!server?.listening) {
+    resolve();
+    return;
+  }
+  server.close((error) => {
+    if (error) reject(error);
+    else resolve();
+  });
+});
 
 describe('server', () => {
   before(async () => {
@@ -104,11 +162,10 @@ describe('server', () => {
     });
     posterFixtureBase = `http://127.0.0.1:${posterFixtureServer.address().port}`;
 
-    const { spawn } = require('node:child_process');
     const port = await getFreePort();
     baseUrl = `http://127.0.0.1:${port}`;
     serverProcess = spawn('node', ['server.js'], {
-      cwd: __dirname + '/..',
+      cwd: `${__dirname}/..`,
       env: {
         ...process.env,
         PORT: String(port),
@@ -125,13 +182,13 @@ describe('server', () => {
     await waitForServer(`${baseUrl}/health`);
   });
 
-  after(() => {
-    if (serverProcess) {
-      serverProcess.kill('SIGTERM');
-    }
-    if (posterFixtureServer) {
-      posterFixtureServer.close();
-    }
+  after(async () => {
+    const outcomes = await Promise.allSettled([
+      stopServer(serverProcess),
+      closeServer(posterFixtureServer),
+    ]);
+    const failedCleanup = outcomes.find(({ status }) => status === 'rejected');
+    if (failedCleanup) throw failedCleanup.reason;
   });
 
   // --- SPA fallback ---

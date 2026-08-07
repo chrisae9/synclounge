@@ -1,4 +1,6 @@
-const { describe, it, before, after } = require('node:test');
+const {
+  describe, it, before, after,
+} = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const { io } = require('socket.io-client');
@@ -10,11 +12,12 @@ const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 function waitForSocketEvent(socket, eventName, timeoutMs = 2000) {
   return new Promise((resolve, reject) => {
+    let onEvent;
     const timeout = setTimeout(() => {
       socket.off(eventName, onEvent);
       reject(new Error(`Timed out waiting for ${eventName}`));
     }, timeoutMs);
-    const onEvent = (data) => {
+    onEvent = (data) => {
       clearTimeout(timeout);
       resolve(data);
     };
@@ -23,15 +26,53 @@ function waitForSocketEvent(socket, eventName, timeoutMs = 2000) {
 }
 
 async function waitForServer(url, retries = 30, delay = 200) {
-  for (let i = 0; i < retries; i++) {
+  for (let i = 0; i < retries; i += 1) {
     try {
-      await fetch(url);
-      return;
+      // Sequential polling is intentional: each request observes a later server state.
+      // eslint-disable-next-line no-await-in-loop
+      const response = await fetch(url, { signal: AbortSignal.timeout(500) });
+      const healthy = response.ok;
+      // eslint-disable-next-line no-await-in-loop
+      await response.body?.cancel();
+      if (healthy) return;
     } catch {
-      await wait(delay);
+      // Retry connection failures and per-attempt timeouts.
     }
+    // eslint-disable-next-line no-await-in-loop
+    await wait(delay);
   }
   throw new Error('Server did not start in time');
+}
+
+async function stopServer(processToStop) {
+  if (!processToStop
+    || processToStop.exitCode !== null
+    || processToStop.signalCode !== null) return;
+
+  const exited = new Promise((resolve) => {
+    processToStop.once('error', resolve);
+    processToStop.once('close', resolve);
+  });
+  const waitForExit = async () => {
+    let timeout;
+    const didExit = await Promise.race([
+      exited.then(() => true),
+      new Promise((resolve) => {
+        timeout = setTimeout(() => resolve(false), 2000);
+      }),
+    ]);
+    clearTimeout(timeout);
+    return didExit;
+  };
+
+  if (processToStop.exitCode !== null || processToStop.signalCode !== null) return;
+  processToStop.kill('SIGTERM');
+  if (!await waitForExit()
+    && processToStop.exitCode === null
+    && processToStop.signalCode === null) {
+    processToStop.kill('SIGKILL');
+    assert.ok(await waitForExit(), 'server did not exit after SIGKILL');
+  }
 }
 
 function joinClient({ roomId, username }) {
@@ -76,7 +117,7 @@ function joinClient({ roomId, username }) {
 describe('kick socket event', () => {
   before(async () => {
     serverProcess = spawn('node', ['server.js'], {
-      cwd: __dirname + '/..',
+      cwd: `${__dirname}/..`,
       env: {
         ...process.env,
         PORT: '18089',
@@ -89,10 +130,8 @@ describe('kick socket event', () => {
     await waitForServer(`${BASE}/health`);
   });
 
-  after(() => {
-    if (serverProcess) {
-      serverProcess.kill('SIGTERM');
-    }
+  after(async () => {
+    await stopServer(serverProcess);
   });
 
   it('server removes kicked users even if the kicked client does not disconnect itself', async () => {

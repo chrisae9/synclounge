@@ -39,8 +39,6 @@ export function generateConfigPlugin({
   };
 }
 
-const pkg = require('./package.json');
-
 export default defineConfig({
   plugins: [
     patchLibjassPlugin(),

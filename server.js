@@ -94,8 +94,10 @@ function injectOgTags(html, meta) {
   ].filter(Boolean).join('\n    ');
 
   // Remove existing OG/Twitter meta tags from the static HTML so we replace rather than duplicate
-  const existingTags = /<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*"|name="theme-color")[^>]*\/?\s*>\s*\n?/g;
-  const cleaned = html.replace(existingTags, '');
+  const cleaned = html.replace(
+    /<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*"|name="theme-color")[^>]*\/?\s*>\s*\n?/g,
+    '',
+  );
 
   return cleaned.replace('</head>', `    ${tags}\n  </head>`);
 }

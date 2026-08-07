@@ -133,7 +133,6 @@
             <span>Party Pausing is currently {{
               IS_PARTY_PAUSING_ENABLED ? 'enabled' : 'disabled' }} by the host</span>
           </v-tooltip>
-
         </div>
       </v-list-item>
 

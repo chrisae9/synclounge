@@ -29,18 +29,49 @@ async function waitForServer(url, retries = 30, delay = 200) {
     try {
       // Sequential polling is intentional: each request observes a later server state.
       // eslint-disable-next-line no-await-in-loop
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(500) });
       const healthy = response.ok;
       // eslint-disable-next-line no-await-in-loop
       await response.body?.cancel();
       if (healthy) return;
     } catch {
-      // Retry until the child process starts listening.
+      // Retry connection failures and per-attempt timeouts.
     }
     // eslint-disable-next-line no-await-in-loop
     await wait(delay);
   }
   throw new Error('Server did not start in time');
+}
+
+async function stopServer(processToStop) {
+  if (!processToStop
+    || processToStop.exitCode !== null
+    || processToStop.signalCode !== null) return;
+
+  const exited = new Promise((resolve) => {
+    processToStop.once('error', resolve);
+    processToStop.once('close', resolve);
+  });
+  const waitForExit = async () => {
+    let timeout;
+    const didExit = await Promise.race([
+      exited.then(() => true),
+      new Promise((resolve) => {
+        timeout = setTimeout(() => resolve(false), 2000);
+      }),
+    ]);
+    clearTimeout(timeout);
+    return didExit;
+  };
+
+  if (processToStop.exitCode !== null || processToStop.signalCode !== null) return;
+  processToStop.kill('SIGTERM');
+  if (!await waitForExit()
+    && processToStop.exitCode === null
+    && processToStop.signalCode === null) {
+    processToStop.kill('SIGKILL');
+    assert.ok(await waitForExit(), 'server did not exit after SIGKILL');
+  }
 }
 
 function connectClient() {
@@ -110,8 +141,8 @@ describe('socket event validation', () => {
     await waitForServer(`${baseUrl}/health`);
   });
 
-  after(() => {
-    if (serverProcess) serverProcess.kill('SIGTERM');
+  after(async () => {
+    await stopServer(serverProcess);
   });
 
   it('disconnects a client that does not answer the application ping', async () => {
