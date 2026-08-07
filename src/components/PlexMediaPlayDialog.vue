@@ -99,6 +99,14 @@ export default {
     resumeFrom: true,
   }),
 
+  computed: {
+    offset() {
+      return this.resumeFrom
+        ? this.metadata.viewOffset
+        : 0;
+    },
+  },
+
   watch: {
     dialog(open) {
       if (open) {
@@ -108,14 +116,6 @@ export default {
           }, 300);
         });
       }
-    },
-  },
-
-  computed: {
-    offset() {
-      return this.resumeFrom
-        ? this.metadata.viewOffset
-        : 0;
     },
   },
 

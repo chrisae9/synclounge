@@ -83,11 +83,11 @@
     >
       <v-col>
         <v-data-table
+          v-model:sort-by="sortByArray"
+          v-model:items-per-page="itemsPerPage"
           fixed-header
           :headers="headers[library.type]"
           :items="contents"
-          v-model:sort-by="sortByArray"
-          v-model:items-per-page="itemsPerPage"
           :server-items-length="totalItems"
           :loading="childrenAbortController != null"
           item-value="ratingKey"
