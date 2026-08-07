@@ -98,17 +98,19 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
   const disconnect = ({ server, socket }) => {
     logSocket({ socketId: socket.id, message: 'disconnect' });
 
-    if (isUserInARoom(socket.id)) {
-      const roomId = removeUserAndUpdateRoom({ server, socketId: socket.id });
-      if (roomId != null) {
-        logRoomStats(roomId);
+    try {
+      if (isUserInARoom(socket.id)) {
+        const roomId = removeUserAndUpdateRoom({ server, socketId: socket.id });
+        if (roomId != null) {
+          logRoomStats(roomId);
+        }
       }
+    } finally {
+      clearSocketLatencyInterval(socket.id);
+      removeSocketLatencyData(socket.id);
+
+      logSocketStats();
     }
-
-    clearSocketLatencyInterval(socket.id);
-    removeSocketLatencyData(socket.id);
-
-    logSocketStats();
   };
 
   const transferHost = ({ server, socket, data: desiredHostId }) => {
@@ -374,7 +376,6 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     setAutoHostEnabled,
     partyPause,
     partyPauseAck,
-    disconnect,
     kick,
   };
 
@@ -435,6 +436,16 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       initSocketLatencyData(socket.id);
       sendPing({ server, socketId: socket.id, pingTimeout });
       logSocketStats();
+
+      // Cleanup must never pass through event validation or rate limiting. A rate-limit
+      // rejection disconnects synchronously, so limiting this event would skip cleanup.
+      socket.on('disconnect', () => {
+        try {
+          disconnect({ server, socket });
+        } catch (error) {
+          log('Unhandled socket disconnect error:', error);
+        }
+      });
 
       Object.entries(eventHandlers).forEach(([name, handler]) => {
         socket.on(name, (data) => {

@@ -1,7 +1,9 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { createState } = require('../packages/syncloungeserver/dist/socketserver/state');
+// The generated dist module does not exist until build:server runs.
+// eslint-disable-next-line import/extensions
+const { createState } = require('../packages/syncloungeserver/dist/socketserver/state.js');
 
 describe('socket server room state', () => {
   it('allocates duplicate usernames when an existing similar name has a non-numeric suffix', () => {

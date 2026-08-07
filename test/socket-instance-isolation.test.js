@@ -1,7 +1,9 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { io } = require('socket.io-client');
-const { socketServer } = require('../packages/syncloungeserver/dist/lib');
+// The generated dist entry does not exist until build:server runs.
+// eslint-disable-next-line import/extensions
+const { socketServer } = require('../packages/syncloungeserver/dist/lib.js');
 
 const waitForEvent = (socket, eventName, timeoutMs = 3000) => new Promise((resolve, reject) => {
   const timer = setTimeout(() => reject(new Error(`Timed out waiting for ${eventName}`)), timeoutMs);
@@ -11,17 +13,24 @@ const waitForEvent = (socket, eventName, timeoutMs = 3000) => new Promise((resol
   });
 });
 
-const joinClient = ({ url, roomId, username, media }) => new Promise((resolve, reject) => {
+const joinClient = ({
+  url, roomId, username, media, track,
+}) => new Promise((resolve, reject) => {
   const socket = io(url, {
     path: '/socket.io',
     transports: ['websocket'],
   });
-  const timer = setTimeout(() => {
-    socket.close();
-    reject(new Error(`${username} did not join in time`));
-  }, 3000);
+  track(socket);
 
-  socket.once('connect_error', reject);
+  let timer;
+  const fail = (error) => {
+    clearTimeout(timer);
+    socket.close();
+    reject(error);
+  };
+  timer = setTimeout(() => fail(new Error(`${username} did not join in time`)), 3000);
+
+  socket.once('connect_error', fail);
   socket.once('slPing', (secret) => {
     socket.emit('slPong', secret);
     socket.emit('join', {
@@ -41,6 +50,7 @@ const joinClient = ({ url, roomId, username, media }) => new Promise((resolve, r
   });
   socket.once('joinResult', (joinResult) => {
     clearTimeout(timer);
+    socket.off('connect_error', fail);
     resolve({ socket, joinResult });
   });
 });
@@ -49,8 +59,12 @@ describe('embedded socket server instance isolation', () => {
   it('isolates same-named rooms, health, timers, sequencing, and lifecycle', async () => {
     const roomId = 'shared-room';
     const routers = [
-      socketServer({ base_url: '/', port: 0, ping_interval: 60000, ping_timeout: 3000 }),
-      socketServer({ base_url: '/', port: 0, ping_interval: 60000, ping_timeout: 3000 }),
+      socketServer({
+        base_url: '/', port: 0, ping_interval: 60000, ping_timeout: 3000,
+      }),
+      socketServer({
+        base_url: '/', port: 0, ping_interval: 60000, ping_timeout: 3000,
+      }),
     ];
     const clients = [];
     const closed = new Set();
@@ -69,15 +83,16 @@ describe('embedded socket server instance isolation', () => {
           roomId,
           username: 'server-a-host',
           media: { title: 'server-a-media' },
+          track: (socket) => clients.push(socket),
         }),
         joinClient({
           url: urlB,
           roomId,
           username: 'server-b-host',
           media: { title: 'server-b-media' },
+          track: (socket) => clients.push(socket),
         }),
       ]);
-      clients.push(clientA.socket, clientB.socket);
 
       assert.equal(clientA.joinResult.hostId, clientA.socket.id);
       assert.equal(clientB.joinResult.hostId, clientB.socket.id);
@@ -99,9 +114,10 @@ describe('embedded socket server instance isolation', () => {
           roomId,
           username: `server-a-user-${index}`,
           media: { title: `server-a-media-${index}` },
+          track: (socket) => clients.push(socket),
         })
       )));
-      clients.push(...additionalAClients.map(({ socket }) => socket));
+      assert.equal(additionalAClients.length, 24);
 
       assert.deepEqual(await (await fetch(`${urlA}/health`)).json(), { load: 'medium' });
       assert.deepEqual(await (await fetch(`${urlB}/health`)).json(), { load: 'low' });

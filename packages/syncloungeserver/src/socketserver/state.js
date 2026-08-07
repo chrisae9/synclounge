@@ -208,7 +208,7 @@ export const createState = () => {
     .isAutoHostEnabled;
 
   const clearSocketLatencyInterval = (socketId) => {
-    clearInterval(socketLatencyData.get(socketId).intervalId);
+    clearInterval(socketLatencyData.get(socketId)?.intervalId);
   };
 
   const getJoinedUserCount = () => socketRoomId.size;
