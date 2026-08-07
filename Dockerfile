@@ -26,6 +26,7 @@ RUN npm prune --production
 
 # production environment
 FROM node:24-alpine AS production-stage
+ENV NODE_ENV=production
 RUN mkdir /app && chown -R node:node /app
 WORKDIR /app
 RUN apk add --no-cache tini

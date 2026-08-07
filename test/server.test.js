@@ -262,6 +262,8 @@ describe('server', () => {
       });
 
       assert.equal(res.status, 413);
+      assert.match(res.headers.get('content-type'), /^application\/json/);
+      assert.deepEqual(await res.json(), { error: 'Metadata body exceeds 16 KiB' });
     });
 
     it('accepts exactly 16 KiB and rejects the next byte', async () => {
@@ -644,6 +646,27 @@ describe('server', () => {
         body: '{',
       });
       assert.equal(res.status, 400);
+      assert.match(res.headers.get('content-type'), /^application\/json/);
+      const body = await res.json();
+      assert.deepEqual(body, { error: 'Malformed JSON' });
+      assert.ok(!JSON.stringify(body).includes(__dirname));
+    });
+
+    it('rejects identifiers that cannot be safely URL-encoded', async () => {
+      const cases = [
+        { machineIdentifier: '\uD800', ratingKey: 'safe' },
+        { machineIdentifier: 'safe', ratingKey: '\uDFFF' },
+      ];
+      const responses = await Promise.all(cases.map((body) => request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: { ...body, room: 'safe-room' },
+      })));
+
+      responses.forEach((res) => assert.equal(res.status, 400));
+      const roomRes = await request('/join/safe-room');
+      assert.equal(roomRes.status, 200);
+      assert.ok((await roomRes.text()).includes('content="SyncLounge"'));
     });
 
     it('rejects numeric identifiers that cannot round-trip safely', async () => {
