@@ -122,4 +122,59 @@ describe('createPersistedState', () => {
       storageSpy.mockRestore();
     }
   });
+
+  it('omits unsafe paths without changing object prototypes', () => {
+    const originalObjectPrototype = Object.getPrototypeOf({});
+    const storage = {
+      getItem: vi.fn(() => JSON.stringify(JSON.parse(`{
+        "settings": { "theme": "stored" },
+        "__proto__": { "polluted": true },
+        "nested": {
+          "constructor": { "polluted": true },
+          "prototype": { "polluted": true }
+        }
+      }`))),
+      setItem: vi.fn(),
+    };
+    let subscriber;
+    const store = {
+      state: {
+        settings: { theme: 'current' },
+        nested: { retained: true },
+      },
+      replaceState: vi.fn((state) => {
+        store.state = state;
+      }),
+      subscribe: vi.fn((callback) => {
+        subscriber = callback;
+      }),
+    };
+
+    createPersistedState({
+      paths: [
+        'settings',
+        '__proto__.polluted',
+        'nested.constructor.polluted',
+        'nested.prototype.polluted',
+      ],
+      storage,
+    })(store);
+
+    expect(store.state).toEqual({
+      settings: { theme: 'stored' },
+      nested: { retained: true },
+    });
+    expect(Object.getPrototypeOf(store.state)).toBe(originalObjectPrototype);
+    expect(Object.getPrototypeOf(store.state.nested)).toBe(originalObjectPrototype);
+    expect(Object.prototype).not.toHaveProperty('polluted');
+
+    subscriber({}, store.state);
+
+    expect(JSON.parse(storage.setItem.mock.calls[0][1])).toEqual({
+      settings: { theme: 'stored' },
+    });
+    expect(Object.getPrototypeOf(store.state)).toBe(originalObjectPrototype);
+    expect(Object.getPrototypeOf(store.state.nested)).toBe(originalObjectPrototype);
+    expect(Object.prototype).not.toHaveProperty('polluted');
+  });
 });
