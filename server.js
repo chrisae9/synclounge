@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const syncloungeServer = require('syncloungeserver');
+const syncloungeServer = require('./packages/syncloungeserver/dist/lib');
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
