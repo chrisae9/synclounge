@@ -66,18 +66,33 @@ async function waitForServer(url, retries = 30, delay = 200) {
 }
 
 async function stopServer(processToStop) {
-  if (!processToStop || processToStop.exitCode !== null) return;
+  if (!processToStop
+    || processToStop.exitCode !== null
+    || processToStop.signalCode !== null) return;
+
   const exited = new Promise((resolve) => {
-    processToStop.once('exit', resolve);
+    processToStop.once('error', resolve);
+    processToStop.once('close', resolve);
   });
+  const waitForExit = async () => {
+    let timeout;
+    const didExit = await Promise.race([
+      exited.then(() => true),
+      new Promise((resolve) => {
+        timeout = setTimeout(() => resolve(false), 2000);
+      }),
+    ]);
+    clearTimeout(timeout);
+    return didExit;
+  };
+
+  if (processToStop.exitCode !== null || processToStop.signalCode !== null) return;
   processToStop.kill('SIGTERM');
-  const forceKill = setTimeout(() => {
-    if (processToStop.exitCode === null) processToStop.kill('SIGKILL');
-  }, 2000);
-  try {
-    await exited;
-  } finally {
-    clearTimeout(forceKill);
+  if (!await waitForExit()
+    && processToStop.exitCode === null
+    && processToStop.signalCode === null) {
+    processToStop.kill('SIGKILL');
+    assert.ok(await waitForExit(), 'server did not exit after SIGKILL');
   }
 }
 
