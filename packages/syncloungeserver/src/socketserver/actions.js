@@ -2,6 +2,7 @@ import {
   isUserInARoom, getRoomUserData, getUserRoomId, makeUserHost, getSocketCount, getRoomSize,
   getRoomSocketIds, removeUser, isRoomEmpty, removeRoom, getAnySocketIdInRoom, getRoomCount,
   generateAndSetSocketLatencySecret, formatUserData, getRoomHostId, getJoinedUserCount,
+  clearSocketLatencyInterval, setSocketLatencyIntervalId,
 } from './state';
 
 export const log = (...args) => {
@@ -118,7 +119,8 @@ export const removeUserAndUpdateRoom = ({ server, socketId }) => {
   return roomId;
 };
 
-export const sendPing = ({ server, socketId }) => {
+export const sendPing = ({ server, socketId, pingTimeout }) => {
+  clearSocketLatencyInterval(socketId);
   const secret = generateAndSetSocketLatencySecret(socketId);
 
   emitToSocket({
@@ -126,6 +128,17 @@ export const sendPing = ({ server, socketId }) => {
     socketId,
     eventName: 'slPing',
     data: secret,
+  });
+
+  setSocketLatencyIntervalId({
+    socketId,
+    intervalId: setTimeout(() => {
+      const socket = server.sockets.sockets.get(socketId);
+      if (socket?.connected) {
+        logSocket({ socketId, message: 'Disconnecting after slPing response timeout' });
+        socket.disconnect(true);
+      }
+    }, pingTimeout),
   });
 };
 

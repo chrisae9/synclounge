@@ -10,9 +10,16 @@ import attachEventHandlers from './handlers';
 import { getHealth } from './state';
 
 const socketServer = ({
-  base_url: baseUrl, static_path: staticPath, port, ping_interval: pingInterval,
-  preStaticInjection, trust_proxy: trustProxy,
+  base_url: baseUrl, static_path: staticPath, port, ping_interval: pingInterval = 10000,
+  ping_timeout: pingTimeout = 10000, preStaticInjection, trust_proxy: trustProxy,
 }) => {
+  if (!Number.isFinite(pingInterval) || pingInterval <= 0) {
+    throw new TypeError('ping_interval must be a positive number');
+  }
+  if (!Number.isFinite(pingTimeout) || pingTimeout <= 0) {
+    throw new TypeError('ping_timeout must be a positive number');
+  }
+
   http.globalAgent.keepAlive = true;
 
   const app = express();
@@ -42,7 +49,7 @@ const socketServer = ({
     transports: ['websocket', 'polling'],
   });
 
-  attachEventHandlers({ server: socketio, pingInterval });
+  attachEventHandlers({ server: socketio, pingInterval, pingTimeout });
 
   router.get('/health', (req, res) => {
     res.json(getHealth());
@@ -65,10 +72,31 @@ const socketServer = ({
     });
   }
 
-  server.listen(port, () => {
-    console.log('SyncLounge Server successfully started on port', port);
-    console.log('Running with base URL:', baseUrl);
+  router.ready = new Promise((resolve, reject) => {
+    const handleStartupError = (error) => reject(error);
+    server.once('error', handleStartupError);
+    server.listen(port, () => {
+      server.off('error', handleStartupError);
+      const address = server.address();
+      console.log('SyncLounge Server successfully started on port', address.port);
+      console.log('Running with base URL:', baseUrl);
+      resolve(address);
+    });
   });
+
+  router.close = () => new Promise((resolve, reject) => {
+    socketio.close(() => {
+      if (!server.listening) {
+        resolve();
+        return;
+      }
+      server.close((error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
+  });
+  router.address = () => server.address();
 
   // Return router so users can attach more routes if desired
   return router;

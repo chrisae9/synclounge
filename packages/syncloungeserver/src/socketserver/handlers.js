@@ -193,7 +193,7 @@ const mediaUpdate = ({
 };
 
 const slPong = ({
-  server, pingInterval, socket, data: secret,
+  server, pingInterval, pingTimeout, socket, data: secret,
 }) => {
   const expectedSecret = getSocketPingSecret(socket.id);
   if (expectedSecret === null || secret !== expectedSecret) {
@@ -206,12 +206,13 @@ const slPong = ({
     return;
   }
 
+  clearSocketLatencyInterval(socket.id);
   updateSocketLatency(socket.id);
 
   setSocketLatencyIntervalId({
     socketId: socket.id,
     intervalId: setTimeout(() => {
-      sendPing({ server, socketId: socket.id });
+      sendPing({ server, socketId: socket.id, pingTimeout });
     }, pingInterval),
   });
 };
@@ -376,8 +377,54 @@ const eventHandlers = {
   kick,
 };
 
-const attachEventHandlers = ({ server, pingInterval }) => {
+const DEFAULT_EVENT_RATE_LIMIT = { maxEvents: 60, windowMs: 1000 };
+const AGGREGATE_EVENT_RATE_LIMIT = { maxEvents: 100, windowMs: 1000 };
+const EVENT_RATE_LIMITS = {
+  playerStateUpdate: { maxEvents: 30, windowMs: 1000 },
+  mediaUpdate: { maxEvents: 10, windowMs: 1000 },
+  sendMessage: { maxEvents: 5, windowMs: 5000 },
+  partyPause: { maxEvents: 10, windowMs: 1000 },
+};
+
+const createEventRateLimiter = () => {
+  const buckets = new Map();
+  let aggregateBucket;
+
+  const incrementBucket = (bucket, { maxEvents, windowMs }, now) => {
+    if (!bucket || now - bucket.windowStartedAt >= windowMs) {
+      return {
+        bucket: { count: 1, windowStartedAt: now },
+        limited: false,
+      };
+    }
+
+    const nextBucket = { ...bucket, count: bucket.count + 1 };
+    return { bucket: nextBucket, limited: nextBucket.count > maxEvents };
+  };
+
+  return (eventName) => {
+    const now = Date.now();
+    const aggregateResult = incrementBucket(
+      aggregateBucket,
+      AGGREGATE_EVENT_RATE_LIMIT,
+      now,
+    );
+    aggregateBucket = aggregateResult.bucket;
+
+    const eventResult = incrementBucket(
+      buckets.get(eventName),
+      EVENT_RATE_LIMITS[eventName] ?? DEFAULT_EVENT_RATE_LIMIT,
+      now,
+    );
+    buckets.set(eventName, eventResult.bucket);
+
+    return aggregateResult.limited || eventResult.limited;
+  };
+};
+
+const attachEventHandlers = ({ server, pingInterval, pingTimeout }) => {
   server.on('connection', (socket) => {
+    const isRateLimited = createEventRateLimiter();
     const forwardedHeader = socket.handshake.headers['x-forwarded-for'];
     const addressInfo = forwardedHeader
       ? `${forwardedHeader} (${socket.conn.remoteAddress})`
@@ -385,17 +432,22 @@ const attachEventHandlers = ({ server, pingInterval }) => {
 
     logSocket({ socketId: socket.id, message: `connection: ${addressInfo}` });
     initSocketLatencyData(socket.id);
-    sendPing({ server, socketId: socket.id });
+    sendPing({ server, socketId: socket.id, pingTimeout });
     logSocketStats();
 
     Object.entries(eventHandlers).forEach(([name, handler]) => {
       socket.on(name, (data) => {
         try {
           validateEvent(name, data);
+          if (isRateLimited(name)) {
+            logSocket({ socketId: socket.id, message: `Rate limit exceeded for ${name}` });
+            socket.disconnect(true);
+            return;
+          }
           // TODO: eventually pass in state to everything rather than having it all global
           // TODO: move ping interval into state too
           handler({
-            server, pingInterval, socket, data,
+            server, pingInterval, pingTimeout, socket, data,
           });
         } catch (error) {
           if (error instanceof ValidationError) {
