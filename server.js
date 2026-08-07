@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-const syncloungeServer = require('syncloungeserver');
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
+const syncloungeServer = require('./packages/syncloungeserver/dist/lib');
 const config = require('./config');
 const {
   createCache,

@@ -8,9 +8,14 @@
     "dist",
     "config",
     "server.js",
+    "cache.js",
     "poster-proxy.js",
     "request-abort.js",
-    "packages/syncloungeserver"
+    "packages/syncloungeserver/dist",
+    "packages/syncloungeserver/src",
+    "packages/syncloungeserver/LICENSE",
+    "packages/syncloungeserver/README.md",
+    "packages/syncloungeserver/package.json"
   ],
   "scripts": {
     "serve": "vite",
@@ -23,10 +28,16 @@
     "prepare": "if-env SKIP_BUILD=true && echo 'Skipping build' || npm run build"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.22.2",
     "ipaddr.js": "^2.5.0",
     "nconf": "^0.13.0",
-    "syncloungeserver": "file:packages/syncloungeserver"
+    "socket.io": "^4.8.3",
+    "uuid": "^11.1.1"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.0.8",
+    "utf-8-validate": "^6.0.4"
   },
   "devDependencies": {
     "@babel/cli": "^7.29.7",
@@ -70,5 +81,12 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "allowScripts": {
+    "@parcel/watcher@2.6.0": true,
+    "bufferutil@4.1.0": true,
+    "esbuild@0.25.12": true,
+    "fsevents@2.3.3": true,
+    "utf-8-validate@6.0.6": true
   }
 }
