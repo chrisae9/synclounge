@@ -118,6 +118,9 @@ When embedded as a library, `socketServer()` continues to return its Express rou
 with `port: 0`. Its asynchronous `close()` method disconnects clients and releases the HTTP
 listener.
 
+Socket messages are capped at 64 KiB. Valid events are subject to both per-event and aggregate
+per-socket rate limits before handlers run; clients that exceed either limit are disconnected.
+
 ## Manual Building
 
 You can also clone the repository to build it yourself or

@@ -234,4 +234,38 @@ describe('socket event validation', () => {
       socket.close();
     }
   });
+
+  it('disconnects a client that evades per-event limits by alternating events', async () => {
+    const socket = connectClient();
+    try {
+      await respondToPing(socket);
+      const joined = waitForEvent(socket, 'joinResult');
+      socket.emit('join', {
+        roomId: `aggregate-flood-${Date.now()}`,
+        desiredUsername: 'aggregate-flood-user',
+        desiredPartyPausingEnabled: true,
+        desiredAutoHostEnabled: true,
+        thumb: '',
+        playerProduct: 'test',
+        state: 'stopped',
+        time: 0,
+        duration: 0,
+        playbackRate: 1,
+        media: null,
+        syncFlexibility: 3000,
+      });
+      assert.equal((await joined).success, true);
+
+      const disconnected = waitForEvent(socket, 'disconnect');
+      for (let event = 0; event < 60; event += 1) {
+        socket.emit('syncFlexibilityUpdate', event);
+        socket.emit('partyPauseAck', { requestId: `request-${event}` });
+      }
+
+      await disconnected;
+      await assertServerHealthy();
+    } finally {
+      socket.close();
+    }
+  });
 });

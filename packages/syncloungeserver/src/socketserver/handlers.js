@@ -378,6 +378,7 @@ const eventHandlers = {
 };
 
 const DEFAULT_EVENT_RATE_LIMIT = { maxEvents: 60, windowMs: 1000 };
+const AGGREGATE_EVENT_RATE_LIMIT = { maxEvents: 100, windowMs: 1000 };
 const EVENT_RATE_LIMITS = {
   playerStateUpdate: { maxEvents: 30, windowMs: 1000 },
   mediaUpdate: { maxEvents: 10, windowMs: 1000 },
@@ -387,19 +388,37 @@ const EVENT_RATE_LIMITS = {
 
 const createEventRateLimiter = () => {
   const buckets = new Map();
+  let aggregateBucket;
+
+  const incrementBucket = (bucket, { maxEvents, windowMs }, now) => {
+    if (!bucket || now - bucket.windowStartedAt >= windowMs) {
+      return {
+        bucket: { count: 1, windowStartedAt: now },
+        limited: false,
+      };
+    }
+
+    const nextBucket = { ...bucket, count: bucket.count + 1 };
+    return { bucket: nextBucket, limited: nextBucket.count > maxEvents };
+  };
 
   return (eventName) => {
     const now = Date.now();
-    const { maxEvents, windowMs } = EVENT_RATE_LIMITS[eventName] ?? DEFAULT_EVENT_RATE_LIMIT;
-    const bucket = buckets.get(eventName);
+    const aggregateResult = incrementBucket(
+      aggregateBucket,
+      AGGREGATE_EVENT_RATE_LIMIT,
+      now,
+    );
+    aggregateBucket = aggregateResult.bucket;
 
-    if (!bucket || now - bucket.windowStartedAt >= windowMs) {
-      buckets.set(eventName, { count: 1, windowStartedAt: now });
-      return false;
-    }
+    const eventResult = incrementBucket(
+      buckets.get(eventName),
+      EVENT_RATE_LIMITS[eventName] ?? DEFAULT_EVENT_RATE_LIMIT,
+      now,
+    );
+    buckets.set(eventName, eventResult.bucket);
 
-    bucket.count += 1;
-    return bucket.count > maxEvents;
+    return aggregateResult.limited || eventResult.limited;
   };
 };
 
