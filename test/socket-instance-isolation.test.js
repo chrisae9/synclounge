@@ -116,6 +116,9 @@ describe('embedded socket server instance isolation', () => {
       assert.equal(clientB.socket.connected, true);
       assert.equal(routers[1].address().port, addressB.port);
       assert.deepEqual(await (await fetch(`${urlB}/health`)).json(), { load: 'low' });
+      const pauseBAfterClose = waitForEvent(clientB.socket, 'partyPause');
+      clientB.socket.emit('partyPause', true);
+      assert.match((await pauseBAfterClose).requestId, /:2$/);
 
       await routers[1].close();
       closed.add(routers[1]);
