@@ -116,7 +116,8 @@ PING_TIMEOUT=10000 syncloungeserver
 When embedded as a library, `socketServer()` continues to return its Express router. The router's
 `ready` promise resolves with the bound address, including the OS-assigned port when configured
 with `port: 0`. Its asynchronous `close()` method disconnects clients and releases the HTTP
-listener.
+listener. The `address()` method returns the listener's current address after `ready` resolves and
+until `close()` completes.
 
 Socket messages are capped at 64 KiB. Valid events are subject to both per-event and aggregate
 per-socket rate limits before handlers run; clients that exceed either limit are disconnected.

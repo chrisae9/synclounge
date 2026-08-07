@@ -68,6 +68,7 @@ describe('embedded socket server lifecycle', () => {
         ping_interval: 10000,
       });
       const { port } = await router.ready;
+      assert.equal(router.address().port, port);
       await waitForHealth(`http://127.0.0.1:${port}/health`);
 
       client = io(`http://127.0.0.1:${port}`, {

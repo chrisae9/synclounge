@@ -60,6 +60,26 @@ function waitForEvent(socket, eventName, timeoutMs = 3000) {
   });
 }
 
+function waitForEvents(socket, eventName, expectedCount, timeoutMs = 3000) {
+  return new Promise((resolve, reject) => {
+    let receivedCount = 0;
+    let timeout;
+    const onEvent = () => {
+      receivedCount += 1;
+      if (receivedCount === expectedCount) {
+        clearTimeout(timeout);
+        socket.off(eventName, onEvent);
+        resolve();
+      }
+    };
+    timeout = setTimeout(() => {
+      socket.off(eventName, onEvent);
+      reject(new Error(`Timed out after ${receivedCount} ${eventName} events`));
+    }, timeoutMs);
+    socket.on(eventName, onEvent);
+  });
+}
+
 async function respondToPing(socket) {
   const secret = await waitForEvent(socket, 'slPing');
   socket.emit('slPong', secret);
@@ -163,11 +183,13 @@ describe('socket event validation', () => {
 
   it('keeps a joined client connected at the room fanout limit', async () => {
     const socket = connectClient();
+    let observer;
     try {
       await respondToPing(socket);
+      const roomId = `boundary-${Date.now()}`;
       const joined = waitForEvent(socket, 'joinResult');
       socket.emit('join', {
-        roomId: `boundary-${Date.now()}`,
+        roomId,
         desiredUsername: 'boundary-user',
         desiredPartyPausingEnabled: true,
         desiredAutoHostEnabled: true,
@@ -182,6 +204,26 @@ describe('socket event validation', () => {
       });
       assert.equal((await joined).success, true);
 
+      observer = connectClient();
+      await respondToPing(observer);
+      const observerJoined = waitForEvent(observer, 'joinResult');
+      observer.emit('join', {
+        roomId,
+        desiredUsername: 'boundary-observer',
+        desiredPartyPausingEnabled: true,
+        desiredAutoHostEnabled: true,
+        thumb: '',
+        playerProduct: 'test',
+        state: 'stopped',
+        time: 0,
+        duration: 0,
+        playbackRate: 1,
+        media: null,
+        syncFlexibility: 3000,
+      });
+      assert.equal((await observerJoined).success, true);
+
+      const allUpdatesProcessed = waitForEvents(observer, 'playerStateUpdate', 30);
       for (let event = 0; event < 30; event += 1) {
         socket.emit('playerStateUpdate', {
           state: 'playing',
@@ -190,11 +232,12 @@ describe('socket event validation', () => {
           playbackRate: 1,
         });
       }
-      await wait(100);
+      await allUpdatesProcessed;
       assert.equal(socket.connected, true);
       await assertServerHealthy();
     } finally {
       socket.close();
+      observer?.close();
     }
   });
 
