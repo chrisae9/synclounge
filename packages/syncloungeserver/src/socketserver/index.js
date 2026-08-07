@@ -5,9 +5,9 @@ import cors from 'cors';
 import http from 'http';
 
 import { Server } from 'socket.io';
-import attachEventHandlers from './handlers';
-
-import { getHealth } from './state';
+import { createState } from './state';
+import { createActions } from './actions';
+import { createEventHandlers } from './handlers';
 
 const socketServer = ({
   base_url: baseUrl, static_path: staticPath, port, ping_interval: pingInterval = 10000,
@@ -19,8 +19,6 @@ const socketServer = ({
   if (!Number.isFinite(pingTimeout) || pingTimeout <= 0) {
     throw new TypeError('ping_timeout must be a positive number');
   }
-
-  http.globalAgent.keepAlive = true;
 
   const app = express();
   const server = http.Server(app);
@@ -49,10 +47,13 @@ const socketServer = ({
     transports: ['websocket', 'polling'],
   });
 
+  const state = createState();
+  const actions = createActions(state);
+  const attachEventHandlers = createEventHandlers({ state, actions });
   attachEventHandlers({ server: socketio, pingInterval, pingTimeout });
 
   router.get('/health', (req, res) => {
-    res.json(getHealth());
+    res.json(state.getHealth());
   });
 
   if (preStaticInjection) {

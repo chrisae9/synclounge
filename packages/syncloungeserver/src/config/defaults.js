@@ -1,4 +1,4 @@
-const defaults = {
+const defaults = Object.freeze({
   port: 8088,
   base_url: '/',
   ping_interval: 10000,
@@ -8,6 +8,6 @@ const defaults = {
   public_origin: '',
   // Trust forwarded client addresses only from a loopback reverse proxy by default.
   trust_proxy: 'loopback',
-};
+});
 
 export default defaults;

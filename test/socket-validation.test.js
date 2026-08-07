@@ -280,11 +280,13 @@ describe('socket event validation', () => {
 
   it('disconnects a client that evades per-event limits by alternating events', async () => {
     const socket = connectClient();
+    let replacement;
     try {
       await respondToPing(socket);
+      const roomId = `aggregate-flood-${Date.now()}`;
       const joined = waitForEvent(socket, 'joinResult');
       socket.emit('join', {
-        roomId: `aggregate-flood-${Date.now()}`,
+        roomId,
         desiredUsername: 'aggregate-flood-user',
         desiredPartyPausingEnabled: true,
         desiredAutoHostEnabled: true,
@@ -306,9 +308,31 @@ describe('socket event validation', () => {
       }
 
       await disconnected;
+
+      replacement = connectClient();
+      await respondToPing(replacement);
+      const replacementJoined = waitForEvent(replacement, 'joinResult');
+      replacement.emit('join', {
+        roomId,
+        desiredUsername: 'replacement-user',
+        desiredPartyPausingEnabled: true,
+        desiredAutoHostEnabled: true,
+        thumb: '',
+        playerProduct: 'test',
+        state: 'stopped',
+        time: 0,
+        duration: 0,
+        playbackRate: 1,
+        media: null,
+        syncFlexibility: 3000,
+      });
+      const replacementResult = await replacementJoined;
+      assert.equal(replacementResult.hostId, replacement.id);
+      assert.deepEqual(replacementResult.users, {});
       await assertServerHealthy();
     } finally {
       socket.close();
+      replacement?.close();
     }
   });
 });

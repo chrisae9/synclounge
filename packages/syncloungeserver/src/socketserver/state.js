@@ -1,233 +1,277 @@
 import { v4 as uuidv4 } from 'uuid';
 
-const rooms = new Map();
-// Map from socket id to room name
-const socketRoomId = new Map();
-const socketLatencyData = new Map();
+export const createState = () => {
+  const rooms = new Map();
+  // Map from socket id to room name
+  const socketRoomId = new Map();
+  const socketLatencyData = new Map();
 
-const getNumberFromUsername = (username) => {
-  const match = username.match(/\((\d+)\)$/);
-  return match ? parseInt(match[1], 10) : null;
-};
+  const getNumberFromUsername = (username) => {
+    const match = username.match(/\((\d+)\)$/);
+    return match ? parseInt(match[1], 10) : null;
+  };
 
-export const getUserRoomId = (socketId) => socketRoomId.get(socketId);
+  const getUserRoomId = (socketId) => socketRoomId.get(socketId);
 
-export const getUserRoom = (socketId) => rooms.get(getUserRoomId(socketId));
+  const getUserRoom = (socketId) => rooms.get(getUserRoomId(socketId));
 
-export const getRoomUserData = (socketId) => getUserRoom(socketId)
-  .users.get(socketId);
+  const getRoomUserData = (socketId) => getUserRoom(socketId)
+    .users.get(socketId);
 
-const getUniqueUsername = ({ usernames, desiredUsername }) => {
-  if (!usernames.includes(desiredUsername)) {
-    return desiredUsername;
-  }
-
-  // Get users with same username that are numbered like:  username(1)
-  const sameUsersNum = usernames.filter((username) => username.startsWith(`${desiredUsername}(`));
-  if (sameUsersNum.length > 0) {
-    const userNumbers = sameUsersNum.map(getNumberFromUsername).filter((number) => number != null);
-    if (userNumbers.length === 0) {
-      return `${desiredUsername}(1)`;
+  const getUniqueUsername = ({ usernames, desiredUsername }) => {
+    if (!usernames.includes(desiredUsername)) {
+      return desiredUsername;
     }
-    const nextNumber = Math.max(...userNumbers) + 1;
 
-    return `${desiredUsername}(${nextNumber})`;
-  }
+    // Get users with same username that are numbered like:  username(1)
+    const sameUsersNum = usernames.filter((username) => username.startsWith(`${desiredUsername}(`));
+    if (sameUsersNum.length > 0) {
+      const userNumbers = sameUsersNum.map(getNumberFromUsername).filter((number) => number != null);
+      if (userNumbers.length === 0) {
+        return `${desiredUsername}(1)`;
+      }
+      const nextNumber = Math.max(...userNumbers) + 1;
 
-  return `${desiredUsername}(1)`;
-};
+      return `${desiredUsername}(${nextNumber})`;
+    }
 
-export const getSocketLatency = (socketId) => socketLatencyData.get(socketId).rtt / 2;
+    return `${desiredUsername}(1)`;
+  };
 
-export const updateUserPlayerState = ({
-  socketId, state, time, duration, playbackRate,
-}) => {
-  const userRoomData = getRoomUserData(socketId);
-  userRoomData.state = state;
-  // Adjust time by sender's latency
-  userRoomData.time = state === 'playing'
-    ? time + getSocketLatency(socketId)
-    : time;
-  userRoomData.duration = duration;
-  userRoomData.playbackRate = playbackRate;
-  userRoomData.updatedAt = Date.now();
-};
+  const getSocketLatency = (socketId) => socketLatencyData.get(socketId).rtt / 2;
 
-export const updateUserMedia = ({
-  socketId, media,
-}) => {
-  const userRoomData = getRoomUserData(socketId);
-  userRoomData.media = media;
-};
+  const updateUserPlayerState = ({
+    socketId, state, time, duration, playbackRate,
+  }) => {
+    const userRoomData = getRoomUserData(socketId);
+    userRoomData.state = state;
+    // Adjust time by sender's latency
+    userRoomData.time = state === 'playing'
+      ? time + getSocketLatency(socketId)
+      : time;
+    userRoomData.duration = duration;
+    userRoomData.playbackRate = playbackRate;
+    userRoomData.updatedAt = Date.now();
+  };
 
-export const updateUserSyncFlexibility = ({
-  socketId, syncFlexibility,
-}) => {
-  const userRoomData = getRoomUserData(socketId);
-  userRoomData.syncFlexibility = syncFlexibility;
-};
+  const updateUserMedia = ({
+    socketId, media,
+  }) => {
+    const userRoomData = getRoomUserData(socketId);
+    userRoomData.media = media;
+  };
 
-export const addUserToRoom = ({
-  socketId, roomId, desiredUsername, thumb, playerProduct,
-}) => {
-  const { users } = rooms.get(roomId);
+  const updateUserSyncFlexibility = ({
+    socketId, syncFlexibility,
+  }) => {
+    const userRoomData = getRoomUserData(socketId);
+    userRoomData.syncFlexibility = syncFlexibility;
+  };
 
-  const usernames = [...users.values()].map((user) => user.username);
+  const addUserToRoom = ({
+    socketId, roomId, desiredUsername, thumb, playerProduct,
+  }) => {
+    const { users } = rooms.get(roomId);
 
-  socketRoomId.set(socketId, roomId);
-  users.set(socketId, {
-    username: getUniqueUsername({ usernames, desiredUsername }),
-    thumb,
-    playerProduct,
+    const usernames = [...users.values()].map((user) => user.username);
+
+    socketRoomId.set(socketId, roomId);
+    users.set(socketId, {
+      username: getUniqueUsername({ usernames, desiredUsername }),
+      thumb,
+      playerProduct,
+    });
+  };
+
+  const createRoom = ({
+    id, isPartyPausingEnabled, isAutoHostEnabled, hostId,
+  }) => {
+    rooms.set(id, {
+      isPartyPausingEnabled,
+      isAutoHostEnabled,
+      hostId,
+      users: new Map(),
+    });
+  };
+
+  const isUserInARoom = (socketId) => socketRoomId.has(socketId);
+
+  const doesRoomExist = (roomId) => rooms.has(roomId);
+
+  const getRoomSocketIds = (roomId) => [...rooms.get(roomId).users.keys()];
+
+  const formatUserData = ({
+    recipientId, updatedAt, playbackRate, state, time, ...rest
+  }) => ({
+    ...rest,
+    playbackRate,
+    state,
+    // Adjust time by age if playing
+    time: state === 'playing'
+      ? time + (getSocketLatency(recipientId) + Date.now() - updatedAt) * playbackRate
+      : time,
   });
-};
 
-export const createRoom = ({
-  id, isPartyPausingEnabled, isAutoHostEnabled, hostId,
-}) => {
-  rooms.set(id, {
-    isPartyPausingEnabled,
-    isAutoHostEnabled,
-    hostId,
-    users: new Map(),
+  const getOtherUserData = ({ roomId, exceptSocketId }) => Object.fromEntries(
+    [...rooms.get(roomId).users]
+      .filter(([socketId]) => socketId !== exceptSocketId)
+      .map(([id, data]) => ([id, formatUserData({ recipientId: exceptSocketId, ...data })])),
+  );
+
+  const getRoomHostId = (roomId) => rooms.get(roomId).hostId;
+
+  const getJoinData = ({ roomId, socketId }) => {
+    const { username } = getRoomUserData(socketId);
+    const { isPartyPausingEnabled, isAutoHostEnabled } = rooms.get(roomId);
+
+    return {
+      isPartyPausingEnabled,
+      isAutoHostEnabled,
+      hostId: getRoomHostId(roomId),
+      user: {
+        id: socketId,
+        username,
+      },
+      users: getOtherUserData({ roomId, exceptSocketId: socketId }),
+    };
+  };
+
+  const removeUser = (socketId) => {
+    rooms.get(getUserRoomId(socketId)).users.delete(socketId);
+    socketRoomId.delete(socketId);
+  };
+
+  const removeRoom = (roomId) => {
+    rooms.delete(roomId);
+  };
+
+  const isUserHost = (socketId) => getUserRoom(socketId).hostId === socketId;
+
+  const getRoomSize = (roomId) => rooms.get(roomId).users.size;
+
+  const isRoomEmpty = (roomId) => getRoomSize(roomId) <= 0;
+
+  const getAnySocketIdInRoom = (roomId) => rooms.get(roomId).users.keys().next().value;
+
+  const makeUserHost = (socketId) => {
+    getUserRoom(socketId).hostId = socketId;
+  };
+
+  const isUserInRoom = ({ roomId, socketId }) => rooms.get(roomId).users.has(socketId);
+
+  const getSocketPingSecret = (socketId) => socketLatencyData.get(socketId)?.secret;
+
+  const updateSocketLatency = (socketId) => {
+    const latencyData = socketLatencyData.get(socketId);
+
+    // TODO: potentially smooth it? or also measure variance?
+    latencyData.rtt = Date.now() - latencyData.sentAt;
+
+    // Reset secret
+    latencyData.secret = null;
+  };
+
+  const generateAndSetSocketLatencySecret = (socketId) => {
+    const secret = uuidv4();
+    const latencyData = socketLatencyData.get(socketId);
+    latencyData.secret = secret;
+    latencyData.sentAt = Date.now();
+    return secret;
+  };
+
+  const setSocketLatencyIntervalId = ({ socketId, intervalId }) => {
+    socketLatencyData.get(socketId).intervalId = intervalId;
+  };
+
+  const doesSocketHaveRtt = (socketId) => socketLatencyData.get(socketId)?.rtt != null;
+
+  const initSocketLatencyData = (socketId) => {
+    socketLatencyData.set(socketId, {});
+  };
+
+  const removeSocketLatencyData = (socketId) => {
+    socketLatencyData.delete(socketId);
+  };
+
+  const setIsPartyPausingEnabledInSocketRoom = ({ socketId, isPartyPausingEnabled }) => {
+    getUserRoom(socketId).isPartyPausingEnabled = isPartyPausingEnabled;
+  };
+
+  const setIsAutoHostEnabledInSocketRoom = ({ socketId, isAutoHostEnabled }) => {
+    getUserRoom(socketId).isAutoHostEnabled = isAutoHostEnabled;
+  };
+
+  const isPartyPausingEnabledInSocketRoom = (socketId) => getUserRoom(socketId)
+    .isPartyPausingEnabled;
+
+  const isAutoHostEnabledInSocketRoom = (socketId) => getUserRoom(socketId)
+    .isAutoHostEnabled;
+
+  const clearSocketLatencyInterval = (socketId) => {
+    clearInterval(socketLatencyData.get(socketId)?.intervalId);
+  };
+
+  const getJoinedUserCount = () => socketRoomId.size;
+
+  const getLoad = () => {
+    if (getJoinedUserCount() < 25) {
+      return 'low';
+    }
+
+    if (getJoinedUserCount() < 50) {
+      return 'medium';
+    }
+
+    return 'high';
+  };
+
+  const getHealth = () => ({
+    load: getLoad(),
   });
-};
 
-export const isUserInARoom = (socketId) => socketRoomId.has(socketId);
+  const getSocketCount = () => socketLatencyData.size;
 
-export const doesRoomExist = (roomId) => rooms.has(roomId);
-
-export const getRoomSocketIds = (roomId) => [...rooms.get(roomId).users.keys()];
-
-export const formatUserData = ({
-  recipientId, updatedAt, playbackRate, state, time, ...rest
-}) => ({
-  ...rest,
-  playbackRate,
-  state,
-  // Adjust time by age if playing
-  time: state === 'playing'
-    ? time + (getSocketLatency(recipientId) + Date.now() - updatedAt) * playbackRate
-    : time,
-});
-
-const getOtherUserData = ({ roomId, exceptSocketId }) => Object.fromEntries(
-  [...rooms.get(roomId).users]
-    .filter(([socketId]) => socketId !== exceptSocketId)
-    .map(([id, data]) => ([id, formatUserData({ recipientId: exceptSocketId, ...data })])),
-);
-
-export const getRoomHostId = (roomId) => rooms.get(roomId).hostId;
-
-export const getJoinData = ({ roomId, socketId }) => {
-  const { username } = getRoomUserData(socketId);
-  const { isPartyPausingEnabled, isAutoHostEnabled } = rooms.get(roomId);
+  const getRoomCount = () => rooms.size;
 
   return {
-    isPartyPausingEnabled,
-    isAutoHostEnabled,
-    hostId: getRoomHostId(roomId),
-    user: {
-      id: socketId,
-      username,
-    },
-    users: getOtherUserData({ roomId, exceptSocketId: socketId }),
+    addUserToRoom,
+    clearSocketLatencyInterval,
+    createRoom,
+    doesRoomExist,
+    doesSocketHaveRtt,
+    formatUserData,
+    generateAndSetSocketLatencySecret,
+    getAnySocketIdInRoom,
+    getHealth,
+    getJoinedUserCount,
+    getJoinData,
+    getRoomCount,
+    getRoomHostId,
+    getRoomSize,
+    getRoomSocketIds,
+    getRoomUserData,
+    getSocketCount,
+    getSocketPingSecret,
+    getUserRoomId,
+    initSocketLatencyData,
+    isAutoHostEnabledInSocketRoom,
+    isPartyPausingEnabledInSocketRoom,
+    isRoomEmpty,
+    isUserHost,
+    isUserInARoom,
+    isUserInRoom,
+    makeUserHost,
+    removeRoom,
+    removeSocketLatencyData,
+    removeUser,
+    setIsAutoHostEnabledInSocketRoom,
+    setIsPartyPausingEnabledInSocketRoom,
+    setSocketLatencyIntervalId,
+    updateSocketLatency,
+    updateUserMedia,
+    updateUserPlayerState,
+    updateUserSyncFlexibility,
   };
 };
 
-export const removeUser = (socketId) => {
-  rooms.get(getUserRoomId(socketId)).users.delete(socketId);
-  socketRoomId.delete(socketId);
-};
-
-export const removeRoom = (roomId) => {
-  rooms.delete(roomId);
-};
-
-export const isUserHost = (socketId) => getUserRoom(socketId).hostId === socketId;
-
-export const getRoomSize = (roomId) => rooms.get(roomId).users.size;
-
-export const isRoomEmpty = (roomId) => getRoomSize(roomId) <= 0;
-
-export const getAnySocketIdInRoom = (roomId) => rooms.get(roomId).users.keys().next().value;
-
-export const makeUserHost = (socketId) => {
-  getUserRoom(socketId).hostId = socketId;
-};
-
-export const isUserInRoom = ({ roomId, socketId }) => rooms.get(roomId).users.has(socketId);
-
-export const getSocketPingSecret = (socketId) => socketLatencyData.get(socketId)?.secret;
-
-export const updateSocketLatency = (socketId) => {
-  const latencyData = socketLatencyData.get(socketId);
-
-  // TODO: potentially smooth it? or also measure variance?
-  latencyData.rtt = Date.now() - latencyData.sentAt;
-
-  // Reset secret
-  latencyData.secret = null;
-};
-
-export const generateAndSetSocketLatencySecret = (socketId) => {
-  const secret = uuidv4();
-  const latencyData = socketLatencyData.get(socketId);
-  latencyData.secret = secret;
-  latencyData.sentAt = Date.now();
-  return secret;
-};
-
-export const setSocketLatencyIntervalId = ({ socketId, intervalId }) => {
-  socketLatencyData.get(socketId).intervalId = intervalId;
-};
-
-export const doesSocketHaveRtt = (socketId) => socketLatencyData.get(socketId)?.rtt != null;
-
-export const initSocketLatencyData = (socketId) => {
-  socketLatencyData.set(socketId, {});
-};
-
-export const removeSocketLatencyData = (socketId) => {
-  socketLatencyData.delete(socketId);
-};
-
-export const setIsPartyPausingEnabledInSocketRoom = ({ socketId, isPartyPausingEnabled }) => {
-  getUserRoom(socketId).isPartyPausingEnabled = isPartyPausingEnabled;
-};
-
-export const setIsAutoHostEnabledInSocketRoom = ({ socketId, isAutoHostEnabled }) => {
-  getUserRoom(socketId).isAutoHostEnabled = isAutoHostEnabled;
-};
-
-export const isPartyPausingEnabledInSocketRoom = (socketId) => getUserRoom(socketId)
-  .isPartyPausingEnabled;
-
-export const isAutoHostEnabledInSocketRoom = (socketId) => getUserRoom(socketId)
-  .isAutoHostEnabled;
-
-export const clearSocketLatencyInterval = (socketId) => {
-  clearInterval(socketLatencyData.get(socketId).intervalId);
-};
-
-export const getJoinedUserCount = () => socketRoomId.size;
-
-const getLoad = () => {
-  if (getJoinedUserCount() < 25) {
-    return 'low';
-  }
-
-  if (getJoinedUserCount() < 50) {
-    return 'medium';
-  }
-
-  return 'high';
-};
-
-export const getHealth = () => ({
-  load: getLoad(),
-});
-
-export const getSocketCount = () => socketLatencyData.size;
-
-export const getRoomCount = () => rooms.size;
+export default createState;

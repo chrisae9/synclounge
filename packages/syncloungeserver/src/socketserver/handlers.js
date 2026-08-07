@@ -1,468 +1,481 @@
-import {
-  doesRoomExist, isUserInARoom, getRoomUserData, isUserHost, removeSocketLatencyData,
-  getJoinData, createRoom, addUserToRoom, clearSocketLatencyInterval,
-  getUserRoomId, isUserInRoom, updateUserMedia, makeUserHost, updateUserPlayerState,
-  getSocketPingSecret, updateSocketLatency, setSocketLatencyIntervalId, doesSocketHaveRtt,
-  setIsPartyPausingEnabledInSocketRoom, updateUserSyncFlexibility, setIsAutoHostEnabledInSocketRoom,
-  isPartyPausingEnabledInSocketRoom, isAutoHostEnabledInSocketRoom, initSocketLatencyData,
-} from './state';
-
-import {
-  removeUserAndUpdateRoom, emitToSocket, logSocket, emitAdjustedUserDataToRoom, announceNewHost,
-  emitPlayerStateUpdateToRoom, emitMediaUpdateToRoom, sendPing, emitToSocketRoom, logRoomStats,
-  emitToUserRoomExcept, logSocketStats, logRoomsStats, log,
-} from './actions';
-
 import { ValidationError, validateEvent } from './validation';
 
-let partyPauseRequestId = 0;
+export const createEventHandlers = ({ state: socketState, actions }) => {
+  const {
+    doesRoomExist, isUserInARoom, getRoomUserData, isUserHost, removeSocketLatencyData,
+    getJoinData, createRoom, addUserToRoom, clearSocketLatencyInterval,
+    getUserRoomId, isUserInRoom, updateUserMedia, makeUserHost, updateUserPlayerState,
+    getSocketPingSecret, updateSocketLatency, setSocketLatencyIntervalId, doesSocketHaveRtt,
+    setIsPartyPausingEnabledInSocketRoom, updateUserSyncFlexibility,
+    setIsAutoHostEnabledInSocketRoom, isPartyPausingEnabledInSocketRoom,
+    isAutoHostEnabledInSocketRoom, initSocketLatencyData,
+  } = socketState;
+  const {
+    removeUserAndUpdateRoom, emitToSocket, logSocket, emitAdjustedUserDataToRoom,
+    announceNewHost, emitPlayerStateUpdateToRoom, emitMediaUpdateToRoom, sendPing,
+    emitToSocketRoom, logRoomStats, emitToUserRoomExcept, logSocketStats, logRoomsStats, log,
+  } = actions;
 
-const join = ({
-  server, socket, data: {
-    roomId, desiredUsername, desiredPartyPausingEnabled, desiredAutoHostEnabled, thumb,
-    playerProduct, state, time, duration, playbackRate, media, syncFlexibility,
-  },
-}) => {
-  if (!doesSocketHaveRtt(socket.id)) {
-    // Ignore join if we don't have rtt yet.
-    // Client should never do this so this just exists for bad actors
-    logSocket({ socketId: socket.id, message: 'Socket tried to join without finishing initial ping/pong' });
-    socket.disconnect(true);
-    return;
-  }
+  let partyPauseRequestId = 0;
 
-  if (isUserInARoom(socket.id)) {
-    removeUserAndUpdateRoom({ server, socketId: socket.id });
-  }
+  const join = ({
+    server, socket, data: {
+      roomId, desiredUsername, desiredPartyPausingEnabled, desiredAutoHostEnabled, thumb,
+      playerProduct, state, time, duration, playbackRate, media, syncFlexibility,
+    },
+  }) => {
+    if (!doesSocketHaveRtt(socket.id)) {
+      // Ignore join if we don't have rtt yet.
+      // Client should never do this so this just exists for bad actors
+      logSocket({ socketId: socket.id, message: 'Socket tried to join without finishing initial ping/pong' });
+      socket.disconnect(true);
+      return;
+    }
 
-  if (!doesRoomExist(roomId)) {
-    log('Creating room:', roomId);
+    if (isUserInARoom(socket.id)) {
+      removeUserAndUpdateRoom({ server, socketId: socket.id });
+    }
 
-    createRoom({
-      id: roomId,
-      isPartyPausingEnabled: desiredPartyPausingEnabled,
-      isAutoHostEnabled: desiredAutoHostEnabled,
-      hostId: socket.id,
+    if (!doesRoomExist(roomId)) {
+      log('Creating room:', roomId);
+
+      createRoom({
+        id: roomId,
+        isPartyPausingEnabled: desiredPartyPausingEnabled,
+        isAutoHostEnabled: desiredAutoHostEnabled,
+        hostId: socket.id,
+      });
+
+      logRoomsStats();
+    }
+
+    addUserToRoom({
+      socketId: socket.id,
+      roomId,
+      desiredUsername,
+      thumb,
+      playerProduct,
     });
 
-    logRoomsStats();
-  }
+    logSocket({ socketId: socket.id, message: `join "${roomId}"` });
 
-  addUserToRoom({
-    socketId: socket.id,
-    roomId,
-    desiredUsername,
-    thumb,
-    playerProduct,
-  });
+    updateUserPlayerState({
+      socketId: socket.id, state, time, duration, playbackRate,
+    });
 
-  logSocket({ socketId: socket.id, message: `join "${roomId}"` });
+    updateUserSyncFlexibility({
+      socketId: socket.id,
+      syncFlexibility,
+    });
 
-  updateUserPlayerState({
-    socketId: socket.id, state, time, duration, playbackRate,
-  });
+    updateUserMedia({
+      socketId: socket.id,
+      media,
+    });
 
-  updateUserSyncFlexibility({
-    socketId: socket.id,
-    syncFlexibility,
-  });
+    // Broadcast user joined to everyone but this
+    emitAdjustedUserDataToRoom({
+      server,
+      exceptSocketId: socket.id,
+      eventName: 'userJoined',
+      userData: getRoomUserData(socket.id),
+    });
 
-  updateUserMedia({
-    socketId: socket.id,
-    media,
-  });
-
-  // Broadcast user joined to everyone but this
-  emitAdjustedUserDataToRoom({
-    server,
-    exceptSocketId: socket.id,
-    eventName: 'userJoined',
-    userData: getRoomUserData(socket.id),
-  });
-
-  emitToSocket({
-    server,
-    socketId: socket.id,
-    eventName: 'joinResult',
-    data: {
-      success: true,
-      ...getJoinData({ roomId, socketId: socket.id }),
-    },
-  });
-
-  logSocketStats();
-  logRoomStats(roomId);
-};
-
-const disconnect = ({ server, socket }) => {
-  logSocket({ socketId: socket.id, message: 'disconnect' });
-
-  if (isUserInARoom(socket.id)) {
-    const roomId = removeUserAndUpdateRoom({ server, socketId: socket.id });
-    if (roomId != null) {
-      logRoomStats(roomId);
-    }
-  }
-
-  clearSocketLatencyInterval(socket.id);
-  removeSocketLatencyData(socket.id);
-
-  logSocketStats();
-};
-
-const transferHost = ({ server, socket, data: desiredHostId }) => {
-  if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
-    socket.disconnect(true);
-    return;
-  }
-
-  const roomId = getUserRoomId(socket.id);
-  if (!isUserInRoom({ roomId, socketId: desiredHostId })) {
-    socket.disconnect(true);
-    return;
-  }
-
-  logSocket({
-    socketId: socket.id,
-    message: `Transferring host to: [${desiredHostId}] ${getRoomUserData(desiredHostId).username}`,
-  });
-  makeUserHost(desiredHostId);
-  announceNewHost({
-    server,
-    roomId,
-    hostId: desiredHostId,
-  });
-};
-
-const playerStateUpdate = ({
-  server, socket, data: {
-    state, time, duration, playbackRate,
-  },
-}) => {
-  if (!isUserInARoom(socket.id)) {
-    socket.disconnect(true);
-    return;
-  }
-
-  updateUserPlayerState({
-    socketId: socket.id, state, time, duration, playbackRate,
-  });
-
-  emitPlayerStateUpdateToRoom({ server, socketId: socket.id });
-};
-
-const mediaUpdate = ({
-  server, socket, data: {
-    state, time, duration, playbackRate, media, userInitiated,
-  },
-}) => {
-  if (!isUserInARoom(socket.id)) {
-    socket.disconnect(true);
-    return;
-  }
-
-  updateUserPlayerState({
-    socketId: socket.id, state, time, duration, playbackRate,
-  });
-
-  updateUserMedia({
-    socketId: socket.id,
-    media,
-  });
-
-  const makeHost = userInitiated && !isUserHost(socket.id)
-    && isAutoHostEnabledInSocketRoom(socket.id);
-
-  if (makeHost) {
-    // Emit to user that they are host now
-    makeUserHost(socket.id);
     emitToSocket({
       server,
       socketId: socket.id,
-      eventName: 'newHost',
-      data: socket.id,
+      eventName: 'joinResult',
+      data: {
+        success: true,
+        ...getJoinData({ roomId, socketId: socket.id }),
+      },
     });
 
-    logSocket({
-      socketId: socket.id,
-      message: 'Making host because user initiated media change',
-    });
-  }
+    logSocketStats();
+    logRoomStats(roomId);
+  };
 
-  emitMediaUpdateToRoom({ server, socketId: socket.id, makeHost });
-};
+  const disconnect = ({ server, socket }) => {
+    logSocket({ socketId: socket.id, message: 'disconnect' });
 
-const slPong = ({
-  server, pingInterval, pingTimeout, socket, data: secret,
-}) => {
-  const expectedSecret = getSocketPingSecret(socket.id);
-  if (expectedSecret === null || secret !== expectedSecret) {
-    logSocket({
-      socketId: socket.id,
-      message: `Incorrect secret. Expected "${expectedSecret}", got "${secret}"`,
-    });
+    try {
+      if (isUserInARoom(socket.id)) {
+        const roomId = removeUserAndUpdateRoom({ server, socketId: socket.id });
+        if (roomId != null) {
+          logRoomStats(roomId);
+        }
+      }
+    } finally {
+      clearSocketLatencyInterval(socket.id);
+      removeSocketLatencyData(socket.id);
 
-    socket.disconnect(true);
-    return;
-  }
+      logSocketStats();
+    }
+  };
 
-  clearSocketLatencyInterval(socket.id);
-  updateSocketLatency(socket.id);
-
-  setSocketLatencyIntervalId({
-    socketId: socket.id,
-    intervalId: setTimeout(() => {
-      sendPing({ server, socketId: socket.id, pingTimeout });
-    }, pingInterval),
-  });
-};
-
-const sendMessage = ({ server, socket, data: text }) => {
-  if (!isUserInARoom(socket.id)) {
-    socket.disconnect(true);
-    return;
-  }
-
-  emitToUserRoomExcept({
-    server,
-    eventName: 'newMessage',
-    data: {
-      text,
-      senderId: socket.id,
-    },
-    exceptSocketId: socket.id,
-  });
-};
-
-const setPartyPausingEnabled = ({ server, socket, data: isPartyPausingEnabled }) => {
-  if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
-    socket.disconnect(true);
-    return;
-  }
-
-  logSocket({
-    socketId: socket.id,
-    message: `set party pausing to: ${isPartyPausingEnabled}`,
-  });
-
-  setIsPartyPausingEnabledInSocketRoom({ socketId: socket.id, isPartyPausingEnabled });
-
-  // Emitting to everyone including sender as an ack that it went through
-  emitToSocketRoom({
-    server,
-    socketId: socket.id,
-    eventName: 'setPartyPausingEnabled',
-    data: isPartyPausingEnabled,
-  });
-};
-
-const setAutoHostEnabled = ({ server, socket, data: isAutoHostEnabled }) => {
-  if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
-    socket.disconnect(true);
-    return;
-  }
-
-  logSocket({
-    socketId: socket.id,
-    message: `set auto host to: ${isAutoHostEnabled}`,
-  });
-
-  setIsAutoHostEnabledInSocketRoom({ socketId: socket.id, isAutoHostEnabled });
-
-  // Emitting to everyone including sender as an ack that it went through
-  emitToSocketRoom({
-    server,
-    socketId: socket.id,
-    eventName: 'setAutoHostEnabled',
-    data: isAutoHostEnabled,
-  });
-};
-
-const partyPause = ({ server, socket, data: isPause }) => {
-  if (!isUserInARoom(socket.id) || !isPartyPausingEnabledInSocketRoom(socket.id)) {
-    socket.disconnect(true);
-    return;
-  }
-
-  emitToSocketRoom({
-    server,
-    socketId: socket.id,
-    eventName: 'partyPause',
-    data: {
-      senderId: socket.id,
-      isPause,
-      requestId: `${socket.id}:${partyPauseRequestId += 1}`,
-    },
-  });
-};
-
-const partyPauseAck = ({ server, socket, data }) => {
-  if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
-    return;
-  }
-
-  emitToSocketRoom({
-    server,
-    socketId: socket.id,
-    eventName: 'partyPauseAck',
-    data,
-  });
-};
-
-const syncFlexibilityUpdate = ({ server, socket, data: syncFlexibility }) => {
-  if (!isUserInARoom(socket.id)) {
-    socket.disconnect(true);
-    return;
-  }
-
-  updateUserSyncFlexibility({
-    socketId: socket.id,
-    syncFlexibility,
-  });
-
-  emitToUserRoomExcept({
-    server,
-    eventName: 'syncFlexibilityUpdate',
-    data: {
-      syncFlexibility,
-      id: socket.id,
-    },
-    exceptSocketId: socket.id,
-  });
-};
-
-const kick = ({ server, socket, data: id }) => {
-  if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
-    socket.disconnect(true);
-    return;
-  }
-
-  const roomId = getUserRoomId(socket.id);
-  if (!isUserInRoom({ roomId, socketId: id })) {
-    socket.disconnect(true);
-    return;
-  }
-
-  logSocket({
-    socketId: socket.id,
-    message: `Kicking: [${id}] ${getRoomUserData(id).username}`,
-  });
-
-  emitToSocket({
-    server,
-    socketId: id,
-    eventName: 'kicked',
-    data: null,
-  });
-
-  const kickedSocket = server.sockets.sockets.get(id);
-  if (kickedSocket) {
-    setImmediate(() => kickedSocket.disconnect(true));
-  }
-};
-
-const eventHandlers = {
-  join,
-  slPong,
-  playerStateUpdate,
-  mediaUpdate,
-  syncFlexibilityUpdate,
-  transferHost,
-  sendMessage,
-  setPartyPausingEnabled,
-  setAutoHostEnabled,
-  partyPause,
-  partyPauseAck,
-  disconnect,
-  kick,
-};
-
-const DEFAULT_EVENT_RATE_LIMIT = { maxEvents: 60, windowMs: 1000 };
-const AGGREGATE_EVENT_RATE_LIMIT = { maxEvents: 100, windowMs: 1000 };
-const EVENT_RATE_LIMITS = {
-  playerStateUpdate: { maxEvents: 30, windowMs: 1000 },
-  mediaUpdate: { maxEvents: 10, windowMs: 1000 },
-  sendMessage: { maxEvents: 5, windowMs: 5000 },
-  partyPause: { maxEvents: 10, windowMs: 1000 },
-};
-
-const createEventRateLimiter = () => {
-  const buckets = new Map();
-  let aggregateBucket;
-
-  const incrementBucket = (bucket, { maxEvents, windowMs }, now) => {
-    if (!bucket || now - bucket.windowStartedAt >= windowMs) {
-      return {
-        bucket: { count: 1, windowStartedAt: now },
-        limited: false,
-      };
+  const transferHost = ({ server, socket, data: desiredHostId }) => {
+    if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
+      socket.disconnect(true);
+      return;
     }
 
-    const nextBucket = { ...bucket, count: bucket.count + 1 };
-    return { bucket: nextBucket, limited: nextBucket.count > maxEvents };
+    const roomId = getUserRoomId(socket.id);
+    if (!isUserInRoom({ roomId, socketId: desiredHostId })) {
+      socket.disconnect(true);
+      return;
+    }
+
+    logSocket({
+      socketId: socket.id,
+      message: `Transferring host to: [${desiredHostId}] ${getRoomUserData(desiredHostId).username}`,
+    });
+    makeUserHost(desiredHostId);
+    announceNewHost({
+      server,
+      roomId,
+      hostId: desiredHostId,
+    });
   };
 
-  return (eventName) => {
-    const now = Date.now();
-    const aggregateResult = incrementBucket(
-      aggregateBucket,
-      AGGREGATE_EVENT_RATE_LIMIT,
-      now,
-    );
-    aggregateBucket = aggregateResult.bucket;
+  const playerStateUpdate = ({
+    server, socket, data: {
+      state, time, duration, playbackRate,
+    },
+  }) => {
+    if (!isUserInARoom(socket.id)) {
+      socket.disconnect(true);
+      return;
+    }
 
-    const eventResult = incrementBucket(
-      buckets.get(eventName),
-      EVENT_RATE_LIMITS[eventName] ?? DEFAULT_EVENT_RATE_LIMIT,
-      now,
-    );
-    buckets.set(eventName, eventResult.bucket);
+    updateUserPlayerState({
+      socketId: socket.id, state, time, duration, playbackRate,
+    });
 
-    return aggregateResult.limited || eventResult.limited;
+    emitPlayerStateUpdateToRoom({ server, socketId: socket.id });
   };
-};
 
-const attachEventHandlers = ({ server, pingInterval, pingTimeout }) => {
-  server.on('connection', (socket) => {
-    const isRateLimited = createEventRateLimiter();
-    const forwardedHeader = socket.handshake.headers['x-forwarded-for'];
-    const addressInfo = forwardedHeader
-      ? `${forwardedHeader} (${socket.conn.remoteAddress})`
-      : socket.conn.remoteAddress;
+  const mediaUpdate = ({
+    server, socket, data: {
+      state, time, duration, playbackRate, media, userInitiated,
+    },
+  }) => {
+    if (!isUserInARoom(socket.id)) {
+      socket.disconnect(true);
+      return;
+    }
 
-    logSocket({ socketId: socket.id, message: `connection: ${addressInfo}` });
-    initSocketLatencyData(socket.id);
-    sendPing({ server, socketId: socket.id, pingTimeout });
-    logSocketStats();
+    updateUserPlayerState({
+      socketId: socket.id, state, time, duration, playbackRate,
+    });
 
-    Object.entries(eventHandlers).forEach(([name, handler]) => {
-      socket.on(name, (data) => {
+    updateUserMedia({
+      socketId: socket.id,
+      media,
+    });
+
+    const makeHost = userInitiated && !isUserHost(socket.id)
+    && isAutoHostEnabledInSocketRoom(socket.id);
+
+    if (makeHost) {
+    // Emit to user that they are host now
+      makeUserHost(socket.id);
+      emitToSocket({
+        server,
+        socketId: socket.id,
+        eventName: 'newHost',
+        data: socket.id,
+      });
+
+      logSocket({
+        socketId: socket.id,
+        message: 'Making host because user initiated media change',
+      });
+    }
+
+    emitMediaUpdateToRoom({ server, socketId: socket.id, makeHost });
+  };
+
+  const slPong = ({
+    server, pingInterval, pingTimeout, socket, data: secret,
+  }) => {
+    const expectedSecret = getSocketPingSecret(socket.id);
+    if (expectedSecret === null || secret !== expectedSecret) {
+      logSocket({
+        socketId: socket.id,
+        message: `Incorrect secret. Expected "${expectedSecret}", got "${secret}"`,
+      });
+
+      socket.disconnect(true);
+      return;
+    }
+
+    clearSocketLatencyInterval(socket.id);
+    updateSocketLatency(socket.id);
+
+    setSocketLatencyIntervalId({
+      socketId: socket.id,
+      intervalId: setTimeout(() => {
+        sendPing({ server, socketId: socket.id, pingTimeout });
+      }, pingInterval),
+    });
+  };
+
+  const sendMessage = ({ server, socket, data: text }) => {
+    if (!isUserInARoom(socket.id)) {
+      socket.disconnect(true);
+      return;
+    }
+
+    emitToUserRoomExcept({
+      server,
+      eventName: 'newMessage',
+      data: {
+        text,
+        senderId: socket.id,
+      },
+      exceptSocketId: socket.id,
+    });
+  };
+
+  const setPartyPausingEnabled = ({ server, socket, data: isPartyPausingEnabled }) => {
+    if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
+      socket.disconnect(true);
+      return;
+    }
+
+    logSocket({
+      socketId: socket.id,
+      message: `set party pausing to: ${isPartyPausingEnabled}`,
+    });
+
+    setIsPartyPausingEnabledInSocketRoom({ socketId: socket.id, isPartyPausingEnabled });
+
+    // Emitting to everyone including sender as an ack that it went through
+    emitToSocketRoom({
+      server,
+      socketId: socket.id,
+      eventName: 'setPartyPausingEnabled',
+      data: isPartyPausingEnabled,
+    });
+  };
+
+  const setAutoHostEnabled = ({ server, socket, data: isAutoHostEnabled }) => {
+    if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
+      socket.disconnect(true);
+      return;
+    }
+
+    logSocket({
+      socketId: socket.id,
+      message: `set auto host to: ${isAutoHostEnabled}`,
+    });
+
+    setIsAutoHostEnabledInSocketRoom({ socketId: socket.id, isAutoHostEnabled });
+
+    // Emitting to everyone including sender as an ack that it went through
+    emitToSocketRoom({
+      server,
+      socketId: socket.id,
+      eventName: 'setAutoHostEnabled',
+      data: isAutoHostEnabled,
+    });
+  };
+
+  const partyPause = ({ server, socket, data: isPause }) => {
+    if (!isUserInARoom(socket.id) || !isPartyPausingEnabledInSocketRoom(socket.id)) {
+      socket.disconnect(true);
+      return;
+    }
+
+    emitToSocketRoom({
+      server,
+      socketId: socket.id,
+      eventName: 'partyPause',
+      data: {
+        senderId: socket.id,
+        isPause,
+        requestId: `${socket.id}:${partyPauseRequestId += 1}`,
+      },
+    });
+  };
+
+  const partyPauseAck = ({ server, socket, data }) => {
+    if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
+      return;
+    }
+
+    emitToSocketRoom({
+      server,
+      socketId: socket.id,
+      eventName: 'partyPauseAck',
+      data,
+    });
+  };
+
+  const syncFlexibilityUpdate = ({ server, socket, data: syncFlexibility }) => {
+    if (!isUserInARoom(socket.id)) {
+      socket.disconnect(true);
+      return;
+    }
+
+    updateUserSyncFlexibility({
+      socketId: socket.id,
+      syncFlexibility,
+    });
+
+    emitToUserRoomExcept({
+      server,
+      eventName: 'syncFlexibilityUpdate',
+      data: {
+        syncFlexibility,
+        id: socket.id,
+      },
+      exceptSocketId: socket.id,
+    });
+  };
+
+  const kick = ({ server, socket, data: id }) => {
+    if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
+      socket.disconnect(true);
+      return;
+    }
+
+    const roomId = getUserRoomId(socket.id);
+    if (!isUserInRoom({ roomId, socketId: id })) {
+      socket.disconnect(true);
+      return;
+    }
+
+    logSocket({
+      socketId: socket.id,
+      message: `Kicking: [${id}] ${getRoomUserData(id).username}`,
+    });
+
+    emitToSocket({
+      server,
+      socketId: id,
+      eventName: 'kicked',
+      data: null,
+    });
+
+    const kickedSocket = server.sockets.sockets.get(id);
+    if (kickedSocket) {
+      setImmediate(() => kickedSocket.disconnect(true));
+    }
+  };
+
+  const eventHandlers = {
+    join,
+    slPong,
+    playerStateUpdate,
+    mediaUpdate,
+    syncFlexibilityUpdate,
+    transferHost,
+    sendMessage,
+    setPartyPausingEnabled,
+    setAutoHostEnabled,
+    partyPause,
+    partyPauseAck,
+    kick,
+  };
+
+  const DEFAULT_EVENT_RATE_LIMIT = { maxEvents: 60, windowMs: 1000 };
+  const AGGREGATE_EVENT_RATE_LIMIT = { maxEvents: 100, windowMs: 1000 };
+  const EVENT_RATE_LIMITS = {
+    playerStateUpdate: { maxEvents: 30, windowMs: 1000 },
+    mediaUpdate: { maxEvents: 10, windowMs: 1000 },
+    sendMessage: { maxEvents: 5, windowMs: 5000 },
+    partyPause: { maxEvents: 10, windowMs: 1000 },
+  };
+
+  const createEventRateLimiter = () => {
+    const buckets = new Map();
+    let aggregateBucket;
+
+    const incrementBucket = (bucket, { maxEvents, windowMs }, now) => {
+      if (!bucket || now - bucket.windowStartedAt >= windowMs) {
+        return {
+          bucket: { count: 1, windowStartedAt: now },
+          limited: false,
+        };
+      }
+
+      const nextBucket = { ...bucket, count: bucket.count + 1 };
+      return { bucket: nextBucket, limited: nextBucket.count > maxEvents };
+    };
+
+    return (eventName) => {
+      const now = Date.now();
+      const aggregateResult = incrementBucket(
+        aggregateBucket,
+        AGGREGATE_EVENT_RATE_LIMIT,
+        now,
+      );
+      aggregateBucket = aggregateResult.bucket;
+
+      const eventResult = incrementBucket(
+        buckets.get(eventName),
+        EVENT_RATE_LIMITS[eventName] ?? DEFAULT_EVENT_RATE_LIMIT,
+        now,
+      );
+      buckets.set(eventName, eventResult.bucket);
+
+      return aggregateResult.limited || eventResult.limited;
+    };
+  };
+
+  const attachEventHandlers = ({ server, pingInterval, pingTimeout }) => {
+    server.on('connection', (socket) => {
+      const isRateLimited = createEventRateLimiter();
+      const forwardedHeader = socket.handshake.headers['x-forwarded-for'];
+      const addressInfo = forwardedHeader
+        ? `${forwardedHeader} (${socket.conn.remoteAddress})`
+        : socket.conn.remoteAddress;
+
+      logSocket({ socketId: socket.id, message: `connection: ${addressInfo}` });
+      initSocketLatencyData(socket.id);
+      sendPing({ server, socketId: socket.id, pingTimeout });
+      logSocketStats();
+
+      // Cleanup must never pass through event validation or rate limiting. A rate-limit
+      // rejection disconnects synchronously, so limiting this event would skip cleanup.
+      socket.on('disconnect', () => {
         try {
-          validateEvent(name, data);
-          if (isRateLimited(name)) {
-            logSocket({ socketId: socket.id, message: `Rate limit exceeded for ${name}` });
-            socket.disconnect(true);
-            return;
-          }
-          // TODO: eventually pass in state to everything rather than having it all global
-          // TODO: move ping interval into state too
-          handler({
-            server, pingInterval, pingTimeout, socket, data,
-          });
+          disconnect({ server, socket });
         } catch (error) {
-          if (error instanceof ValidationError) {
-            logSocket({ socketId: socket.id, message: `Rejected event: ${error.message}` });
-          } else {
-            log('Unhandled socket event error:', name, error);
-          }
-
-          if (socket.connected) {
-            socket.disconnect(true);
-          }
+          log('Unhandled socket disconnect error:', error);
         }
       });
+
+      Object.entries(eventHandlers).forEach(([name, handler]) => {
+        socket.on(name, (data) => {
+          try {
+            validateEvent(name, data);
+            if (isRateLimited(name)) {
+              logSocket({ socketId: socket.id, message: `Rate limit exceeded for ${name}` });
+              socket.disconnect(true);
+              return;
+            }
+            handler({
+              server, pingInterval, pingTimeout, socket, data,
+            });
+          } catch (error) {
+            if (error instanceof ValidationError) {
+              logSocket({ socketId: socket.id, message: `Rejected event: ${error.message}` });
+            } else {
+              log('Unhandled socket event error:', name, error);
+            }
+
+            if (socket.connected) {
+              socket.disconnect(true);
+            }
+          }
+        });
+      });
     });
-  });
+  };
+
+  return attachEventHandlers;
 };
 
-export default attachEventHandlers;
+export default createEventHandlers;
