@@ -113,9 +113,15 @@ export const waitForMediaElementEvent = ({ signal, type }) => new Promise((resol
 
 export const cancelTrickPlay = () => getPlayer().cancelTrickPlay();
 
-export const load = (...args) => getPlayer().load(...args);
+export const load = (...args) => {
+  cachedDuration = 0;
+  return getPlayer().load(...args);
+};
 
-export const unload = (...args) => getPlayer().unload(...args);
+export const unload = (...args) => {
+  cachedDuration = 0;
+  return getPlayer().unload(...args);
+};
 
 export const getPlaybackRate = () => getPlayer().getPlaybackRate();
 
@@ -179,5 +185,8 @@ export const destroy = async () => {
   const savedOverlay = getOverlay();
   setPlayer(null);
   setOverlay(null);
-  await savedOverlay.destroy();
+  cachedDuration = 0;
+  if (savedOverlay) {
+    await savedOverlay.destroy();
+  }
 };

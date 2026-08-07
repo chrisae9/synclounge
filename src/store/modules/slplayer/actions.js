@@ -580,11 +580,29 @@ export default {
         text: 'Failed to load media. If you have another tab playing, please close it and try again.',
         color: 'error',
       }, { root: true });
+      await dispatch('ROLLBACK_PLAYER_INITIALIZATION');
       if (getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE) {
         getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE.reject(e);
         commit('SET_PLAYER_INITIALIZED_DEFERRED_PROMISE', null);
       }
+      throw e;
     }
+  },
+
+  ROLLBACK_PLAYER_INITIALIZATION: async ({ getters, commit, dispatch }) => {
+    getters.GET_PLAYER_DESTROY_CANCEL_TOKEN?.abort();
+    commit('SET_PLAYER_DESTROY_CANCEL_TOKEN', null);
+    commit('STOP_UPDATE_PLAYER_CONTROLS_SHOWN_INTERVAL');
+
+    await Promise.allSettled([
+      Promise.resolve().then(() => dispatch('UNREGISTER_PLAYER_EVENTS')),
+      Promise.resolve().then(() => dispatch('CANCEL_PERIODIC_PLEX_TIMELINE_UPDATE')),
+      Promise.resolve().then(() => dispatch('DESTROY_SUBTITLES')),
+      Promise.resolve().then(() => destroy()),
+    ]);
+
+    commit('SET_IS_PLAYER_INITIALIZED', false);
+    commit('SET_AUTOPLAY_BLOCKED', false);
   },
 
   CANCEL_PERIODIC_PLEX_TIMELINE_UPDATE: ({ getters, commit }) => {
@@ -597,7 +615,7 @@ export default {
   DESTROY_PLAYER_STATE: async ({ getters, commit, dispatch }) => {
     console.debug('DESTROY_PLAYER_STATE');
     commit('CLEAR_CAST_SYNC_INTERVAL');
-    getters.GET_PLAYER_DESTROY_CANCEL_TOKEN.abort();
+    getters.GET_PLAYER_DESTROY_CANCEL_TOKEN?.abort();
     commit('SET_PLAYER_DESTROY_CANCEL_TOKEN', null);
     commit('SET_FORCE_TRANSCODE_RETRY', false);
 
@@ -642,17 +660,25 @@ export default {
   },
 
   UNREGISTER_PLAYER_EVENTS: ({ state, getters, commit }) => {
-    removeEventListener('buffering', getters.GET_BUFFERING_EVENT_LISTENER);
+    if (getters.GET_BUFFERING_EVENT_LISTENER) {
+      removeEventListener('buffering', getters.GET_BUFFERING_EVENT_LISTENER);
+    }
     commit('SET_BUFFERING_EVENT_LISTENER', null);
 
-    getSmallPlayButton().removeEventListener('click', getters.GET_CLICK_EVENT_LISTENER);
-    getBigPlayButton().removeEventListener('click', getters.GET_CLICK_EVENT_LISTENER);
+    if (getters.GET_CLICK_EVENT_LISTENER) {
+      getSmallPlayButton().removeEventListener('click', getters.GET_CLICK_EVENT_LISTENER);
+      getBigPlayButton().removeEventListener('click', getters.GET_CLICK_EVENT_LISTENER);
+    }
     commit('SET_CLICK_EVENT_LISTENER', null);
 
-    removeEventListener('error', getters.GET_ERROR_EVENT_LISTENER);
+    if (getters.GET_ERROR_EVENT_LISTENER) {
+      removeEventListener('error', getters.GET_ERROR_EVENT_LISTENER);
+    }
     commit('SET_ERROR_EVENT_LISTENER', null);
 
-    removeCastStatusListener(state.castStatusListener);
+    if (state.castStatusListener) {
+      removeCastStatusListener(state.castStatusListener);
+    }
     commit('SET_CAST_STATUS_LISTENER', null);
   },
 

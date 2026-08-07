@@ -83,42 +83,43 @@ export default {
       throw e;
     }
 
-    await Promise.allSettled(devices.map(async (device) => {
-      if (device.provides.indexOf('server') !== -1) {
-        try {
-          const chosenConnection = await dispatch('FIND_WORKING_CONNECTION_PREFERRED', {
-            name: device.name,
-            connections: device.connections,
-            accessToken: device.accessToken,
-          });
+    const serverDevices = devices.filter((device) => device.provides?.includes('server'));
+    const retainedServerIds = serverDevices.map((device) => device.clientIdentifier);
 
-          const libraries = await dispatch('plexservers/FETCH_ALL_LIBRARIES', {
-            machineIdentifier: device.clientIdentifier,
-            manualConnection: {
-              chosenConnection,
-              accessToken: device.accessToken,
-            },
-          }, { root: true });
+    await Promise.allSettled(serverDevices.map(async (device) => {
+      try {
+        const chosenConnection = await dispatch('FIND_WORKING_CONNECTION_PREFERRED', {
+          name: device.name,
+          connections: device.connections,
+          accessToken: device.accessToken,
+        });
 
-          commit('plexservers/ADD_PLEX_SERVER', {
-            ...device,
-            libraries,
+        const libraries = await dispatch('plexservers/FETCH_ALL_LIBRARIES', {
+          machineIdentifier: device.clientIdentifier,
+          manualConnection: {
             chosenConnection,
-          }, { root: true });
-        } catch (e) {
-          const text = `Unable to find working connection to plex server: ${device.name}`;
-          await dispatch('DISPLAY_NOTIFICATION', {
-            text,
-            color: 'error',
-          }, { root: true });
-          console.error(text, e);
-        }
+            accessToken: device.accessToken,
+          },
+        }, { root: true });
+
+        commit('plexservers/ADD_PLEX_SERVER', {
+          ...device,
+          libraries,
+          chosenConnection,
+        }, { root: true });
+      } catch (e) {
+        const text = `Unable to find working connection to plex server: ${device.name}`;
+        await dispatch('DISPLAY_NOTIFICATION', {
+          text,
+          color: 'error',
+        }, { root: true });
+        console.error(text, e);
       }
     }));
 
     const staleServerIds = difference([
       oldServersIds,
-      rootGetters['plexservers/GET_PLEX_SERVER_IDS'],
+      retainedServerIds,
     ]);
 
     staleServerIds.forEach((serverId) => {

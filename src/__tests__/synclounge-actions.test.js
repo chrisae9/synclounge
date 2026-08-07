@@ -25,6 +25,7 @@ describe('synclounge actions', () => {
   let actions;
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     vi.resetModules();
     vi.stubGlobal('Audio', createAudioMock());
     actions = (await import('@/store/modules/synclounge/actions')).default;
@@ -93,6 +94,120 @@ describe('synclounge actions', () => {
       });
 
       expect(dispatch).toHaveBeenLastCalledWith('CONNECT_AND_JOIN_ROOM', { syncOnJoin: false });
+    });
+  });
+
+  describe('socket event deadlines', () => {
+    it.each([
+      ['slPing', 'ESTABLISH_SOCKET_CONNECTION'],
+      ['joinResult', 'JOIN_ROOM_AND_INIT'],
+    ])('disconnects and rethrows when the %s deadline expires', async (eventName, failingAction) => {
+      const timeoutError = new Error(`Timed out waiting for ${eventName}`);
+      const dispatch = vi.fn(async (type) => {
+        if (type === failingAction) throw timeoutError;
+      });
+
+      await expect(actions.CONNECT_AND_JOIN_ROOM({ dispatch }, { syncOnJoin: true }))
+        .rejects.toBe(timeoutError);
+
+      expect(dispatch).toHaveBeenCalledWith('DISCONNECT');
+      expect(dispatch).toHaveBeenLastCalledWith('DISCONNECT');
+    });
+
+    it('bounds the initial server ping wait', async () => {
+      socketMocks.open.mockResolvedValue({ id: 'socket-1' });
+      socketMocks.waitForEvent.mockResolvedValue('secret');
+      const dispatch = vi.fn().mockResolvedValue(undefined);
+
+      await actions.ESTABLISH_SOCKET_CONNECTION({
+        getters: { GET_SERVER: '' },
+        rootGetters: { GET_CONFIG: { socket_event_timeout: 4321 } },
+        commit: vi.fn(),
+        dispatch,
+      });
+
+      expect(socketMocks.waitForEvent).toHaveBeenCalledWith('slPing', 4321);
+      expect(dispatch).toHaveBeenCalledWith('HANDLE_SLPING', 'secret');
+    });
+
+    it('bounds the room join result wait', async () => {
+      socketMocks.waitForEvent.mockResolvedValue({
+        success: true,
+        user: { id: 'socket-1' },
+      });
+      const dispatch = vi.fn().mockResolvedValue({ state: 'stopped' });
+
+      await actions.JOIN_ROOM({
+        getters: {
+          GET_ROOM: 'room-1',
+          GET_DISPLAY_USERNAME: 'viewer',
+          IS_PARTY_PAUSING_ENABLED: false,
+          IS_AUTO_HOST_ENABLED: false,
+        },
+        rootGetters: {
+          GET_CONFIG: { socket_event_timeout: 6789 },
+          'plex/GET_PLEX_USER': { thumb: 'avatar' },
+          'settings/GET_SYNCFLEXIBILITY': {},
+        },
+        dispatch,
+      });
+
+      expect(socketMocks.waitForEvent).toHaveBeenCalledWith('joinResult', 6789);
+    });
+
+    it.each([undefined, null, 0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2_147_483_648])(
+      'falls back to a safe timeout for invalid value %s',
+      async (socketEventTimeout) => {
+        socketMocks.open.mockResolvedValue({ id: 'socket-1' });
+        socketMocks.waitForEvent.mockResolvedValue('secret');
+
+        await actions.ESTABLISH_SOCKET_CONNECTION({
+          getters: { GET_SERVER: '' },
+          rootGetters: { GET_CONFIG: { socket_event_timeout: socketEventTimeout } },
+          commit: vi.fn(),
+          dispatch: vi.fn().mockResolvedValue(undefined),
+        });
+
+        expect(socketMocks.waitForEvent).toHaveBeenCalledWith('slPing', 15000);
+      },
+    );
+
+    it.each([undefined, null, 0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+      'uses a safe room join timeout for invalid value %s',
+      async (socketEventTimeout) => {
+        socketMocks.waitForEvent.mockResolvedValue({ success: true });
+
+        await actions.JOIN_ROOM({
+          getters: {
+            GET_ROOM: 'room-1',
+            GET_DISPLAY_USERNAME: 'viewer',
+            IS_PARTY_PAUSING_ENABLED: false,
+            IS_AUTO_HOST_ENABLED: false,
+          },
+          rootGetters: {
+            GET_CONFIG: { socket_event_timeout: socketEventTimeout },
+            'plex/GET_PLEX_USER': {},
+            'settings/GET_SYNCFLEXIBILITY': {},
+          },
+          dispatch: vi.fn().mockResolvedValue({}),
+        });
+
+        expect(socketMocks.waitForEvent).toHaveBeenCalledWith('joinResult', 15000);
+      },
+    );
+
+    it('accepts the maximum browser timer deadline', async () => {
+      socketMocks.open.mockResolvedValue({ id: 'socket-1' });
+      socketMocks.waitForEvent.mockResolvedValue('secret');
+
+      await actions.ESTABLISH_SOCKET_CONNECTION({
+        getters: { GET_SERVER: '' },
+        rootGetters: { GET_CONFIG: { socket_event_timeout: 2_147_483_647 } },
+        commit: vi.fn(),
+        dispatch: vi.fn().mockResolvedValue(undefined),
+      });
+
+      expect(socketMocks.waitForEvent).toHaveBeenCalledWith('slPing', 2_147_483_647);
     });
   });
 
