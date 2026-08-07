@@ -12,12 +12,16 @@ import { createEventHandlers } from './handlers';
 const socketServer = ({
   base_url: baseUrl, static_path: staticPath, port, ping_interval: pingInterval = 10000,
   ping_timeout: pingTimeout = 10000, preStaticInjection, trust_proxy: trustProxy,
+  onRoomMediaUpdate,
 }) => {
   if (!Number.isFinite(pingInterval) || pingInterval <= 0) {
     throw new TypeError('ping_interval must be a positive number');
   }
   if (!Number.isFinite(pingTimeout) || pingTimeout <= 0) {
     throw new TypeError('ping_timeout must be a positive number');
+  }
+  if (onRoomMediaUpdate != null && typeof onRoomMediaUpdate !== 'function') {
+    throw new TypeError('onRoomMediaUpdate must be a function');
   }
 
   const app = express();
@@ -50,7 +54,12 @@ const socketServer = ({
   const state = createState();
   const actions = createActions(state);
   const attachEventHandlers = createEventHandlers({ state, actions });
-  attachEventHandlers({ server: socketio, pingInterval, pingTimeout });
+  attachEventHandlers({
+    server: socketio,
+    pingInterval,
+    pingTimeout,
+    onRoomMediaUpdate,
+  });
 
   router.get('/health', (req, res) => {
     res.json(state.getHealth());

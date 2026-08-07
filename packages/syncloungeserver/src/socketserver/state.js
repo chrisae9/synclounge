@@ -5,6 +5,7 @@ export const createState = () => {
   // Map from socket id to room name
   const socketRoomId = new Map();
   const socketLatencyData = new Map();
+  const socketRoomPreview = new Map();
 
   const getNumberFromUsername = (username) => {
     const match = username.match(/\((\d+)\)$/);
@@ -60,6 +61,16 @@ export const createState = () => {
     const userRoomData = getRoomUserData(socketId);
     userRoomData.media = media;
   };
+
+  const updateUserRoomPreview = ({ socketId, roomPreview }) => {
+    if (roomPreview == null) {
+      socketRoomPreview.delete(socketId);
+    } else {
+      socketRoomPreview.set(socketId, roomPreview);
+    }
+  };
+
+  const getUserRoomPreview = (socketId) => socketRoomPreview.get(socketId) ?? null;
 
   const updateUserSyncFlexibility = ({
     socketId, syncFlexibility,
@@ -139,6 +150,7 @@ export const createState = () => {
   const removeUser = (socketId) => {
     rooms.get(getUserRoomId(socketId)).users.delete(socketId);
     socketRoomId.delete(socketId);
+    socketRoomPreview.delete(socketId);
   };
 
   const removeRoom = (roomId) => {
@@ -253,6 +265,7 @@ export const createState = () => {
     getSocketCount,
     getSocketPingSecret,
     getUserRoomId,
+    getUserRoomPreview,
     initSocketLatencyData,
     isAutoHostEnabledInSocketRoom,
     isPartyPausingEnabledInSocketRoom,
@@ -270,6 +283,7 @@ export const createState = () => {
     updateSocketLatency,
     updateUserMedia,
     updateUserPlayerState,
+    updateUserRoomPreview,
     updateUserSyncFlexibility,
   };
 };

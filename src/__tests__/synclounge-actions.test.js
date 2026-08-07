@@ -708,4 +708,55 @@ describe('synclounge actions', () => {
       expect(dispatch).not.toHaveBeenCalledWith('plexclients/PRESS_STOP', null, { root: true });
     });
   });
+
+  describe('PROCESS_MEDIA_UPDATE', () => {
+    it('sends null media and preview when the player reports stopped', async () => {
+      socketMocks.emit.mockClear();
+      socketMocks.isConnected.mockReturnValue(true);
+      const commit = vi.fn();
+      const stoppedState = {
+        state: 'stopped',
+        time: 0,
+        duration: 1000,
+        playbackRate: 1,
+      };
+      const dispatch = vi.fn(async (type) => {
+        if (type === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') {
+          return stoppedState;
+        }
+        return undefined;
+      });
+      const getters = {
+        IS_IN_ROOM: true,
+        GET_UP_NEXT_TRIGGERED: false,
+        GET_SOCKET_ID: 'socket-1',
+      };
+      const rootGetters = {
+        GET_UP_NEXT_POST_PLAY_DATA: null,
+        'plexclients/GET_ACTIVE_MEDIA_POLL_METADATA': { ratingKey: 'stale-media' },
+        'plexclients/GET_ACTIVE_MEDIA_ROOM_PREVIEW': { title: 'Stale Preview' },
+      };
+
+      await actions.PROCESS_MEDIA_UPDATE({
+        dispatch,
+        getters,
+        commit,
+        rootGetters,
+      }, true);
+
+      expect(commit).toHaveBeenCalledWith('SET_USER_MEDIA', {
+        id: 'socket-1',
+        media: null,
+      });
+      expect(socketMocks.emit).toHaveBeenCalledWith({
+        eventName: 'mediaUpdate',
+        data: {
+          media: null,
+          roomPreview: null,
+          ...stoppedState,
+          userInitiated: true,
+        },
+      });
+    });
+  });
 });

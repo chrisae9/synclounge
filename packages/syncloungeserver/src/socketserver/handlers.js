@@ -8,7 +8,8 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     getSocketPingSecret, updateSocketLatency, setSocketLatencyIntervalId, doesSocketHaveRtt,
     setIsPartyPausingEnabledInSocketRoom, updateUserSyncFlexibility,
     setIsAutoHostEnabledInSocketRoom, isPartyPausingEnabledInSocketRoom,
-    isAutoHostEnabledInSocketRoom, initSocketLatencyData,
+    isAutoHostEnabledInSocketRoom, initSocketLatencyData, getRoomHostId,
+    updateUserRoomPreview, getUserRoomPreview,
   } = socketState;
   const {
     removeUserAndUpdateRoom, emitToSocket, logSocket, emitAdjustedUserDataToRoom,
@@ -18,10 +19,27 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
 
   let partyPauseRequestId = 0;
 
+  const removeSocketFromRoom = ({ server, socket, onRoomMediaUpdate }) => {
+    const roomId = getUserRoomId(socket.id);
+    const wasHost = isUserHost(socket.id);
+    const remainingRoomId = removeUserAndUpdateRoom({ server, socketId: socket.id });
+
+    if (wasHost && onRoomMediaUpdate) {
+      const newHostId = remainingRoomId == null ? null : getRoomHostId(remainingRoomId);
+      onRoomMediaUpdate({
+        roomId,
+        roomPreview: newHostId == null ? null : getUserRoomPreview(newHostId),
+      });
+    }
+
+    return remainingRoomId;
+  };
+
   const join = ({
+    onRoomMediaUpdate,
     server, socket, data: {
       roomId, desiredUsername, desiredPartyPausingEnabled, desiredAutoHostEnabled, thumb,
-      playerProduct, state, time, duration, playbackRate, media, syncFlexibility,
+      playerProduct, state, time, duration, playbackRate, media, roomPreview, syncFlexibility,
     },
   }) => {
     if (!doesSocketHaveRtt(socket.id)) {
@@ -33,7 +51,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     }
 
     if (isUserInARoom(socket.id)) {
-      removeUserAndUpdateRoom({ server, socketId: socket.id });
+      removeSocketFromRoom({ server, socket, onRoomMediaUpdate });
     }
 
     if (!doesRoomExist(roomId)) {
@@ -68,10 +86,14 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       syncFlexibility,
     });
 
-    updateUserMedia({
-      socketId: socket.id,
-      media,
-    });
+    const activeMedia = state === 'stopped' ? null : media;
+    const activeRoomPreview = state === 'stopped' ? null : roomPreview;
+    updateUserMedia({ socketId: socket.id, media: activeMedia });
+    updateUserRoomPreview({ socketId: socket.id, roomPreview: activeRoomPreview });
+
+    if (isUserHost(socket.id) && onRoomMediaUpdate) {
+      onRoomMediaUpdate({ roomId, roomPreview: activeRoomPreview });
+    }
 
     // Broadcast user joined to everyone but this
     emitAdjustedUserDataToRoom({
@@ -95,12 +117,12 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     logRoomStats(roomId);
   };
 
-  const disconnect = ({ server, socket }) => {
+  const disconnect = ({ server, socket, onRoomMediaUpdate }) => {
     logSocket({ socketId: socket.id, message: 'disconnect' });
 
     try {
       if (isUserInARoom(socket.id)) {
-        const roomId = removeUserAndUpdateRoom({ server, socketId: socket.id });
+        const roomId = removeSocketFromRoom({ server, socket, onRoomMediaUpdate });
         if (roomId != null) {
           logRoomStats(roomId);
         }
@@ -113,7 +135,12 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     }
   };
 
-  const transferHost = ({ server, socket, data: desiredHostId }) => {
+  const transferHost = ({
+    server,
+    socket,
+    data: desiredHostId,
+    onRoomMediaUpdate,
+  }) => {
     if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
       socket.disconnect(true);
       return;
@@ -135,6 +162,12 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       roomId,
       hostId: desiredHostId,
     });
+    if (onRoomMediaUpdate) {
+      onRoomMediaUpdate({
+        roomId,
+        roomPreview: getUserRoomPreview(desiredHostId),
+      });
+    }
   };
 
   const playerStateUpdate = ({
@@ -155,8 +188,9 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
   };
 
   const mediaUpdate = ({
+    onRoomMediaUpdate,
     server, socket, data: {
-      state, time, duration, playbackRate, media, userInitiated,
+      state, time, duration, playbackRate, media, roomPreview, userInitiated,
     },
   }) => {
     if (!isUserInARoom(socket.id)) {
@@ -168,10 +202,10 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       socketId: socket.id, state, time, duration, playbackRate,
     });
 
-    updateUserMedia({
-      socketId: socket.id,
-      media,
-    });
+    const activeMedia = state === 'stopped' ? null : media;
+    const activeRoomPreview = state === 'stopped' ? null : roomPreview;
+    updateUserMedia({ socketId: socket.id, media: activeMedia });
+    updateUserRoomPreview({ socketId: socket.id, roomPreview: activeRoomPreview });
 
     const makeHost = userInitiated && !isUserHost(socket.id)
     && isAutoHostEnabledInSocketRoom(socket.id);
@@ -189,6 +223,13 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       logSocket({
         socketId: socket.id,
         message: 'Making host because user initiated media change',
+      });
+    }
+
+    if (isUserHost(socket.id) && onRoomMediaUpdate) {
+      onRoomMediaUpdate({
+        roomId: getUserRoomId(socket.id),
+        roomPreview: activeRoomPreview,
       });
     }
 
@@ -424,7 +465,12 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     };
   };
 
-  const attachEventHandlers = ({ server, pingInterval, pingTimeout }) => {
+  const attachEventHandlers = ({
+    server,
+    pingInterval,
+    pingTimeout,
+    onRoomMediaUpdate,
+  }) => {
     server.on('connection', (socket) => {
       const isRateLimited = createEventRateLimiter();
       const forwardedHeader = socket.handshake.headers['x-forwarded-for'];
@@ -441,7 +487,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       // rejection disconnects synchronously, so limiting this event would skip cleanup.
       socket.on('disconnect', () => {
         try {
-          disconnect({ server, socket });
+          disconnect({ server, socket, onRoomMediaUpdate });
         } catch (error) {
           log('Unhandled socket disconnect error:', error);
         }
@@ -457,7 +503,12 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
               return;
             }
             handler({
-              server, pingInterval, pingTimeout, socket, data,
+              server,
+              pingInterval,
+              pingTimeout,
+              onRoomMediaUpdate,
+              socket,
+              data,
             });
           } catch (error) {
             if (error instanceof ValidationError) {
