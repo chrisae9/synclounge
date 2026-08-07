@@ -149,7 +149,6 @@ export default {
             grandparentTitle: this.metadata.grandparentTitle,
             parentIndex: this.metadata.parentIndex,
             index: this.metadata.index,
-            room: this.$route.params.room,
           }),
         }).catch(() => {});
       } catch (e) {

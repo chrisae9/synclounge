@@ -564,7 +564,13 @@ export default {
       commit('SET_UP_NEXT_TRIGGERED', false);
     }
 
-    const media = rootGetters['plexclients/GET_ACTIVE_MEDIA_POLL_METADATA'];
+    const isStopped = playerState.state === 'stopped';
+    const media = isStopped
+      ? null
+      : rootGetters['plexclients/GET_ACTIVE_MEDIA_POLL_METADATA'];
+    const roomPreview = isStopped
+      ? null
+      : rootGetters['plexclients/GET_ACTIVE_MEDIA_ROOM_PREVIEW'];
 
     commit('SET_USER_MEDIA', {
       id: getters.GET_SOCKET_ID,
@@ -580,6 +586,7 @@ export default {
       eventName: 'mediaUpdate',
       data: {
         media,
+        roomPreview,
         ...playerState,
         userInitiated,
       },

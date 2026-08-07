@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const { randomUUID } = require('node:crypto');
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
@@ -9,6 +10,8 @@ const {
   createCache,
   metadataCacheKey,
   roomMetadataCacheKey,
+  roomPosterMetadataCacheKey,
+  resolveRoomPosterMetadata,
 } = require('./cache');
 const { fetchPoster, PosterProxyError } = require('./poster-proxy');
 const { createDisconnectController } = require('./request-abort');
@@ -41,15 +44,27 @@ function parsePublicOrigin(value) {
 }
 
 const publicOrigin = parsePublicOrigin(socketConfig.public_origin);
+const ROOM_POSTER_CACHE_MAX_SIZE = 1000;
+const ROOM_POSTER_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 const posterPath = (machineIdentifier, ratingKey) => (
   `/share/poster/${encodeURIComponent(machineIdentifier)}/${encodeURIComponent(ratingKey)}`
+);
+const roomPosterPath = (room, revision) => (
+  `/share/room-poster/${encodeURIComponent(room)}/${encodeURIComponent(revision)}`
 );
 
 // Log exactly the browser-safe projection rather than deployment-only configuration.
 console.log(publicAppConfig);
 
-const { setMetadata, getMetadata } = createCache();
+const { setMetadata, getMetadata, deleteMetadata } = createCache();
+const {
+  setMetadata: setRoomPosterMetadata,
+  getMetadata: getRoomPosterMetadata,
+} = createCache({
+  maxSize: ROOM_POSTER_CACHE_MAX_SIZE,
+  ttlMs: ROOM_POSTER_CACHE_TTL_MS,
+});
 
 // --- HTML escaping for XSS prevention ---
 function escapeHtml(str) {
@@ -188,6 +203,19 @@ const STATIC_EXT_RE = /\.\w{2,}$/;
 const METADATA_BODY_LIMIT = '16kb';
 const MAX_METADATA_STRING_LENGTH = 500;
 const MAX_YEAR_STRING_LENGTH = 32;
+const ROOM_POSTER_MAX_AGE_SECONDS = 60;
+const ROOM_PREVIEW_FIELDS = [
+  'title',
+  'year',
+  'summary',
+  'type',
+  'posterUrl',
+  'machineIdentifier',
+  'ratingKey',
+  'grandparentTitle',
+  'parentIndex',
+  'index',
+];
 
 function isBoundedScalar(value, maxStringLength) {
   if (typeof value === 'string') return value.length <= maxStringLength;
@@ -222,6 +250,37 @@ function isBoundedIndex(value) {
   return typeof value === 'string' && /^\d{1,12}$/.test(value);
 }
 
+async function proxyPoster(meta, req, res, cacheControl = 'public, max-age=86400') {
+  if (!meta?.posterUrl) {
+    return res.status(404).send('Not found');
+  }
+
+  const disconnect = createDisconnectController(req, res);
+
+  try {
+    const allowedPrivateOrigin = process.env.NODE_ENV === 'test'
+      ? process.env.SL_POSTER_TEST_ORIGIN
+      : undefined;
+    const poster = await fetchPoster(meta.posterUrl, {
+      allowedPrivateOrigin,
+      signal: disconnect.signal,
+    });
+    if (disconnect.signal.aborted) return undefined;
+
+    res.set('Content-Type', poster.contentType);
+    res.set('Cache-Control', cacheControl);
+    return res.send(poster.body);
+  } catch (error) {
+    if (disconnect.signal.aborted) return undefined;
+
+    console.error('Poster proxy error:', error.message);
+    const statusCode = error instanceof PosterProxyError ? error.statusCode : 502;
+    return res.status(statusCode).send(statusCode === 403 ? 'Forbidden' : 'Failed to fetch poster');
+  } finally {
+    disconnect.cleanup();
+  }
+}
+
 function handleMetadataJsonError(error, req, res, next) {
   if (error?.type === 'entity.too.large') {
     return res.status(413).json({ error: 'Metadata body exceeds 16 KiB' });
@@ -239,7 +298,7 @@ function handleMetadataRequest(req, res) {
 
   const {
     title, year, summary, type, posterUrl, machineIdentifier, ratingKey,
-    grandparentTitle, parentIndex, index, room,
+    grandparentTitle, parentIndex, index,
   } = req.body;
 
   if (machineIdentifier == null || machineIdentifier === ''
@@ -283,14 +342,6 @@ function handleMetadataRequest(req, res) {
       });
     }
   }
-  if (room != null
-    && (typeof room !== 'string' || room === '' || !isBoundedIdentifier(room))) {
-    return res.status(400).json({
-      error: 'room must be a non-empty, well-formed Unicode string of at most '
-        + `${MAX_METADATA_STRING_LENGTH} characters`,
-    });
-  }
-
   const key = metadataCacheKey(machineIdentifier, ratingKey);
   const meta = {
     title,
@@ -305,11 +356,6 @@ function handleMetadataRequest(req, res) {
     index,
   };
   setMetadata(key, meta);
-
-  // Also index by room code so /join/:room gets OG tags
-  if (room) {
-    setMetadata(roomMetadataCacheKey(room), meta);
-  }
 
   return res.json({ ok: true });
 }
@@ -332,36 +378,23 @@ const preStaticInjection = (router) => {
   // --- GET /share/poster/:machineIdentifier/:ratingKey: proxy poster images ---
   router.get('/share/poster/:machineIdentifier/:ratingKey', posterLimiter, async (req, res) => {
     const key = metadataCacheKey(req.params.machineIdentifier, req.params.ratingKey);
-    const meta = getMetadata(key);
+    return proxyPoster(getMetadata(key), req, res);
+  });
 
-    if (!meta || !meta.posterUrl) {
-      return res.status(404).send('Not found');
-    }
-
-    const disconnect = createDisconnectController(req, res);
-
-    try {
-      const allowedPrivateOrigin = process.env.NODE_ENV === 'test'
-        ? process.env.SL_POSTER_TEST_ORIGIN
-        : undefined;
-      const poster = await fetchPoster(meta.posterUrl, {
-        allowedPrivateOrigin,
-        signal: disconnect.signal,
-      });
-      if (disconnect.signal.aborted) return undefined;
-
-      res.set('Content-Type', poster.contentType);
-      res.set('Cache-Control', 'public, max-age=86400');
-      return res.send(poster.body);
-    } catch (e) {
-      if (disconnect.signal.aborted) return undefined;
-
-      console.error('Poster proxy error:', e.message);
-      const statusCode = e instanceof PosterProxyError ? e.statusCode : 502;
-      return res.status(statusCode).send(statusCode === 403 ? 'Forbidden' : 'Failed to fetch poster');
-    } finally {
-      disconnect.cleanup();
-    }
+  // Room poster snapshots can only be selected by the current socket host.
+  router.get('/share/room-poster/:room/:revision', posterLimiter, async (req, res) => {
+    const meta = resolveRoomPosterMetadata({
+      room: req.params.room,
+      revision: req.params.revision,
+      getCurrentMetadata: getMetadata,
+      getSnapshotMetadata: getRoomPosterMetadata,
+    });
+    return proxyPoster(
+      meta,
+      req,
+      res,
+      `public, max-age=${ROOM_POSTER_MAX_AGE_SECONDS}`,
+    );
   });
 
   // --- SPA fallback middleware ---
@@ -416,7 +449,7 @@ const preStaticInjection = (router) => {
 
       if (meta) {
         const posterProxyUrl = meta.posterUrl && publicOrigin
-          ? `${publicOrigin}${posterPath(meta.machineIdentifier, meta.ratingKey)}`
+          ? `${publicOrigin}${roomPosterPath(roomCode, meta.roomPreviewRevision)}`
           : null;
 
         const html = injectOgTags(indexHtml, { ...meta, posterProxyUrl });
@@ -439,8 +472,35 @@ const preStaticInjection = (router) => {
   });
 };
 
+const onRoomMediaUpdate = ({ roomId, roomPreview }) => {
+  const roomKey = roomMetadataCacheKey(roomId);
+  if (!roomPreview) {
+    deleteMetadata(roomKey);
+    return;
+  }
+  const currentPreview = getMetadata(roomKey);
+  const previewUnchanged = currentPreview != null
+    && ROOM_PREVIEW_FIELDS.every(
+      (fieldName) => Object.is(currentPreview[fieldName], roomPreview[fieldName]),
+    );
+  if (previewUnchanged) {
+    setMetadata(roomKey, currentPreview);
+    return;
+  }
+  const previewSnapshot = {
+    ...roomPreview,
+    roomPreviewRevision: randomUUID(),
+  };
+  setMetadata(roomKey, previewSnapshot);
+  setRoomPosterMetadata(
+    roomPosterMetadataCacheKey(roomId, previewSnapshot.roomPreviewRevision),
+    previewSnapshot,
+  );
+};
+
 syncloungeServer.socketServer({
   ...socketConfig,
   static_path: path.join(__dirname, 'dist'),
   preStaticInjection,
+  onRoomMediaUpdate,
 });

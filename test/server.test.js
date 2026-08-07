@@ -479,19 +479,23 @@ describe('server', () => {
     });
 
     it('percent-encodes reserved characters in poster URL segments', async () => {
+      const machineIdentifier = 'machine/with?#%';
+      const ratingKey = 'rating/with?#%';
       await request('/api/metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: {
           title: 'Reserved identifiers',
           posterUrl: 'https://example.com/reserved.jpg',
-          machineIdentifier: 'machine/with?#%',
-          ratingKey: 'rating/with?#%',
-          room: 'reserved-room',
+          machineIdentifier,
+          ratingKey,
         },
       });
 
-      const res = await request('/join/reserved-room');
+      const res = await request(
+        `/room/test/browse/server/${encodeURIComponent(machineIdentifier)}`
+          + `/ratingKey/${encodeURIComponent(ratingKey)}`,
+      );
       const html = await res.text();
 
       assert.ok(html.includes(
@@ -504,88 +508,6 @@ describe('server', () => {
       const html = await res.text();
       assert.ok(html.includes('<div id="app">'));
       assert.ok(html.includes('og:title'));
-    });
-  });
-
-  // --- Room-based OG injection (invite links) ---
-
-  describe('room-based OG injection', () => {
-    before(async () => {
-      await request('/api/metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: {
-          title: 'Room Movie',
-          year: 2024,
-          summary: 'Currently playing in the room.',
-          type: 'movie',
-          posterUrl: 'https://example.com/room-poster.jpg',
-          machineIdentifier: 'room-machine',
-          ratingKey: '1000',
-          room: 'abc123',
-        },
-      });
-    });
-
-    it('injects OG tags for /join/:room when room has cached metadata', async () => {
-      const res = await request('/join/abc123');
-      assert.equal(res.status, 200);
-      const html = await res.text();
-      assert.ok(html.includes('og:title'));
-      assert.ok(html.includes('Room Movie (2024)'));
-      assert.ok(html.includes('og:description'));
-      assert.ok(html.includes('Currently playing in the room.'));
-      assert.ok(html.includes('og:image'));
-      assert.ok(html.includes('/share/poster/room-machine/1000'));
-    });
-
-    it('falls back to default OG tags for /join/:room with no cached metadata', async () => {
-      const res = await request('/join/unknown-room');
-      assert.equal(res.status, 200);
-      const html = await res.text();
-      assert.ok(html.includes('content="SyncLounge"'));
-      assert.ok(!html.includes('Room Movie'));
-    });
-
-    it('updates room metadata when new media is browsed', async () => {
-      await request('/api/metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: {
-          title: 'New Movie',
-          year: 2025,
-          type: 'movie',
-          machineIdentifier: 'room-machine',
-          ratingKey: '1001',
-          room: 'abc123',
-        },
-      });
-
-      const res = await request('/join/abc123');
-      const html = await res.text();
-      assert.ok(html.includes('New Movie (2025)'));
-      assert.ok(!html.includes('Room Movie'));
-    });
-
-    it('injects episode OG tags for room invite links', async () => {
-      await request('/api/metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: {
-          title: 'The Rains of Castamere',
-          type: 'episode',
-          grandparentTitle: 'Game of Thrones',
-          parentIndex: 3,
-          index: 9,
-          machineIdentifier: 'room-machine',
-          ratingKey: '1002',
-          room: 'got-room',
-        },
-      });
-
-      const res = await request('/join/got-room');
-      const html = await res.text();
-      assert.ok(html.includes('Game of Thrones - S03E09 The Rains of Castamere'));
     });
   });
 
@@ -665,6 +587,11 @@ describe('server', () => {
       assert.equal(res.status, 404);
     });
 
+    it('returns 404 for an unknown room poster revision', async () => {
+      const res = await request('/share/room-poster/no-such-room/no-such-revision');
+      assert.equal(res.status, 404);
+    });
+
     it('stays healthy when a client disconnects during poster fetching', async () => {
       const clientRequest = http.get(`${baseUrl}/share/poster/proxy-machine/slow`);
       clientRequest.on('error', () => {});
@@ -726,10 +653,8 @@ describe('server', () => {
 
     it('rejects identifiers that cannot be safely URL-encoded', async () => {
       const cases = [
-        { machineIdentifier: '\uD800', ratingKey: 'safe', room: 'safe-room' },
-        { machineIdentifier: 'safe', ratingKey: '\uDFFF', room: 'safe-room' },
-        { machineIdentifier: 'safe', ratingKey: 'empty-room', room: '' },
-        { machineIdentifier: 'safe', ratingKey: 'malformed-room', room: '\uD800' },
+        { machineIdentifier: '\uD800', ratingKey: 'safe' },
+        { machineIdentifier: 'safe', ratingKey: '\uDFFF' },
       ];
       const responses = await Promise.all(cases.map((body) => request('/api/metadata', {
         method: 'POST',
@@ -775,7 +700,7 @@ describe('server', () => {
       assert.ok(html.includes('Integer Key Movie'));
     });
 
-    it('does not collide room and media cache namespaces', async () => {
+    it('does not allow HTTP metadata to bind a room preview', async () => {
       await request('/api/metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -803,8 +728,8 @@ describe('server', () => {
       const mediaRes = await request('/room/r/browse/server/room/ratingKey/abc');
       const mediaHtml = await mediaRes.text();
 
-      assert.ok(roomHtml.includes('Room Entry'));
-      assert.ok(!roomHtml.includes('Media Entry'));
+      assert.ok(roomHtml.includes('content="SyncLounge"'));
+      assert.ok(!roomHtml.includes('Room Entry'));
       assert.ok(mediaHtml.includes('Media Entry'));
       assert.ok(!mediaHtml.includes('Room Entry'));
     });
@@ -831,7 +756,9 @@ describe('server', () => {
       const roomRes = await request(`/join/${encodeURIComponent(room)}`);
 
       assert.ok((await mediaRes.text()).includes('Encoded Route Entry'));
-      assert.ok((await roomRes.text()).includes('Encoded Route Entry'));
+      const roomHtml = await roomRes.text();
+      assert.ok(roomHtml.includes('content="SyncLounge"'));
+      assert.ok(!roomHtml.includes('Encoded Route Entry'));
     });
   });
 
