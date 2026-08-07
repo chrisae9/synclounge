@@ -1,7 +1,9 @@
 version: 2
 updates:
   - package-ecosystem: "npm"
-    directory: "/"
+    directories:
+      - "/"
+      - "/packages/syncloungeserver"
     target-branch: "dev"
     schedule:
       interval: "weekly"
@@ -11,8 +13,10 @@ updates:
     groups:
       production-dependencies:
         dependency-type: "production"
+        update-types: ["minor", "patch"]
       development-dependencies:
         dependency-type: "development"
+        update-types: ["minor", "patch"]
     commit-message:
       prefix: "build(deps)"
       prefix-development: "build(deps-dev)"
@@ -27,6 +31,7 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
     commit-message:
       prefix: "ci(action)"
       prefix-development: "ci(dev-action)"
@@ -41,6 +46,7 @@ updates:
     groups:
       container-base-images:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
     commit-message:
       prefix: "build(docker)"
       prefix-development: "build(docker)"
