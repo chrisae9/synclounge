@@ -29,6 +29,14 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   return res;
 }
 
+function metadataBodyWithExactSize(size) {
+  const prefix = '{"machineIdentifier":"boundary","ratingKey":"1","ignored":"';
+  const suffix = '"}';
+  const paddingLength = size - Buffer.byteLength(prefix) - Buffer.byteLength(suffix);
+  assert.ok(paddingLength >= 0);
+  return `${prefix}${'x'.repeat(paddingLength)}${suffix}`;
+}
+
 async function waitForServer(url, retries = 30, delay = 200) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -254,6 +262,17 @@ describe('server', () => {
       });
 
       assert.equal(res.status, 413);
+    });
+
+    it('accepts exactly 16 KiB and rejects the next byte', async () => {
+      const sendBody = (size) => fetch(`${baseUrl}/api/metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: metadataBodyWithExactSize(size),
+      });
+
+      assert.equal((await sendBody(16 * 1024)).status, 200);
+      assert.equal((await sendBody((16 * 1024) + 1)).status, 413);
     });
 
     it('rejects unbounded retained scalar values', async () => {
@@ -600,23 +619,42 @@ describe('server', () => {
   // --- POST /api/metadata input edge cases ---
 
   describe('POST /api/metadata input edge cases', () => {
-    it('does not crash when Content-Type header is missing', async () => {
+    it('rejects a missing Content-Type header', async () => {
       const res = await fetch(`${baseUrl}/api/metadata`, {
         method: 'POST',
         body: JSON.stringify({ machineIdentifier: 'x', ratingKey: '1' }),
         // No Content-Type header
       });
-      // Should not be 500 (crash) — either 400 or 4xx
-      assert.notEqual(res.status, 500);
+      assert.equal(res.status, 400);
     });
 
-    it('does not crash when Content-Type is text/plain', async () => {
+    it('rejects an unsupported Content-Type', async () => {
       const res = await fetch(`${baseUrl}/api/metadata`, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ machineIdentifier: 'x', ratingKey: '1' }),
       });
-      assert.notEqual(res.status, 500);
+      assert.equal(res.status, 400);
+    });
+
+    it('rejects malformed JSON', async () => {
+      const res = await fetch(`${baseUrl}/api/metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      });
+      assert.equal(res.status, 400);
+    });
+
+    it('rejects numeric identifiers that cannot round-trip safely', async () => {
+      const identifiers = ['9007199254740992', '9007199254740993'];
+      const responses = await Promise.all(identifiers.map((ratingKey) => fetch(`${baseUrl}/api/metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: `{"machineIdentifier":"unsafe-number","ratingKey":${ratingKey}}`,
+      })));
+
+      responses.forEach((res) => assert.equal(res.status, 400));
     });
 
     it('handles ratingKey sent as integer (not string)', async () => {
@@ -672,6 +710,31 @@ describe('server', () => {
       assert.ok(!roomHtml.includes('Media Entry'));
       assert.ok(mediaHtml.includes('Media Entry'));
       assert.ok(!mediaHtml.includes('Room Entry'));
+    });
+
+    it('retrieves metadata through percent-encoded route identifiers', async () => {
+      const machineIdentifier = 'machine space';
+      const ratingKey = 'rating?mark';
+      const room = 'room space';
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Encoded Route Entry',
+          type: 'movie',
+          machineIdentifier,
+          ratingKey,
+          room,
+        },
+      });
+
+      const mediaPath = `/room/r/browse/server/${encodeURIComponent(machineIdentifier)}`
+        + `/ratingKey/${encodeURIComponent(ratingKey)}`;
+      const mediaRes = await request(mediaPath);
+      const roomRes = await request(`/join/${encodeURIComponent(room)}`);
+
+      assert.ok((await mediaRes.text()).includes('Encoded Route Entry'));
+      assert.ok((await roomRes.text()).includes('Encoded Route Entry'));
     });
   });
 

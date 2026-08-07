@@ -188,6 +188,19 @@ function isBoundedScalar(value, maxStringLength) {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function isBoundedIdentifier(value) {
+  if (typeof value === 'string') return value.length <= MAX_METADATA_STRING_LENGTH;
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
+function decodePathSegment(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
 function isBoundedIndex(value) {
   if (typeof value === 'number') {
     return Number.isSafeInteger(value) && value >= 0;
@@ -208,7 +221,8 @@ const preStaticInjection = (router) => {
       grandparentTitle, parentIndex, index, room,
     } = req.body;
 
-    if (!machineIdentifier || !ratingKey) {
+    if (machineIdentifier == null || machineIdentifier === ''
+      || ratingKey == null || ratingKey === '') {
       return res.status(400).json({ error: 'machineIdentifier and ratingKey are required' });
     }
 
@@ -227,11 +241,12 @@ const preStaticInjection = (router) => {
         });
       }
     }
-    // Identifiers can be strings or finite numbers and are normalized by the cache key helper.
+    // Numeric identifiers must round-trip through JSON without losing precision.
     for (const [name, val] of Object.entries({ machineIdentifier, ratingKey })) {
-      if (!isBoundedScalar(val, MAX_METADATA_STRING_LENGTH)) {
+      if (!isBoundedIdentifier(val)) {
         return res.status(400).json({
-          error: `${name} must be a finite number or a string of at most ${MAX_METADATA_STRING_LENGTH} characters`,
+          error: `${name} must be a non-negative safe integer or a string of at most `
+            + `${MAX_METADATA_STRING_LENGTH} characters`,
         });
       }
     }
@@ -339,9 +354,11 @@ const preStaticInjection = (router) => {
     );
 
     if (mediaMatch) {
-      const [, machineIdentifier, ratingKey] = mediaMatch;
-      const key = metadataCacheKey(machineIdentifier, ratingKey);
-      const meta = getMetadata(key);
+      const machineIdentifier = decodePathSegment(mediaMatch[1]);
+      const ratingKey = decodePathSegment(mediaMatch[2]);
+      const meta = machineIdentifier != null && ratingKey != null
+        ? getMetadata(metadataCacheKey(machineIdentifier, ratingKey))
+        : null;
 
       if (meta) {
         const posterProxyUrl = meta.posterUrl && publicOrigin
@@ -357,8 +374,8 @@ const preStaticInjection = (router) => {
     // Check if this is a room invite link — inject OG tags for current room media
     const roomMatch = req.path.match(/^\/join\/([^/]+)/);
     if (roomMatch) {
-      const [, roomCode] = roomMatch;
-      const meta = getMetadata(roomMetadataCacheKey(roomCode));
+      const roomCode = decodePathSegment(roomMatch[1]);
+      const meta = roomCode != null ? getMetadata(roomMetadataCacheKey(roomCode)) : null;
 
       if (meta) {
         const posterProxyUrl = meta.posterUrl && publicOrigin
