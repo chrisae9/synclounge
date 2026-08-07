@@ -9,11 +9,16 @@ import vue from 'eslint-plugin-vue';
 import globals from 'globals';
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
-const lintFiles = [
-  'src/**/*.{js,vue}',
+const javascriptFiles = [
+  '*.js',
+  '*.mjs',
+  'config/**/*.js',
   'packages/syncloungeserver/src/**/*.js',
-  'poster-proxy.js',
+  'src/**/*.js',
+  'test/**/*.js',
 ];
+const vueFiles = ['src/**/*.vue'];
+const lintFiles = [...javascriptFiles, ...vueFiles];
 
 export default [
   {
@@ -32,7 +37,7 @@ export default [
   },
   ...vue.configs['flat/recommended'].map((config) => ({
     ...config,
-    files: lintFiles,
+    files: config.files ?? vueFiles,
   })),
   {
     ...stylistic.configs.customize({
@@ -50,10 +55,6 @@ export default [
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-      },
     },
     linterOptions: {
       // ESLint 9 reports stale directives by default; retain the previous
@@ -80,6 +81,7 @@ export default [
       'dot-notation': ['error', { allowKeywords: true }],
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'func-names': 'warn',
+      'getter-return': ['error', { allowImplicit: true }],
       'grouped-accessor-pairs': 'error',
       'guard-for-in': 'error',
       'global-require': 'error',
@@ -97,7 +99,9 @@ export default [
       'no-bitwise': 'error',
       'no-buffer-constructor': 'error',
       'no-caller': 'error',
+      'no-cond-assign': ['error', 'always'],
       'no-console': 'off',
+      'no-constant-condition': 'warn',
       'no-constructor-return': 'error',
       'no-continue': 'error',
       'no-else-return': ['error', { allowElseIf: false }],
@@ -121,6 +125,7 @@ export default [
       'no-new-func': 'error',
       'no-new-require': 'error',
       'no-new-wrappers': 'error',
+      'no-object-constructor': 'error',
       'no-octal-escape': 'error',
       'no-param-reassign': ['error', {
         props: true,
@@ -138,6 +143,12 @@ export default [
       ],
       'no-restricted-properties': ['error',
         { object: 'arguments', property: 'callee', message: 'arguments.callee is deprecated.' },
+        { object: 'global', property: 'isFinite', message: 'Use Number.isFinite instead.' },
+        { object: 'self', property: 'isFinite', message: 'Use Number.isFinite instead.' },
+        { object: 'window', property: 'isFinite', message: 'Use Number.isFinite instead.' },
+        { object: 'global', property: 'isNaN', message: 'Use Number.isNaN instead.' },
+        { object: 'self', property: 'isNaN', message: 'Use Number.isNaN instead.' },
+        { object: 'window', property: 'isNaN', message: 'Use Number.isNaN instead.' },
         { property: '__defineGetter__', message: 'Use Object.defineProperty instead.' },
         { property: '__defineSetter__', message: 'Use Object.defineProperty instead.' },
         { object: 'Math', property: 'pow', message: 'Use the exponentiation operator (**) instead.' },
@@ -154,6 +165,7 @@ export default [
       'no-undef-init': 'error',
       'no-unneeded-ternary': ['error', { defaultAssignment: false }],
       'no-unreachable-loop': 'error',
+      'no-unsafe-optional-chaining': ['error', { disallowArithmeticOperators: true }],
       'no-use-before-define': ['error', { functions: true, classes: true, variables: true }],
       'no-unused-vars': ['error', {
         vars: 'all',
@@ -195,6 +207,7 @@ export default [
       strict: ['error', 'never'],
       'symbol-description': 'error',
       'unicode-bom': ['error', 'never'],
+      'valid-typeof': ['error', { requireStringLiterals: true }],
       'vars-on-top': 'error',
       yoda: 'error',
 
@@ -288,6 +301,12 @@ export default [
         classes: 'never',
         switches: 'never',
       }, { allowSingleLineBlocks: true }],
+      '@stylistic/padding-line-between-statements': [
+        'error',
+        { blankLine: 'always', prev: 'directive', next: '*' },
+        { blankLine: 'always', prev: '*', next: 'directive' },
+        { blankLine: 'any', prev: 'directive', next: 'directive' },
+      ],
       '@stylistic/quote-props': ['error', 'as-needed', {
         keywords: false,
         unnecessary: true,
@@ -341,6 +360,27 @@ export default [
           extensions: ['.js', '.vue', '.json'],
         },
       },
+    },
+  },
+  {
+    name: 'synclounge/browser-globals',
+    files: ['src/**/*.{js,vue}'],
+    languageOptions: {
+      globals: globals.browser,
+    },
+  },
+  {
+    name: 'synclounge/test-globals',
+    files: ['src/__tests__/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
+    name: 'synclounge/node-globals',
+    files: javascriptFiles.filter((file) => !file.startsWith('src/')),
+    languageOptions: {
+      globals: globals.node,
     },
   },
 ];
