@@ -360,7 +360,7 @@ export default [
         },
         alias: {
           map: [['@', path.resolve(projectRoot, 'src')]],
-          extensions: ['.js', '.vue', '.json'],
+          extensions: ['.js', '.mjs', '.vue', '.json'],
         },
       },
     },
@@ -388,7 +388,7 @@ export default [
   },
   {
     name: 'synclounge/vite-config-interop',
-    files: ['vite.config.js'],
+    files: ['vite.config.mjs'],
     rules: {
       // eslint-plugin-import does not resolve this package's ESM default through its exports map.
       'import/default': 'off',

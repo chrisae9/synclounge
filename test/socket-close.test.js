@@ -2,7 +2,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { io } = require('socket.io-client');
-const { socketServer } = require('../packages/syncloungeserver/dist/lib');
+const { socketServer } = require('../packages/syncloungeserver/dist/lib.js'); // eslint-disable-line import/extensions
 
 const delay = (milliseconds) => new Promise((resolve) => {
   setTimeout(resolve, milliseconds);
