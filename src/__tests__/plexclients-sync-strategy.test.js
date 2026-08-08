@@ -1,6 +1,7 @@
 import {
   describe, it, expect, vi, afterEach,
 } from 'vitest';
+import { CAF } from 'caf';
 import plexclientActions from '@/store/modules/plexclients/actions';
 
 const baseHostUser = {
@@ -109,6 +110,37 @@ describe('plexclients PLAY_MEDIA', () => {
 });
 
 describe('plexclients SYNC drift strategy', () => {
+  it('resumes playback after the configured skip-ahead delay', async () => {
+    vi.useFakeTimers();
+    // eslint-disable-next-line new-cap
+    const cancelToken = new CAF.cancelToken();
+    const dispatch = vi.fn((action) => {
+      if (action === 'FETCH_TIMELINE_POLL_DATA_CACHE') {
+        return Promise.resolve({ state: 'playing' });
+      }
+      return Promise.resolve();
+    });
+
+    try {
+      const skipAhead = plexclientActions.SKIP_AHEAD(
+        { dispatch, rootGetters: { GET_CONFIG: { skip_ahead_time: 1000 } } },
+        { offset: 5000, cancelSignal: cancelToken.signal },
+      );
+
+      await vi.advanceTimersByTimeAsync(1000);
+      await skipAhead;
+
+      expect(dispatch).toHaveBeenCalledWith('SEEK_TO', {
+        offset: 6000,
+        cancelSignal: cancelToken.signal,
+      });
+      expect(dispatch).toHaveBeenCalledWith('PRESS_PAUSE', cancelToken.signal);
+      expect(dispatch).toHaveBeenCalledWith('PRESS_PLAY', cancelToken.signal);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('stops cleanly when the host leaves during the timeline read', async () => {
     let hostUser = baseHostUser;
     const rootGetters = makeRootGetters();
