@@ -1,3 +1,5 @@
+import { CAF } from 'caf';
+
 export default {
   PLAY_MEDIA: async ({
     commit, dispatch, rootGetters,
@@ -152,7 +154,6 @@ export default {
       return;
     }
 
-    const { CAF } = await import('caf');
     const startedAt = Date.now();
     const duration = rootGetters.GET_CONFIG.skip_ahead_time;
     await dispatch('SEEK_TO', {
