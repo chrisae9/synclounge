@@ -127,15 +127,18 @@ describe('plexclients SYNC drift strategy', () => {
         { offset: 5000, cancelSignal: cancelToken.signal },
       );
 
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(999);
+      expect(dispatch).not.toHaveBeenCalledWith('PRESS_PLAY', cancelToken.signal);
+
+      await vi.advanceTimersByTimeAsync(1);
       await skipAhead;
 
-      expect(dispatch).toHaveBeenCalledWith('SEEK_TO', {
-        offset: 6000,
-        cancelSignal: cancelToken.signal,
-      });
-      expect(dispatch).toHaveBeenCalledWith('PRESS_PAUSE', cancelToken.signal);
-      expect(dispatch).toHaveBeenCalledWith('PRESS_PLAY', cancelToken.signal);
+      expect(dispatch.mock.calls).toEqual([
+        ['FETCH_TIMELINE_POLL_DATA_CACHE'],
+        ['SEEK_TO', { offset: 6000, cancelSignal: cancelToken.signal }],
+        ['PRESS_PAUSE', cancelToken.signal],
+        ['PRESS_PLAY', cancelToken.signal],
+      ]);
     } finally {
       vi.useRealTimers();
     }
