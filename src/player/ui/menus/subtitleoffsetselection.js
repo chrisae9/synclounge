@@ -1,4 +1,4 @@
-import shaka from 'shaka-player/dist/shaka-player.ui.debug';
+import shaka from 'shaka-player/dist/shaka-player.ui';
 import { setDisplay, focusOnTheChosenItem } from '@/player/ui/utils';
 
 const subtitleOffsets = {
