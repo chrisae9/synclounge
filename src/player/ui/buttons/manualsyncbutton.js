@@ -1,4 +1,4 @@
-import shaka from 'shaka-player/dist/shaka-player.ui.debug';
+import shaka from 'shaka-player/dist/shaka-player.ui';
 import { setDisplay } from '@/player/ui/utils';
 
 export default (store) => {
