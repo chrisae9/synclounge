@@ -30,7 +30,7 @@ jobs:
           SKIP_BUILD: true
       - run: npm run lint -- --no-fix
       - run: npm run build
-      - run: npm test
+      - run: npm run test:ci
       - run: npm run audit
 
   publish:

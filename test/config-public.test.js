@@ -111,7 +111,7 @@ describe('public configuration projection', () => {
     const outputFile = path.join(temporaryDirectory, 'config.json');
 
     try {
-      const viteConfigUrl = pathToFileURL(path.join(__dirname, '..', 'vite.config.js'));
+      const viteConfigUrl = pathToFileURL(path.join(__dirname, '..', 'vite.config.mjs'));
       const { generateConfigPlugin } = await import(viteConfigUrl.href);
       const plugin = generateConfigPlugin({
         configModule: config,

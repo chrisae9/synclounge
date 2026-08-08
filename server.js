@@ -4,7 +4,7 @@ const { randomUUID } = require('node:crypto');
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
-const syncloungeServer = require('./packages/syncloungeserver/dist/lib');
+const syncloungeServer = require('./packages/syncloungeserver/dist/lib.js'); // eslint-disable-line import/extensions
 const config = require('./config');
 const {
   createCache,

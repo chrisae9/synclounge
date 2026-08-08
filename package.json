@@ -22,9 +22,13 @@
     "build": "npm run build:server && vite build",
     "build:server": "babel packages/syncloungeserver/src --out-dir packages/syncloungeserver/dist --config-file ./packages/syncloungeserver/.babelrc.json",
     "preview": "vite preview",
-    "lint": "npm run build:server --silent && eslint --max-warnings=0 src/ packages/syncloungeserver/src/ config/ test/ *.js *.mjs",
+    "lint": "eslint --max-warnings=0 src/ packages/syncloungeserver/src/ config/ test/ *.js *.mjs",
     "audit": "npm audit --audit-level=high",
-    "test": "npm run build && node --test test/*.test.js && vitest run",
+    "test": "npm run build && npm run test:unit",
+    "test:node": "node --test test/*.test.js",
+    "test:frontend": "vitest run",
+    "test:unit": "npm run test:node && npm run test:frontend",
+    "test:ci": "npm run test:unit",
     "prepare": "if-env SKIP_BUILD=true && echo 'Skipping build' || npm run build"
   },
   "dependencies": {
