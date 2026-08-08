@@ -34,6 +34,20 @@ describe('combineurl', () => {
       const result = combineUrl('http://other.com/path', 'http://example.com/');
       assert.equal(result.href, 'http://other.com/path');
     });
+
+    it('normalizes the pathname without treating a query as path text', () => {
+      const result = combineUrl('#room', 'http://example.com/base?token=abc');
+      assert.equal(result.href, 'http://example.com/base/?token=abc#room');
+    });
+
+    it('normalizes the pathname without treating a fragment as path text', () => {
+      const result = combineUrl('api', 'http://example.com/base#room');
+      assert.equal(result.href, 'http://example.com/base/api');
+    });
+
+    it('rejects a malformed base URL', () => {
+      assert.throws(() => combineUrl('api', 'not a URL'), TypeError);
+    });
   });
 
   describe('combineRelativeUrlParts', () => {
@@ -44,6 +58,11 @@ describe('combineurl', () => {
 
     it('adds slash between base and path when missing', () => {
       const result = combineRelativeUrlParts('http://example.com', 'api');
+      assert.equal(result, 'http://example.com/api');
+    });
+
+    it('normalizes duplicate separators between base and path', () => {
+      const result = combineRelativeUrlParts('http://example.com///', '///api');
       assert.equal(result, 'http://example.com/api');
     });
 
