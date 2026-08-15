@@ -1237,6 +1237,56 @@ describe('HANDLE_PLAYER_STATE_UPDATE', () => {
   });
 
   describe('host non-host seek-follow guard', () => {
+    it('does not treat normal elapsed guest playback as a seek', async () => {
+      const ctx = createMockContext({
+        AM_I_HOST: true,
+        GET_SOCKET_ID: 'host-1',
+        GET_USER: (id) => ({
+          username: `user-${id}`,
+          state: 'playing',
+          time: 100000,
+          playbackRate: 1,
+          updatedAt: Date.now() - 10000,
+        }),
+      });
+
+      await eventhandlers.HANDLE_PLAYER_STATE_UPDATE(ctx, {
+        id: 'guest-1', state: 'playing', time: 110100, playbackRate: 1,
+      });
+
+      expect(ctx.dispatch).not.toHaveBeenCalledWith('CANCEL_IN_PROGRESS_SYNC');
+      expect(ctx.dispatch).not.toHaveBeenCalledWith(
+        'plexclients/SEEK_TO',
+        expect.anything(),
+        { root: true },
+      );
+    });
+
+    it('follows a real guest seek relative to expected playback progress', async () => {
+      const ctx = createMockContext({
+        AM_I_HOST: true,
+        GET_SOCKET_ID: 'host-1',
+        GET_USER: (id) => ({
+          username: `user-${id}`,
+          state: 'playing',
+          time: 100000,
+          playbackRate: 1,
+          updatedAt: Date.now() - 10000,
+        }),
+      });
+
+      await eventhandlers.HANDLE_PLAYER_STATE_UPDATE(ctx, {
+        id: 'guest-1', state: 'playing', time: 125000, playbackRate: 1,
+      });
+
+      expect(ctx.dispatch).toHaveBeenCalledWith('CANCEL_IN_PROGRESS_SYNC');
+      expect(ctx.dispatch).toHaveBeenCalledWith(
+        'plexclients/SEEK_TO',
+        expect.objectContaining({ offset: 125000 }),
+        { root: true },
+      );
+    });
+
     it('ignores non-host seek-like updates while host is changing source', async () => {
       const ctx = createMockContext({
         AM_I_HOST: true,
