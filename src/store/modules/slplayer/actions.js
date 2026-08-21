@@ -2,21 +2,115 @@ import { CAF } from 'caf';
 
 import { getRandomPlexId } from '@/utils/random';
 import { fetchJson, queryFetch } from '@/utils/fetchutils';
+import { getVideoSupportDetails } from '@/utils/mediasupport';
+import { summarizePlayerError } from '@/utils/playbackdiagnostics';
+import { emit, isConnected } from '@/socket';
 import {
   play, pause, getDurationMs, getCurrentTimeMs, isTimeInBufferedRange,
   isMediaElementAttached, isPlaying, isPresentationPaused, isBuffering, getVolume, isPaused,
   waitForMediaElementEvent, destroy, cancelTrickPlay, load, setPlaybackRate, getPlaybackRate,
   setCurrentTimeMs, setVolume, addEventListener, removeEventListener, areControlsShown,
   getSmallPlayButton, getBigPlayButton, unload, isCasting, getMediaElement,
-  addCastStatusListener, removeCastStatusListener,
+  addCastStatusListener, removeCastStatusListener, getPlaybackDiagnostics,
 } from '@/player';
 import Deferred from '@/utils/deferredpromise';
 import subtitleActions from './subtitleActions';
 
 // Module-level guard for play queue transitions (not reactive, so reads are synchronous)
 let isPlayQueueTransitioning = false;
+let bufferingStartedAt = null;
+let bufferingEpisode = 0;
+let lastHealthDiagnosticAt = 0;
+
+const HEALTH_DIAGNOSTIC_INTERVAL_MS = 60 * 1000;
+
+const summarizeStream = (stream) => (stream ? Object.fromEntries([
+  'streamType',
+  'codec',
+  'profile',
+  'level',
+  'bitDepth',
+  'bitrate',
+  'width',
+  'height',
+  'frameRate',
+  'colorPrimaries',
+  'colorSpace',
+  'colorTrc',
+  'decision',
+  'selected',
+].filter((key) => stream[key] !== undefined).map((key) => [key, stream[key]])) : null);
 
 export default {
+  REPORT_PLAYBACK_DIAGNOSTIC: ({ state, getters, rootGetters }, {
+    event,
+    details = null,
+  }) => {
+    if (!rootGetters['synclounge/IS_IN_ROOM'] || !isConnected()) return;
+
+    const now = Date.now();
+    if (event === 'playback-health') {
+      if (now - lastHealthDiagnosticAt < HEALTH_DIAGNOSTIC_INTERVAL_MS) return;
+      lastHealthDiagnosticAt = now;
+    }
+
+    const browser = rootGetters.GET_BROWSER || {};
+    const sourceVideo = getters.GET_STREAMS.find(({ streamType }) => streamType === 1);
+    const sourceAudio = getters.GET_STREAMS.find(({ streamType, selected }) => (
+      streamType === 2 && selected
+    ));
+    const decisionPart = getters.GET_DECISION_PART;
+    const decisionVideo = decisionPart?.Stream?.find(({ streamType }) => streamType === 1);
+    const decisionAudio = decisionPart?.Stream?.find(({ streamType }) => streamType === 2);
+    const request = getters.GET_DECISION_AND_START_PARAMS;
+
+    emit({
+      eventName: 'playbackDiagnostic',
+      data: {
+        event,
+        clientTimestamp: new Date(now).toISOString(),
+        browser: {
+          name: browser.name,
+          version: browser.version,
+          os: browser.os,
+          type: browser.type,
+          userAgent: globalThis.navigator?.userAgent,
+        },
+        sessions: {
+          plex: getters.GET_X_PLEX_SESSION_ID,
+          transcode: state.session,
+        },
+        stream: {
+          ratingKey: rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']?.ratingKey,
+          sourceVideo: summarizeStream(sourceVideo),
+          sourceAudio: summarizeStream(sourceAudio),
+          videoSupport: sourceVideo ? getVideoSupportDetails(sourceVideo) : null,
+          request: {
+            protocol: getters.GET_STREAMING_PROTOCOL,
+            directPlay: request.directPlay,
+            directStream: request.directStream,
+            directStreamAudio: request.directStreamAudio,
+            videoCodec: request.videoCodec,
+            audioCodec: request.audioCodec,
+            maxVideoBitrate: request.maxVideoBitrate,
+            forceTranscode: getters.GET_FORCE_TRANSCODE,
+            allowDirectPlay: state.allowDirectPlay,
+            canDirectStreamHevc: getters.GET_CAN_DIRECT_STREAM_HEVC_VIDEO,
+          },
+          decision: {
+            part: decisionPart?.decision,
+            video: summarizeStream(decisionVideo),
+            audio: summarizeStream(decisionAudio),
+            directPlayCode: getters.GET_PLEX_DECISION?.MediaContainer?.directPlayDecisionCode,
+            transcodeCode: getters.GET_PLEX_DECISION?.MediaContainer?.transcodeDecisionCode,
+          },
+        },
+        playback: getPlaybackDiagnostics(),
+        details,
+      },
+    });
+  },
+
   MAKE_TIMELINE_PARAMS: async ({ getters, rootGetters, dispatch }) => ({
     ratingKey: rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']?.ratingKey,
     key: rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']?.key,
@@ -34,7 +128,7 @@ export default {
     ? getters.GET_OFFSET_MS
     : getCurrentTimeMs() || getters.GET_OFFSET_MS),
 
-  SEND_PLEX_DECISION_REQUEST: async ({ getters, commit }) => {
+  SEND_PLEX_DECISION_REQUEST: async ({ getters, commit, dispatch }) => {
     console.debug('SEND_PLEX_DECISION_REQUEST:', getters.GET_DECISION_URL);
     const data = await fetchJson(getters.GET_DECISION_URL, getters.GET_DECISION_AND_START_PARAMS);
     const meta = data?.MediaContainer?.Metadata?.[0];
@@ -49,6 +143,7 @@ export default {
     });
     commit('SET_PLEX_DECISION', data);
     commit('SET_SUBTITLE_OFFSET', parseInt(getters.GET_SUBTITLE_STREAM?.offset || 0, 10));
+    dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'stream-decision' });
   },
 
   CHANGE_MAX_VIDEO_BITRATE: async ({ commit, dispatch }, bitrate) => {
@@ -213,8 +308,22 @@ export default {
     }
     console.debug('HANDLE_PLAYER_BUFFERING:', event.buffering ? 'started' : 'ended');
     if (event.buffering) {
+      if (bufferingStartedAt == null) {
+        bufferingStartedAt = Date.now();
+        bufferingEpisode += 1;
+        dispatch('REPORT_PLAYBACK_DIAGNOSTIC', {
+          event: 'buffering-start',
+          details: { episode: bufferingEpisode },
+        });
+      }
       await dispatch('CHANGE_PLAYER_STATE', 'buffering');
     } else {
+      const durationMs = bufferingStartedAt == null ? null : Date.now() - bufferingStartedAt;
+      dispatch('REPORT_PLAYBACK_DIAGNOSTIC', {
+        event: 'buffering-end',
+        details: { episode: bufferingEpisode, durationMs },
+      });
+      bufferingStartedAt = null;
       // Report back if player is playing
       await dispatch('CHANGE_PLAYER_STATE', isPaused() ? 'paused' : 'playing');
     }
@@ -314,6 +423,10 @@ export default {
 
   HANDLE_ERROR: ({ dispatch }, e) => {
     console.error('HANDLE_ERROR: player error, restarting source:', e.detail || e);
+    dispatch('REPORT_PLAYBACK_DIAGNOSTIC', {
+      event: 'player-error',
+      details: summarizePlayerError(e),
+    });
     // Restart source
     return dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME');
   },
@@ -484,6 +597,7 @@ export default {
 
         try {
           yield dispatch('SEND_PLEX_TIMELINE_UPDATE', { signal });
+          yield dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'playback-health' });
         } catch (e) {
           console.error(e);
         }
@@ -514,13 +628,14 @@ export default {
     await plexTimelineUpdatePromise;
   },
 
-  LOAD_PLAYER_SRC: async ({ getters }) => {
+  LOAD_PLAYER_SRC: async ({ getters, dispatch }) => {
     // TODO: potentailly unload if already loaded to avoid load interrupted errors
     // However, while its loading, potentially   reporting the old time...
     console.debug('LOAD_PLAYER_SRC:', getters.GET_SRC_URL);
     await unload();
     await load(getters.GET_SRC_URL);
     console.debug('LOAD_PLAYER_SRC: loaded, offset:', getters.GET_OFFSET_MS);
+    dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'playback-loaded' });
 
     if (getters.GET_OFFSET_MS > 0) {
       setCurrentTimeMs(getters.GET_OFFSET_MS);
@@ -614,6 +729,9 @@ export default {
 
   DESTROY_PLAYER_STATE: async ({ getters, commit, dispatch }) => {
     console.debug('DESTROY_PLAYER_STATE');
+    bufferingStartedAt = null;
+    bufferingEpisode = 0;
+    lastHealthDiagnosticAt = 0;
     commit('CLEAR_CAST_SYNC_INTERVAL');
     getters.GET_PLAYER_DESTROY_CANCEL_TOKEN?.abort();
     commit('SET_PLAYER_DESTROY_CANCEL_TOKEN', null);

@@ -1,4 +1,5 @@
 import { ValidationError, validateEvent } from './validation';
+import { sanitizePlaybackDiagnostic } from './playbackdiagnostics';
 
 export const createEventHandlers = ({ state: socketState, actions }) => {
   const {
@@ -133,6 +134,17 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
 
       logSocketStats();
     }
+  };
+
+  const playbackDiagnostic = ({ socket, data }) => {
+    if (!isUserInARoom(socket.id)) return;
+    const diagnostic = sanitizePlaybackDiagnostic(data);
+    if (!diagnostic) return;
+    diagnostic.room = getUserRoomId(socket.id);
+    logSocket({
+      socketId: socket.id,
+      message: `playback-diagnostic ${JSON.stringify(diagnostic)}`,
+    });
   };
 
   const transferHost = ({
@@ -417,6 +429,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     setAutoHostEnabled,
     partyPause,
     partyPauseAck,
+    playbackDiagnostic,
     kick,
   };
 
@@ -427,6 +440,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     mediaUpdate: { maxEvents: 10, windowMs: 1000 },
     sendMessage: { maxEvents: 5, windowMs: 5000 },
     partyPause: { maxEvents: 10, windowMs: 1000 },
+    playbackDiagnostic: { maxEvents: 120, windowMs: 60 * 1000 },
   };
 
   const createEventRateLimiter = () => {
