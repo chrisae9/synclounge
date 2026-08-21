@@ -5,7 +5,11 @@ import App from './App.vue';
 import router from './router';
 import store from './store';
 import mapErrorMessage from './utils/errorutils';
-import { shouldApplyAutojoin, shouldRedirectProtectedRoute } from './router/guardutils';
+import {
+  getSignInRoute,
+  shouldApplyAutojoin,
+  shouldRedirectProtectedRoute,
+} from './router/guardutils';
 import { isConnected } from './socket';
 
 const vChatScroll = {
@@ -62,12 +66,7 @@ router.beforeEach(async (to, from, next) => {
 
   if (store.getters['plex/IS_UNAUTHORIZED']
     && to.matched.some((record) => record.meta.requiresAuth)) {
-    next({
-      name: 'SignIn',
-      query: {
-        redirect: to.fullPath,
-      },
-    });
+    next(getSignInRoute(to));
   } else if (!store.getters['plex/GET_PLEX_AUTH_TOKEN']
     && to.matched.some((record) => record.meta.requiresPlexToken)) {
     next({ name: 'SignIn' });
