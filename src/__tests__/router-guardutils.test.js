@@ -24,6 +24,13 @@ describe('router guard helpers', () => {
     expect(getSignInRoute()).toEqual({ name: 'SignIn' });
   });
 
+  it('does not attach a redirect when the route has no matched records', () => {
+    expect(getSignInRoute({
+      fullPath: '/join/movie-night',
+      matched: [],
+    })).toEqual({ name: 'SignIn' });
+  });
+
   it('does not attach a redirect for routes that do not require authentication', () => {
     expect(getSignInRoute({
       name: 'SignOut',
