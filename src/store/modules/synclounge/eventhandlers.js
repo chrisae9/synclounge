@@ -17,6 +17,27 @@ const matchesPreviousHost = (getters, user) => {
 const hasRestoredPlayback = (user) => user?.media
   && (user.state === 'playing' || user.state === 'paused');
 
+const NON_HOST_SEEK_THRESHOLD_MS = 5000;
+
+const getExpectedUserTime = (user) => {
+  if (!Number.isFinite(user?.time)) return null;
+  if (user.state !== 'playing') return user.time;
+  if (!Number.isFinite(user.updatedAt)) return null;
+
+  const elapsed = Math.max(0, Date.now() - user.updatedAt);
+  const playbackRate = Number.isFinite(user.playbackRate) && user.playbackRate > 0
+    ? user.playbackRate
+    : 1;
+  return user.time + elapsed * playbackRate;
+};
+
+const isNonHostSeek = (previousUser, data) => {
+  const expectedTime = getExpectedUserTime(previousUser);
+  return expectedTime != null
+    && Number.isFinite(data.time)
+    && Math.abs(data.time - expectedTime) > NON_HOST_SEEK_THRESHOLD_MS;
+};
+
 const HOST_RESTORE_TIMEOUT = 30000;
 let partyPauseCommandQueue = Promise.resolve();
 let partyPauseCommandGeneration = 0;
@@ -427,7 +448,6 @@ export default {
 
     const previousUser = getters.GET_USER(data.id);
     const previousState = previousUser?.state;
-    const previousTime = previousUser?.time;
     commit('SET_USER_PLAYER_STATE', data);
     commit('RECORD_USER_EVENT', { id: data.id, fields: ['player'] });
 
@@ -469,7 +489,7 @@ export default {
     } else if (data.id !== getters.GET_SOCKET_ID && getters.AM_I_HOST
       && !rootGetters['slplayer/IS_CHANGING_SOURCE']
       && !rootGetters['slplayer/IS_PLAY_QUEUE_TRANSITIONING']
-      && previousTime != null && Math.abs(data.time - previousTime) > 5000
+      && isNonHostSeek(previousUser, data)
       && data.state !== 'buffering') {
       // Non-host user seeked (time jump > 5s) — follow their seek
       const user = getters.GET_USER(data.id);
