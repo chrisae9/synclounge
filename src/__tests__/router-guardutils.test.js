@@ -6,9 +6,10 @@ import {
 } from '@/router/guardutils';
 
 describe('router guard helpers', () => {
-  it('preserves an invite URL and its watching context through sign-in', () => {
-    const fullPath = '/join/movie-night/server-1?watching=example-movie-2026';
-
+  it.each([
+    '/join/movie-night/server-1?watching=example-movie-2026',
+    '/join/movie-night?watching=example-movie-2026',
+  ])('preserves invite URL %s and its watching context through sign-in', (fullPath) => {
     expect(getSignInRoute({
       name: 'RoomJoin',
       fullPath,
@@ -17,6 +18,10 @@ describe('router guard helpers', () => {
       name: 'SignIn',
       query: { redirect: fullPath },
     });
+  });
+
+  it('returns the basic sign-in route when no current route is available', () => {
+    expect(getSignInRoute()).toEqual({ name: 'SignIn' });
   });
 
   it('does not attach a redirect for routes that do not require authentication', () => {

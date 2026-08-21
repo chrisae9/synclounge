@@ -235,7 +235,7 @@ export default {
     async GET_NAVIGATE_SIGN_IN(navigate) {
       if (navigate) {
         console.debug('NAVIGATE_SIGN_IN');
-        this.navigateToSignIn();
+        await this.navigateToSignIn();
         this.SET_NAVIGATE_SIGN_IN(false);
       }
     },
@@ -250,11 +250,12 @@ export default {
           this.FETCH_PLEX_USER(),
           this.FETCH_PLEX_DEVICES(),
         ]);
+        this.pendingAuthRedirect = null;
       } catch (e) {
         console.error(e);
         if (e instanceof PlexAuthError) {
           this.SET_PLEX_AUTH_TOKEN(null);
-          this.navigateToSignIn();
+          await this.navigateToSignIn();
         } else {
           await this.DISPLAY_NOTIFICATION({
             text: 'Failed to connect to Plex API. Try logging out and back in.',
@@ -274,21 +275,25 @@ export default {
       }
     },
 
-    navigateToSignIn() {
+    async navigateToSignIn() {
       // Auth expiry can be reported by both the user and device requests. Preserve the route
       // captured before either request began, even if another report reached bare SignIn first.
       this.rememberAuthRedirect();
       const currentRedirect = this.$route.name === 'SignIn'
-        ? this.$route.query.redirect
+        ? (this.$route.query.redirect || null)
         : null;
       const redirect = currentRedirect || this.pendingAuthRedirect;
 
       if (this.$route.name !== 'SignIn' || currentRedirect !== redirect) {
-        this.$router.push({
+        await this.$router.push({
           name: 'SignIn',
           ...(redirect && { query: { redirect } }),
         });
       }
+
+      // Once SignIn owns the redirect, duplicate expiry reports can read it from the route.
+      // Do not retain it in app state where a later, unrelated sign-in could reuse it.
+      this.pendingAuthRedirect = null;
     },
 
     mediaSlug(meta) {
