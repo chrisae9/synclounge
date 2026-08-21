@@ -63,4 +63,37 @@ describe('playback diagnostics', () => {
       data: ['first', 'second', 'third', 'fourth'],
     });
   });
+
+  it('returns an unattached diagnostic when no media element exists', () => {
+    expect(buildPlaybackDiagnostics({
+      mediaElement: null,
+      stats: { estimatedBandwidth: 1234.5678 },
+    })).toEqual({
+      attached: false,
+      shaka: { estimatedBandwidth: 1234.568 },
+    });
+  });
+
+  it('limits buffered ranges to eight entries', () => {
+    const diagnostics = buildPlaybackDiagnostics({
+      mediaElement: {
+        currentTime: 0,
+        duration: 100,
+        paused: false,
+        ended: false,
+        seeking: false,
+        readyState: 3,
+        networkState: 2,
+        playbackRate: 1,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        buffered: makeRanges(Array.from({ length: 12 }, (_, index) => [index, index + 0.5])),
+        error: null,
+      },
+      stats: {},
+    });
+
+    expect(diagnostics.bufferedRanges).toHaveLength(8);
+    expect(diagnostics.bufferedRanges.at(-1)).toEqual({ start: 7, end: 7.5 });
+  });
 });

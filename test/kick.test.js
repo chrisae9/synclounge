@@ -231,4 +231,25 @@ describe('kick socket event', () => {
       client.socket.close();
     }
   });
+
+  it('disconnects a client that floods playback diagnostics', async () => {
+    const roomId = `diagnostics-flood-${Date.now()}`;
+    const client = await joinClient({ roomId, username: 'diagnostic-flooder' });
+
+    try {
+      const disconnectPromise = waitForSocketEvent(client.socket, 'disconnect');
+      for (let index = 0; index < 61; index += 1) {
+        client.socket.emit('playbackDiagnostic', {
+          event: 'playback-health',
+          playback: { currentTime: index },
+        });
+      }
+
+      await disconnectPromise;
+      assert.equal(client.socket.connected, false);
+      await waitForOutput('Rate limit exceeded for playbackDiagnostic');
+    } finally {
+      client.socket.close();
+    }
+  });
 });

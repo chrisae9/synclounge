@@ -440,7 +440,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     mediaUpdate: { maxEvents: 10, windowMs: 1000 },
     sendMessage: { maxEvents: 5, windowMs: 5000 },
     partyPause: { maxEvents: 10, windowMs: 1000 },
-    playbackDiagnostic: { maxEvents: 120, windowMs: 60 * 1000 },
+    playbackDiagnostic: { maxEvents: 60, windowMs: 60 * 1000 },
   };
 
   const createEventRateLimiter = () => {

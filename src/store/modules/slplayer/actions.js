@@ -318,12 +318,14 @@ export default {
       }
       await dispatch('CHANGE_PLAYER_STATE', 'buffering');
     } else {
-      const durationMs = bufferingStartedAt == null ? null : Date.now() - bufferingStartedAt;
-      dispatch('REPORT_PLAYBACK_DIAGNOSTIC', {
-        event: 'buffering-end',
-        details: { episode: bufferingEpisode, durationMs },
-      });
+      const startedAt = bufferingStartedAt;
       bufferingStartedAt = null;
+      if (startedAt != null) {
+        dispatch('REPORT_PLAYBACK_DIAGNOSTIC', {
+          event: 'buffering-end',
+          details: { episode: bufferingEpisode, durationMs: Date.now() - startedAt },
+        });
+      }
       // Report back if player is playing
       await dispatch('CHANGE_PLAYER_STATE', isPaused() ? 'paused' : 'playing');
     }
