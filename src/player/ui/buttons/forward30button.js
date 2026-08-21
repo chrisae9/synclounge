@@ -1,4 +1,4 @@
-import shaka from 'shaka-player/dist/shaka-player.ui.debug';
+import shaka from 'shaka-player/dist/shaka-player.ui';
 
 class Forward30Button extends shaka.ui.Element {
   constructor(parent, controls) {

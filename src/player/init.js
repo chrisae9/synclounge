@@ -1,7 +1,8 @@
 import muxjs from 'mux.js';
-import shaka from 'shaka-player/dist/shaka-player.ui.debug';
+import shaka from 'shaka-player/dist/shaka-player.ui';
 import store from '@/store';
 import playerUiPlugins from '@/player/ui';
+import suppressStationaryMouseMoves from './suppressStationaryMouseMoves';
 
 import {
   getPlayer, setPlayer, getOverlay, setOverlay,
@@ -24,6 +25,10 @@ const initialize = async ({
     getPlayer().configure(playerConfig);
 
     setOverlay(new shaka.ui.Overlay(getPlayer(), videoContainer, mediaElement));
+    const controls = getOverlay().getControls();
+    const { mouseMoveHandler, mouseLeaveHandler } = suppressStationaryMouseMoves(controls);
+    controls.onMouseMove_ = mouseMoveHandler;
+    if (mouseLeaveHandler) controls.onMouseLeave_ = mouseLeaveHandler;
     getOverlay().configure(overlayConfig);
     console.debug('Shaka player initialized, version:', shaka.Player.version);
   } catch (e) {

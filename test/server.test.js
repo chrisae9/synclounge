@@ -1,18 +1,28 @@
-const { describe, it, before, after } = require('node:test');
+const {
+  describe, it, before, after,
+} = require('node:test');
 const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
 const http = require('node:http');
-const os = require('node:os');
 
 let baseUrl;
 let serverProcess;
 let posterFixtureServer;
 let posterFixtureBase;
+let slowPosterStarted;
+let resolveSlowPosterStarted;
+let slowPosterClosed;
+let resolveSlowPosterClosed;
 
 async function getFreePort() {
   const server = http.createServer();
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
   const { port } = server.address();
-  await new Promise((resolve) => server.close(resolve));
+  await new Promise((resolve) => {
+    server.close(resolve);
+  });
   return port;
 }
 
@@ -26,20 +36,85 @@ async function request(path, { method = 'GET', body, headers = {} } = {}) {
   return res;
 }
 
+function metadataBodyWithExactSize(size) {
+  const prefix = '{"machineIdentifier":"boundary","ratingKey":"1","ignored":"';
+  const suffix = '"}';
+  const paddingLength = size - Buffer.byteLength(prefix) - Buffer.byteLength(suffix);
+  assert.ok(paddingLength >= 0);
+  return `${prefix}${'x'.repeat(paddingLength)}${suffix}`;
+}
+
 async function waitForServer(url, retries = 30, delay = 200) {
-  for (let i = 0; i < retries; i++) {
+  for (let i = 0; i < retries; i += 1) {
     try {
-      await fetch(url);
-      return;
+      // Sequential polling is intentional: each request observes a later server state.
+      // eslint-disable-next-line no-await-in-loop
+      const response = await fetch(url, { signal: AbortSignal.timeout(500) });
+      const healthy = response.ok;
+      // eslint-disable-next-line no-await-in-loop
+      await response.body?.cancel();
+      if (healthy) return;
     } catch {
-      await new Promise((r) => setTimeout(r, delay));
+      // Retry connection failures and per-attempt timeouts.
     }
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((resolve) => {
+      setTimeout(resolve, delay);
+    });
   }
   throw new Error('Server did not start in time');
 }
 
+async function stopServer(processToStop) {
+  if (!processToStop
+    || processToStop.exitCode !== null
+    || processToStop.signalCode !== null) return;
+
+  const exited = new Promise((resolve) => {
+    processToStop.once('error', resolve);
+    processToStop.once('close', resolve);
+  });
+  const waitForExit = async () => {
+    let timeout;
+    const didExit = await Promise.race([
+      exited.then(() => true),
+      new Promise((resolve) => {
+        timeout = setTimeout(() => resolve(false), 2000);
+      }),
+    ]);
+    clearTimeout(timeout);
+    return didExit;
+  };
+
+  if (processToStop.exitCode !== null || processToStop.signalCode !== null) return;
+  processToStop.kill('SIGTERM');
+  if (!await waitForExit()
+    && processToStop.exitCode === null
+    && processToStop.signalCode === null) {
+    processToStop.kill('SIGKILL');
+    assert.ok(await waitForExit(), 'server did not exit after SIGKILL');
+  }
+}
+
+const closeServer = (server) => new Promise((resolve, reject) => {
+  if (!server?.listening) {
+    resolve();
+    return;
+  }
+  server.close((error) => {
+    if (error) reject(error);
+    else resolve();
+  });
+});
+
 describe('server', () => {
   before(async () => {
+    slowPosterStarted = new Promise((resolve) => {
+      resolveSlowPosterStarted = resolve;
+    });
+    slowPosterClosed = new Promise((resolve) => {
+      resolveSlowPosterClosed = resolve;
+    });
     posterFixtureServer = http.createServer((req, res) => {
       if (req.url === '/image/jpeg') {
         res.writeHead(200, { 'Content-Type': 'image/jpeg' });
@@ -51,22 +126,55 @@ describe('server', () => {
         res.end('not found');
         return;
       }
+      if (req.url === '/text/plain') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('not an image');
+        return;
+      }
+      if (req.url === '/image/too-large') {
+        res.writeHead(200, {
+          'Content-Type': 'image/jpeg',
+          'Content-Length': String(6 * 1024 * 1024),
+        });
+        res.end('too large');
+        return;
+      }
+      if (req.url === '/image/stream-too-large') {
+        res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+        for (let chunk = 0; chunk < 6; chunk += 1) {
+          res.write(Buffer.alloc(1024 * 1024));
+        }
+        res.end();
+        return;
+      }
+      if (req.url === '/image/slow') {
+        resolveSlowPosterStarted();
+        res.once('close', resolveSlowPosterClosed);
+        res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+        res.write(Buffer.from([0xff, 0xd8]));
+        return;
+      }
       res.writeHead(500, { 'Content-Type': 'text/plain' });
       res.end('unexpected fixture path');
     });
-    await new Promise((resolve) => posterFixtureServer.listen(0, '0.0.0.0', resolve));
-    posterFixtureBase = `http://${os.hostname()}:${posterFixtureServer.address().port}`;
+    await new Promise((resolve) => {
+      posterFixtureServer.listen(0, '127.0.0.1', resolve);
+    });
+    posterFixtureBase = `http://127.0.0.1:${posterFixtureServer.address().port}`;
 
-    const { spawn } = require('node:child_process');
     const port = await getFreePort();
     baseUrl = `http://127.0.0.1:${port}`;
     serverProcess = spawn('node', ['server.js'], {
-      cwd: __dirname + '/..',
+      cwd: `${__dirname}/..`,
       env: {
         ...process.env,
         PORT: String(port),
+        TRUST_PROXY: 'false',
         SL_METADATA_RATE_LIMIT: '0',
         SL_POSTER_RATE_LIMIT: '0',
+        NODE_ENV: 'test',
+        SL_POSTER_TEST_ORIGIN: posterFixtureBase,
+        PUBLIC_ORIGIN: baseUrl,
       },
       stdio: 'pipe',
     });
@@ -74,13 +182,13 @@ describe('server', () => {
     await waitForServer(`${baseUrl}/health`);
   });
 
-  after(() => {
-    if (serverProcess) {
-      serverProcess.kill('SIGTERM');
-    }
-    if (posterFixtureServer) {
-      posterFixtureServer.close();
-    }
+  after(async () => {
+    const outcomes = await Promise.allSettled([
+      stopServer(serverProcess),
+      closeServer(posterFixtureServer),
+    ]);
+    const failedCleanup = outcomes.find(({ status }) => status === 'rejected');
+    if (failedCleanup) throw failedCleanup.reason;
   });
 
   // --- SPA fallback ---
@@ -198,6 +306,72 @@ describe('server', () => {
       });
       assert.equal(res.status, 400);
     });
+
+    it('rejects oversized JSON bodies before retaining metadata', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Original Oversized Entry',
+          machineIdentifier: 'oversized',
+          ratingKey: '1',
+        },
+      });
+      const res = await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Rejected Oversized Replacement',
+          machineIdentifier: 'oversized',
+          ratingKey: '1',
+          ignored: 'x'.repeat(20 * 1024),
+        },
+      });
+
+      assert.equal(res.status, 413);
+      assert.match(res.headers.get('content-type'), /^application\/json/);
+      assert.deepEqual(await res.json(), { error: 'Metadata body exceeds 16 KiB' });
+
+      const mediaRes = await request('/room/r/browse/server/oversized/ratingKey/1');
+      const html = await mediaRes.text();
+      assert.ok(html.includes('Original Oversized Entry'));
+      assert.ok(!html.includes('Rejected Oversized Replacement'));
+    });
+
+    it('accepts exactly 16 KiB and rejects the next byte', async () => {
+      const sendBody = (size) => fetch(`${baseUrl}/api/metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: metadataBodyWithExactSize(size),
+      });
+
+      assert.equal((await sendBody(16 * 1024)).status, 200);
+      assert.equal((await sendBody((16 * 1024) + 1)).status, 413);
+    });
+
+    it('rejects unbounded retained scalar values', async () => {
+      const cases = [
+        { field: 'year', value: 'x'.repeat(33) },
+        { field: 'parentIndex', value: { nested: true } },
+        { field: 'index', value: -1 },
+      ];
+
+      const responses = await Promise.all(cases.map(({ field, value }) => (
+        request('/api/metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: {
+            machineIdentifier: 'bounded-values',
+            ratingKey: field,
+            [field]: value,
+          },
+        })
+      )));
+
+      responses.forEach((res, position) => {
+        assert.equal(res.status, 400, `${cases[position].field} should be rejected`);
+      });
+    });
   });
 
   // --- OG tag injection ---
@@ -281,93 +455,59 @@ describe('server', () => {
       assert.ok(!html.includes('example.com/poster.jpg'));
     });
 
+    it('ignores forwarded origin headers from an untrusted client', async () => {
+      const res = await request('/room/test/browse/server/og-machine/ratingKey/200', {
+        headers: {
+          'X-Forwarded-Host': 'attacker.example',
+          'X-Forwarded-Proto': 'https',
+        },
+      });
+      const html = await res.text();
+
+      assert.ok(html.includes(`${baseUrl}/share/poster/og-machine/200`));
+      assert.ok(!html.includes('attacker.example'));
+    });
+
+    it('ignores a malicious Host header when constructing poster URLs', async () => {
+      const res = await request('/room/test/browse/server/og-machine/ratingKey/200', {
+        headers: { Host: 'attacker.example' },
+      });
+      const html = await res.text();
+
+      assert.ok(html.includes(`${baseUrl}/share/poster/og-machine/200`));
+      assert.ok(!html.includes('attacker.example'));
+    });
+
+    it('percent-encodes reserved characters in poster URL segments', async () => {
+      const machineIdentifier = 'machine/with?#%';
+      const ratingKey = 'rating/with?#%';
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Reserved identifiers',
+          posterUrl: 'https://example.com/reserved.jpg',
+          machineIdentifier,
+          ratingKey,
+        },
+      });
+
+      const res = await request(
+        `/room/test/browse/server/${encodeURIComponent(machineIdentifier)}`
+          + `/ratingKey/${encodeURIComponent(ratingKey)}`,
+      );
+      const html = await res.text();
+
+      assert.ok(html.includes(
+        '/share/poster/machine%2Fwith%3F%23%25/rating%2Fwith%3F%23%25',
+      ));
+    });
+
     it('still includes the SPA shell (index.html) with OG tags', async () => {
       const res = await request('/room/test/browse/server/og-machine/ratingKey/200');
       const html = await res.text();
       assert.ok(html.includes('<div id="app">'));
       assert.ok(html.includes('og:title'));
-    });
-  });
-
-  // --- Room-based OG injection (invite links) ---
-
-  describe('room-based OG injection', () => {
-    before(async () => {
-      await request('/api/metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: {
-          title: 'Room Movie',
-          year: 2024,
-          summary: 'Currently playing in the room.',
-          type: 'movie',
-          posterUrl: 'https://example.com/room-poster.jpg',
-          machineIdentifier: 'room-machine',
-          ratingKey: '1000',
-          room: 'abc123',
-        },
-      });
-    });
-
-    it('injects OG tags for /join/:room when room has cached metadata', async () => {
-      const res = await request('/join/abc123');
-      assert.equal(res.status, 200);
-      const html = await res.text();
-      assert.ok(html.includes('og:title'));
-      assert.ok(html.includes('Room Movie (2024)'));
-      assert.ok(html.includes('og:description'));
-      assert.ok(html.includes('Currently playing in the room.'));
-      assert.ok(html.includes('og:image'));
-      assert.ok(html.includes('/share/poster/room-machine/1000'));
-    });
-
-    it('falls back to default OG tags for /join/:room with no cached metadata', async () => {
-      const res = await request('/join/unknown-room');
-      assert.equal(res.status, 200);
-      const html = await res.text();
-      assert.ok(html.includes('content="SyncLounge"'));
-      assert.ok(!html.includes('Room Movie'));
-    });
-
-    it('updates room metadata when new media is browsed', async () => {
-      await request('/api/metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: {
-          title: 'New Movie',
-          year: 2025,
-          type: 'movie',
-          machineIdentifier: 'room-machine',
-          ratingKey: '1001',
-          room: 'abc123',
-        },
-      });
-
-      const res = await request('/join/abc123');
-      const html = await res.text();
-      assert.ok(html.includes('New Movie (2025)'));
-      assert.ok(!html.includes('Room Movie'));
-    });
-
-    it('injects episode OG tags for room invite links', async () => {
-      await request('/api/metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: {
-          title: 'The Rains of Castamere',
-          type: 'episode',
-          grandparentTitle: 'Game of Thrones',
-          parentIndex: 3,
-          index: 9,
-          machineIdentifier: 'room-machine',
-          ratingKey: '1002',
-          room: 'got-room',
-        },
-      });
-
-      const res = await request('/join/got-room');
-      const html = await res.text();
-      assert.ok(html.includes('Game of Thrones - S03E09 The Rains of Castamere'));
     });
   });
 
@@ -422,6 +562,17 @@ describe('server', () => {
           ratingKey: '400',
         },
       });
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Slow Proxy Test',
+          type: 'movie',
+          posterUrl: `${posterFixtureBase}/image/slow`,
+          machineIdentifier: 'proxy-machine',
+          ratingKey: 'slow',
+        },
+      });
     });
 
     it('proxies the poster image', async () => {
@@ -434,6 +585,23 @@ describe('server', () => {
     it('returns 404 for uncached poster', async () => {
       const res = await request('/share/poster/unknown/999');
       assert.equal(res.status, 404);
+    });
+
+    it('returns 404 for an unknown room poster revision', async () => {
+      const res = await request('/share/room-poster/no-such-room/no-such-revision');
+      assert.equal(res.status, 404);
+    });
+
+    it('stays healthy when a client disconnects during poster fetching', async () => {
+      const clientRequest = http.get(`${baseUrl}/share/poster/proxy-machine/slow`);
+      clientRequest.on('error', () => {});
+
+      await slowPosterStarted;
+      clientRequest.destroy();
+      await slowPosterClosed;
+
+      const health = await request('/health');
+      assert.equal(health.status, 200);
     });
   });
 
@@ -452,23 +620,63 @@ describe('server', () => {
   // --- POST /api/metadata input edge cases ---
 
   describe('POST /api/metadata input edge cases', () => {
-    it('does not crash when Content-Type header is missing', async () => {
+    it('rejects a missing Content-Type header', async () => {
       const res = await fetch(`${baseUrl}/api/metadata`, {
         method: 'POST',
         body: JSON.stringify({ machineIdentifier: 'x', ratingKey: '1' }),
         // No Content-Type header
       });
-      // Should not be 500 (crash) — either 400 or 4xx
-      assert.notEqual(res.status, 500);
+      assert.equal(res.status, 400);
     });
 
-    it('does not crash when Content-Type is text/plain', async () => {
+    it('rejects an unsupported Content-Type', async () => {
       const res = await fetch(`${baseUrl}/api/metadata`, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ machineIdentifier: 'x', ratingKey: '1' }),
       });
-      assert.notEqual(res.status, 500);
+      assert.equal(res.status, 400);
+    });
+
+    it('rejects malformed JSON', async () => {
+      const res = await fetch(`${baseUrl}/api/metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      });
+      assert.equal(res.status, 400);
+      assert.match(res.headers.get('content-type'), /^application\/json/);
+      const body = await res.json();
+      assert.deepEqual(body, { error: 'Malformed JSON' });
+      assert.ok(!JSON.stringify(body).includes(__dirname));
+    });
+
+    it('rejects identifiers that cannot be safely URL-encoded', async () => {
+      const cases = [
+        { machineIdentifier: '\uD800', ratingKey: 'safe' },
+        { machineIdentifier: 'safe', ratingKey: '\uDFFF' },
+      ];
+      const responses = await Promise.all(cases.map((body) => request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      })));
+
+      responses.forEach((res) => assert.equal(res.status, 400));
+      const roomRes = await request('/join/safe-room');
+      assert.equal(roomRes.status, 200);
+      assert.ok((await roomRes.text()).includes('content="SyncLounge"'));
+    });
+
+    it('rejects numeric identifiers that cannot round-trip safely', async () => {
+      const identifiers = ['9007199254740992', '9007199254740993'];
+      const responses = await Promise.all(identifiers.map((ratingKey) => fetch(`${baseUrl}/api/metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: `{"machineIdentifier":"unsafe-number","ratingKey":${ratingKey}}`,
+      })));
+
+      responses.forEach((res) => assert.equal(res.status, 400));
     });
 
     it('handles ratingKey sent as integer (not string)', async () => {
@@ -492,36 +700,65 @@ describe('server', () => {
       assert.ok(html.includes('Integer Key Movie'));
     });
 
-    it('does not collide cache keys when machineIdentifier contains a colon', async () => {
+    it('does not allow HTTP metadata to bind a room preview', async () => {
       await request('/api/metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: {
-          title: 'First Entry',
+          title: 'Room Entry',
           type: 'movie',
-          machineIdentifier: 'a:b',
-          ratingKey: 'c',
+          machineIdentifier: 'room-source',
+          ratingKey: 'source-rating',
+          room: 'abc',
         },
       });
       await request('/api/metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: {
-          title: 'Second Entry',
+          title: 'Media Entry',
           type: 'movie',
-          machineIdentifier: 'a',
-          ratingKey: 'b:c',
+          machineIdentifier: 'room',
+          ratingKey: 'abc',
         },
       });
 
-      const res1 = await request('/room/r/browse/server/a:b/ratingKey/c');
-      const html1 = await res1.text();
-      const res2 = await request('/room/r/browse/server/a/ratingKey/b:c');
-      const html2 = await res2.text();
+      const roomRes = await request('/join/abc');
+      const roomHtml = await roomRes.text();
+      const mediaRes = await request('/room/r/browse/server/room/ratingKey/abc');
+      const mediaHtml = await mediaRes.text();
 
-      // These should have different titles (not collide)
-      assert.ok(html1.includes('First Entry'));
-      assert.ok(html2.includes('Second Entry'));
+      assert.ok(roomHtml.includes('content="SyncLounge"'));
+      assert.ok(!roomHtml.includes('Room Entry'));
+      assert.ok(mediaHtml.includes('Media Entry'));
+      assert.ok(!mediaHtml.includes('Room Entry'));
+    });
+
+    it('retrieves metadata through percent-encoded route identifiers', async () => {
+      const machineIdentifier = 'machine space';
+      const ratingKey = 'rating?mark';
+      const room = 'room space';
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Encoded Route Entry',
+          type: 'movie',
+          machineIdentifier,
+          ratingKey,
+          room,
+        },
+      });
+
+      const mediaPath = `/room/r/browse/server/${encodeURIComponent(machineIdentifier)}`
+        + `/ratingKey/${encodeURIComponent(ratingKey)}`;
+      const mediaRes = await request(mediaPath);
+      const roomRes = await request(`/join/${encodeURIComponent(room)}`);
+
+      assert.ok((await mediaRes.text()).includes('Encoded Route Entry'));
+      const roomHtml = await roomRes.text();
+      assert.ok(roomHtml.includes('content="SyncLounge"'));
+      assert.ok(!roomHtml.includes('Encoded Route Entry'));
     });
   });
 
@@ -945,7 +1182,7 @@ describe('server', () => {
         body: {
           title: 'Bad Upstream',
           type: 'movie',
-          posterUrl: 'http://192.0.2.1:1/nonexistent',
+          posterUrl: 'https://example.invalid/nonexistent',
           machineIdentifier: 'badupstream',
           ratingKey: '701',
         },
@@ -969,6 +1206,57 @@ describe('server', () => {
       });
 
       const res = await request('/share/poster/upstream4xx/702');
+      assert.equal(res.status, 502);
+    });
+
+    it('returns 502 when upstream content is not an image', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Text Upstream',
+          type: 'movie',
+          posterUrl: `${posterFixtureBase}/text/plain`,
+          machineIdentifier: 'upstream-text',
+          ratingKey: '703',
+        },
+      });
+
+      const res = await request('/share/poster/upstream-text/703');
+      assert.equal(res.status, 502);
+    });
+
+    it('returns 502 when the declared image size exceeds the limit', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Large Upstream',
+          type: 'movie',
+          posterUrl: `${posterFixtureBase}/image/too-large`,
+          machineIdentifier: 'upstream-large',
+          ratingKey: '704',
+        },
+      });
+
+      const res = await request('/share/poster/upstream-large/704');
+      assert.equal(res.status, 502);
+    });
+
+    it('returns 502 when a streamed image exceeds the limit', async () => {
+      await request('/api/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          title: 'Streamed Large Upstream',
+          type: 'movie',
+          posterUrl: `${posterFixtureBase}/image/stream-too-large`,
+          machineIdentifier: 'upstream-stream-large',
+          ratingKey: '705',
+        },
+      });
+
+      const res = await request('/share/poster/upstream-stream-large/705');
       assert.equal(res.status, 502);
     });
   });

@@ -80,7 +80,7 @@ const getH265Mime = ({ profile, level }) => {
   return `video/mp4; codecs="hev1.${ps}.${pi}.${t}${level}.B0"`;
 };
 
-export const isVideoSupported = (videoStream) => {
+export const getVideoSupportDetails = (videoStream) => {
   const { codec } = videoStream;
   let mime;
   switch (codec) {
@@ -109,8 +109,10 @@ export const isVideoSupported = (videoStream) => {
   }
   const supported = isMediaTypeSupported(mime);
   console.debug(`isVideoSupported: ${codec} → ${mime} → ${supported}`);
-  return supported;
+  return { codec, mime, supported };
 };
+
+export const isVideoSupported = (videoStream) => getVideoSupportDetails(videoStream).supported;
 
 const aacProfiles = {
   main: 1,

@@ -1,4 +1,4 @@
-import shaka from 'shaka-player/dist/shaka-player.ui.debug';
+import shaka from 'shaka-player/dist/shaka-player.ui';
 
 export default (store) => {
   class PreviousButton extends shaka.ui.Element {

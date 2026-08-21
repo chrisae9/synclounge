@@ -1,3 +1,5 @@
+import { CAF } from 'caf';
+
 export default {
   PLAY_MEDIA: async ({
     commit, dispatch, rootGetters,
@@ -14,7 +16,6 @@ export default {
 
     // Fire-and-forget: update room metadata for Discord embeds
     try {
-      const room = rootGetters['synclounge/GET_ROOM'];
       const posterUrl = rootGetters['plexservers/GET_MEDIA_IMAGE_URL']({
         machineIdentifier,
         mediaUrl: metadata.thumb,
@@ -36,7 +37,6 @@ export default {
           grandparentTitle: metadata.grandparentTitle,
           parentIndex: metadata.parentIndex,
           index: metadata.index,
-          room,
         }),
       }).catch(() => {});
     } catch {
@@ -80,6 +80,7 @@ export default {
   FETCH_JOIN_PLAYER_DATA: async ({ getters, dispatch }) => ({
     ...await dispatch('FETCH_TIMELINE_POLL_DATA'),
     media: getters.GET_ACTIVE_MEDIA_POLL_METADATA,
+    roomPreview: getters.GET_ACTIVE_MEDIA_ROOM_PREVIEW,
     playerProduct: getters.GET_CHOSEN_CLIENT?.product,
   }),
 
@@ -153,7 +154,6 @@ export default {
       return;
     }
 
-    const { CAF } = await import('caf');
     const startedAt = Date.now();
     const duration = rootGetters.GET_CONFIG.skip_ahead_time;
     await dispatch('SEEK_TO', {

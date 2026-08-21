@@ -8,49 +8,74 @@
     "dist",
     "config",
     "server.js",
-    "packages/syncloungeserver"
+    "cache.js",
+    "poster-proxy.js",
+    "request-abort.js",
+    "packages/syncloungeserver/dist",
+    "packages/syncloungeserver/src",
+    "packages/syncloungeserver/LICENSE",
+    "packages/syncloungeserver/README.md",
+    "packages/syncloungeserver/package.json"
   ],
   "scripts": {
     "serve": "vite",
-    "build": "vite build",
+    "build": "npm run build:server && vite build",
+    "build:server": "babel packages/syncloungeserver/src --out-dir packages/syncloungeserver/dist --config-file ./packages/syncloungeserver/.babelrc.json",
     "preview": "vite preview",
-    "lint": "eslint src/",
-    "test": "node --test test/*.test.js && vitest run",
+    "lint": "eslint --max-warnings=0 src/ packages/syncloungeserver/src/ config/ test/ *.js *.mjs",
+    "audit": "npm audit --audit-level=high",
+    "test": "npm run build && npm run test:unit",
+    "test:node": "node --test test/*.test.js",
+    "test:frontend": "vitest run",
+    "test:unit": "npm run test:node && npm run test:frontend",
+    "test:ci": "npm run test:unit",
     "prepare": "if-env SKIP_BUILD=true && echo 'Skipping build' || npm run build"
   },
   "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.22.2",
+    "ipaddr.js": "^2.5.0",
     "nconf": "^0.13.0",
-    "syncloungeserver": "file:packages/syncloungeserver"
+    "socket.io": "^4.8.3",
+    "uuid": "^11.1.1"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.0.8",
+    "utf-8-validate": "^6.0.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@babel/cli": "^8.0.4",
+    "@babel/core": "^8.0.1",
+    "@babel/preset-env": "^8.0.2",
     "@delucis/if-env": "^1.1.2",
     "@vitejs/plugin-vue": "^5.2.0",
     "@vue/test-utils": "^2.4.6",
     "caf": "^15.0.1",
+    "confusing-browser-globals": "^1.0.11",
     "date-fns": "^2.30.0",
     "detect-browser": "^5.3.0",
-    "eslint": "^8.57.1",
-    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint": "^9.39.5",
     "eslint-import-resolver-alias": "^1.1.2",
     "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-vue": "^9.32.0",
-    "fast-xml-parser": "^4.5.3",
-    "happy-dom": "^20.7.0",
+    "eslint-plugin-vue": "^10.10.0",
+    "fast-xml-parser": "^5.10.1",
+    "globals": "^17.9.0",
+    "happy-dom": "^20.11.1",
     "mux.js": "^6.3.0",
     "sass": "^1.93.2",
     "shaka-player": "^4.16.13",
     "socket.io-client": "^4.8.3",
-    "string-similarity": "^4.0.4",
     "synclounge-libjass": "^1.0.0",
     "vanilla-tilt": "^1.8.1",
-    "vite": "^6.0.0",
+    "vite": "^6.4.3",
     "vite-plugin-vuetify": "^2.0.0",
-    "vitest": "^4.0.18",
+    "vitest": "^4.1.10",
     "vue": "^3.5.0",
     "vue-router": "^4.4.0",
     "vuetify": "^3.7.0",
-    "vuex": "^4.1.0",
-    "vuex-persistedstate": "^4.1.0"
+    "vuex": "^4.1.0"
   },
   "bugs": {
     "url": "https://github.com/chrisae9/synclounge/issues"
@@ -62,6 +87,13 @@
     "url": "https://github.com/chrisae9/synclounge.git"
   },
   "engines": {
-    "node": ">=22"
+    "node": "^22.18.0 || >=24.11.0"
+  },
+  "allowScripts": {
+    "@parcel/watcher@2.6.0": true,
+    "bufferutil@4.1.0": true,
+    "esbuild@0.25.12": true,
+    "fsevents@2.3.3": true,
+    "utf-8-validate@6.0.6": true
   }
 }

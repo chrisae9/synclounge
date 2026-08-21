@@ -1,46 +1,79 @@
 #!/usr/bin/env node
 
-const syncloungeServer = require('syncloungeserver');
+const { randomUUID } = require('node:crypto');
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
-const { Readable } = require('node:stream');
+const syncloungeServer = require('./packages/syncloungeserver/dist/lib.js'); // eslint-disable-line import/extensions
 const config = require('./config');
-const { createCache } = require('./cache');
+const {
+  createCache,
+  metadataCacheKey,
+  roomMetadataCacheKey,
+  roomPosterMetadataCacheKey,
+  resolveRoomPosterMetadata,
+} = require('./cache');
+const { fetchPoster, PosterProxyError } = require('./poster-proxy');
+const { createDisconnectController } = require('./request-abort');
 
 const blockList = Object.keys(syncloungeServer.defaultConfig);
 const appConfig = config.get(null, blockList);
+const publicAppConfig = config.getPublic(appConfig);
+const socketConfig = syncloungeServer.getConfig();
 
-// Log config with sensitive values redacted
-const SENSITIVE_RE = /secret|password|token|key/i;
-const safeConfig = Object.fromEntries(
-  Object.entries(appConfig).map(([k, v]) => [k, SENSITIVE_RE.test(k) ? '[REDACTED]' : v]),
-);
-console.log(safeConfig);
+function parsePublicOrigin(value) {
+  if (!value) return null;
 
-const { setMetadata, getMetadata } = createCache();
-
-// --- SSRF prevention for poster proxy ---
-function isPrivateUrl(urlStr) {
   let parsed;
-  try { parsed = new URL(urlStr); } catch { return true; }
-  if (!['http:', 'https:'].includes(parsed.protocol)) return true;
-  // Strip IPv6 brackets for hostname comparison
-  const host = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase();
-  if (host === 'localhost' || host === '0.0.0.0') return true;
-  // IPv6 loopback and IPv4-mapped loopback
-  if (host === '::1' || host === '::ffff:127.0.0.1') return true;
-  if (/^0+:0+:0+:0+:0+:0+:0+:0*1$/.test(host)) return true; // expanded ::1
-  if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
-  return false;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new TypeError('PUBLIC_ORIGIN must be an absolute HTTP(S) origin');
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)
+    || parsed.username
+    || parsed.password
+    || parsed.pathname !== '/'
+    || parsed.search
+    || parsed.hash) {
+    throw new TypeError('PUBLIC_ORIGIN must be an absolute HTTP(S) origin');
+  }
+
+  return parsed.origin;
 }
+
+const publicOrigin = parsePublicOrigin(socketConfig.public_origin);
+const ROOM_POSTER_CACHE_MAX_SIZE = 1000;
+const ROOM_POSTER_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+const posterPath = (machineIdentifier, ratingKey) => (
+  `/share/poster/${encodeURIComponent(machineIdentifier)}/${encodeURIComponent(ratingKey)}`
+);
+const roomPosterPath = (room, revision) => (
+  `/share/room-poster/${encodeURIComponent(room)}/${encodeURIComponent(revision)}`
+);
+
+// Log exactly the browser-safe projection rather than deployment-only configuration.
+console.log(publicAppConfig);
+
+const { setMetadata, getMetadata, deleteMetadata } = createCache();
+const {
+  setMetadata: setRoomPosterMetadata,
+  getMetadata: getRoomPosterMetadata,
+} = createCache({
+  maxSize: ROOM_POSTER_CACHE_MAX_SIZE,
+  ttlMs: ROOM_POSTER_CACHE_TTL_MS,
+});
 
 // --- HTML escaping for XSS prevention ---
 function escapeHtml(str) {
   if (!str) return '';
-  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return str.replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 // --- Read index.html once at startup ---
@@ -76,23 +109,69 @@ function injectOgTags(html, meta) {
   ].filter(Boolean).join('\n    ');
 
   // Remove existing OG/Twitter meta tags from the static HTML so we replace rather than duplicate
-  let cleaned = html.replace(/<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*"|name="theme-color")[^>]*\/?\s*>\s*\n?/g, '');
+  const cleaned = html.replace(
+    /<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*"|name="theme-color")[^>]*\/?\s*>\s*\n?/g,
+    '',
+  );
 
   return cleaned.replace('</head>', `    ${tags}\n  </head>`);
 }
 
 // --- In-memory rate limiter (sliding window, no external deps) ---
 // Limits configurable via env vars; set to 0 to disable (e.g. in tests)
-const METADATA_RATE_LIMIT = parseInt(process.env.SL_METADATA_RATE_LIMIT || '30', 10);
-const POSTER_RATE_LIMIT = parseInt(process.env.SL_POSTER_RATE_LIMIT || '60', 10);
+function parseRateLimit(name, defaultValue) {
+  const rawValue = process.env[name] ?? String(defaultValue);
+  if (!/^\d+$/.test(rawValue)) {
+    throw new TypeError(`${name} must be a non-negative integer`);
+  }
+  const parsedValue = Number(rawValue);
+  if (!Number.isSafeInteger(parsedValue)) {
+    throw new TypeError(`${name} must be a non-negative integer`);
+  }
+  return parsedValue;
+}
 
-function createRateLimiter(maxRequests, windowMs) {
-  if (maxRequests <= 0) return (req, res, next) => next();
+const METADATA_RATE_LIMIT = parseRateLimit('SL_METADATA_RATE_LIMIT', 30);
+const POSTER_RATE_LIMIT = parseRateLimit('SL_POSTER_RATE_LIMIT', 60);
+const RATE_LIMIT_MAX_BUCKETS = parseRateLimit('SL_RATE_LIMIT_MAX_BUCKETS', 10000);
+const RATE_LIMIT_WINDOW_MS = parseRateLimit('SL_RATE_LIMIT_WINDOW_MS', 60 * 1000);
+if (RATE_LIMIT_MAX_BUCKETS === 0 || RATE_LIMIT_WINDOW_MS === 0) {
+  throw new TypeError('Rate-limit bucket count and window must be positive integers');
+}
+
+function createRateLimiter(maxRequests, windowMs, maxBuckets) {
+  if (!Number.isSafeInteger(maxRequests) || maxRequests < 0) {
+    throw new TypeError('Rate limit must be a non-negative integer');
+  }
+  if (maxRequests === 0) return (req, res, next) => next();
   const hits = new Map(); // ip -> [timestamp, ...]
+  let nextPruneAt = Date.now() + windowMs;
+
+  const pruneExpiredBuckets = (cutoff) => {
+    for (const [ip, timestamps] of hits) {
+      const activeTimestamps = timestamps.filter((timestamp) => timestamp > cutoff);
+      if (activeTimestamps.length === 0) {
+        hits.delete(ip);
+      } else {
+        hits.set(ip, activeTimestamps);
+      }
+    }
+  };
+
   return (req, res, next) => {
-    const ip = req.ip;
+    const { ip } = req;
     const now = Date.now();
     const cutoff = now - windowMs;
+
+    if (now >= nextPruneAt) {
+      pruneExpiredBuckets(cutoff);
+      nextPruneAt = now + windowMs;
+    }
+
+    if (!hits.has(ip) && hits.size >= maxBuckets) {
+      return res.status(429).json({ error: 'Too many clients' });
+    }
+
     let timestamps = hits.get(ip);
     if (timestamps) {
       timestamps = timestamps.filter((t) => t > cutoff);
@@ -108,99 +187,214 @@ function createRateLimiter(maxRequests, windowMs) {
   };
 }
 
-const metadataLimiter = createRateLimiter(METADATA_RATE_LIMIT, 60 * 1000);
-const posterLimiter = createRateLimiter(POSTER_RATE_LIMIT, 60 * 1000);
+const metadataLimiter = createRateLimiter(
+  METADATA_RATE_LIMIT,
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_MAX_BUCKETS,
+);
+const posterLimiter = createRateLimiter(
+  POSTER_RATE_LIMIT,
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_MAX_BUCKETS,
+);
 
 // --- File extension check for SPA fallback ---
 const STATIC_EXT_RE = /\.\w{2,}$/;
+const METADATA_BODY_LIMIT = '16kb';
+const MAX_METADATA_STRING_LENGTH = 500;
+const MAX_YEAR_STRING_LENGTH = 32;
+const ROOM_POSTER_MAX_AGE_SECONDS = 60;
+const ROOM_PREVIEW_FIELDS = [
+  'title',
+  'year',
+  'summary',
+  'type',
+  'posterUrl',
+  'machineIdentifier',
+  'ratingKey',
+  'grandparentTitle',
+  'parentIndex',
+  'index',
+];
+
+function isBoundedScalar(value, maxStringLength) {
+  if (typeof value === 'string') return value.length <= maxStringLength;
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isBoundedIdentifier(value) {
+  if (typeof value === 'string') {
+    if (value.length > MAX_METADATA_STRING_LENGTH) return false;
+    try {
+      encodeURIComponent(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
+function decodePathSegment(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
+function isBoundedIndex(value) {
+  if (typeof value === 'number') {
+    return Number.isSafeInteger(value) && value >= 0;
+  }
+  return typeof value === 'string' && /^\d{1,12}$/.test(value);
+}
+
+async function proxyPoster(meta, req, res, cacheControl = 'public, max-age=86400') {
+  if (!meta?.posterUrl) {
+    return res.status(404).send('Not found');
+  }
+
+  const disconnect = createDisconnectController(req, res);
+
+  try {
+    const allowedPrivateOrigin = process.env.NODE_ENV === 'test'
+      ? process.env.SL_POSTER_TEST_ORIGIN
+      : undefined;
+    const poster = await fetchPoster(meta.posterUrl, {
+      allowedPrivateOrigin,
+      signal: disconnect.signal,
+    });
+    if (disconnect.signal.aborted) return undefined;
+
+    res.set('Content-Type', poster.contentType);
+    res.set('Cache-Control', cacheControl);
+    return res.send(poster.body);
+  } catch (error) {
+    if (disconnect.signal.aborted) return undefined;
+
+    console.error('Poster proxy error:', error.message);
+    const statusCode = error instanceof PosterProxyError ? error.statusCode : 502;
+    return res.status(statusCode).send(statusCode === 403 ? 'Forbidden' : 'Failed to fetch poster');
+  } finally {
+    disconnect.cleanup();
+  }
+}
+
+function handleMetadataJsonError(error, req, res, next) {
+  if (error?.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Metadata body exceeds 16 KiB' });
+  }
+  if (error?.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Malformed JSON' });
+  }
+  return next(error);
+}
+
+function handleMetadataRequest(req, res) {
+  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'Request body must be a JSON object' });
+  }
+
+  const {
+    title, year, summary, type, posterUrl, machineIdentifier, ratingKey,
+    grandparentTitle, parentIndex, index,
+  } = req.body;
+
+  if (machineIdentifier == null || machineIdentifier === ''
+    || ratingKey == null || ratingKey === '') {
+    return res.status(400).json({ error: 'machineIdentifier and ratingKey are required' });
+  }
+
+  const stringFields = {
+    title,
+    summary,
+    type,
+    posterUrl,
+    grandparentTitle,
+  };
+  for (const [name, val] of Object.entries(stringFields)) {
+    if (val != null && (typeof val !== 'string' || val.length > MAX_METADATA_STRING_LENGTH)) {
+      return res.status(400).json({
+        error: `${name} must be a string of at most ${MAX_METADATA_STRING_LENGTH} characters`,
+      });
+    }
+  }
+
+  // Numeric identifiers must round-trip through JSON without losing precision.
+  for (const [name, val] of Object.entries({ machineIdentifier, ratingKey })) {
+    if (!isBoundedIdentifier(val)) {
+      return res.status(400).json({
+        error: `${name} must be a non-negative safe integer or a string of at most `
+          + `${MAX_METADATA_STRING_LENGTH} characters`,
+      });
+    }
+  }
+  if (year != null && !isBoundedScalar(year, MAX_YEAR_STRING_LENGTH)) {
+    return res.status(400).json({
+      error: `year must be a finite number or a string of at most ${MAX_YEAR_STRING_LENGTH} characters`,
+    });
+  }
+  for (const [name, val] of Object.entries({ parentIndex, index })) {
+    if (val != null && !isBoundedIndex(val)) {
+      return res.status(400).json({
+        error: `${name} must be a non-negative safe integer or numeric string`,
+      });
+    }
+  }
+  const key = metadataCacheKey(machineIdentifier, ratingKey);
+  const meta = {
+    title,
+    year,
+    summary,
+    type,
+    posterUrl,
+    machineIdentifier,
+    ratingKey,
+    grandparentTitle,
+    parentIndex,
+    index,
+  };
+  setMetadata(key, meta);
+
+  return res.json({ ok: true });
+}
 
 const preStaticInjection = (router) => {
   // Add route for config
   router.get('/config.json', (req, res) => {
-    res.json(appConfig);
+    res.json(publicAppConfig);
   });
 
   // --- POST /api/metadata: receive metadata from client ---
-  router.post('/api/metadata', express.json(), metadataLimiter, (req, res) => {
-    const {
-      title, year, summary, type, posterUrl, machineIdentifier, ratingKey,
-      grandparentTitle, parentIndex, index, room,
-    } = req.body;
-
-    if (!machineIdentifier || !ratingKey) {
-      return res.status(400).json({ error: 'machineIdentifier and ratingKey are required' });
-    }
-
-    // Validate string fields have correct types and reasonable lengths
-    const MAX_LEN = 500;
-    const stringFields = { title, summary, type, posterUrl, grandparentTitle };
-    for (const [name, val] of Object.entries(stringFields)) {
-      if (val != null && (typeof val !== 'string' || val.length > MAX_LEN)) {
-        return res.status(400).json({ error: `${name} must be a string of at most ${MAX_LEN} characters` });
-      }
-    }
-    // machineIdentifier and ratingKey can be string or number (coerced via template literals)
-    for (const [name, val] of Object.entries({ machineIdentifier, ratingKey })) {
-      if (val != null && typeof val !== 'string' && typeof val !== 'number') {
-        return res.status(400).json({ error: `${name} must be a string or number` });
-      }
-      if (typeof val === 'string' && val.length > MAX_LEN) {
-        return res.status(400).json({ error: `${name} must be at most ${MAX_LEN} characters` });
-      }
-    }
-    if (year != null && (typeof year !== 'string' && typeof year !== 'number')) {
-      return res.status(400).json({ error: 'year must be a string or number' });
-    }
-    if (room != null && (typeof room !== 'string' || room.length > MAX_LEN)) {
-      return res.status(400).json({ error: 'room must be a string of at most 500 characters' });
-    }
-
-    const key = `${machineIdentifier}\0${ratingKey}`;
-    const meta = {
-      title, year, summary, type, posterUrl,
-      machineIdentifier, ratingKey,
-      grandparentTitle, parentIndex, index,
-    };
-    setMetadata(key, meta);
-
-    // Also index by room code so /join/:room gets OG tags
-    if (room) {
-      setMetadata(`room\0${room}`, meta);
-    }
-
-    return res.json({ ok: true });
-  });
+  router.post(
+    '/api/metadata',
+    metadataLimiter,
+    express.json({ limit: METADATA_BODY_LIMIT }),
+    handleMetadataJsonError,
+    handleMetadataRequest,
+  );
 
   // --- GET /share/poster/:machineIdentifier/:ratingKey: proxy poster images ---
   router.get('/share/poster/:machineIdentifier/:ratingKey', posterLimiter, async (req, res) => {
-    const key = `${req.params.machineIdentifier}\0${req.params.ratingKey}`;
-    const meta = getMetadata(key);
+    const key = metadataCacheKey(req.params.machineIdentifier, req.params.ratingKey);
+    return proxyPoster(getMetadata(key), req, res);
+  });
 
-    if (!meta || !meta.posterUrl) {
-      return res.status(404).send('Not found');
-    }
-
-    if (isPrivateUrl(meta.posterUrl)) {
-      return res.status(403).send('Forbidden');
-    }
-
-    try {
-      const response = await fetch(meta.posterUrl, {
-        redirect: 'error',
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!response.ok) {
-        return res.status(502).send('Failed to fetch poster');
-      }
-
-      res.set('Content-Type', response.headers.get('content-type') || 'image/jpeg');
-      res.set('Cache-Control', 'public, max-age=86400');
-
-      Readable.fromWeb(response.body).pipe(res);
-    } catch (e) {
-      console.error('Poster proxy error:', e.message);
-      return res.status(502).send('Failed to fetch poster');
-    }
+  // Room poster snapshots can only be selected by the current socket host.
+  router.get('/share/room-poster/:room/:revision', posterLimiter, async (req, res) => {
+    const meta = resolveRoomPosterMetadata({
+      room: req.params.room,
+      revision: req.params.revision,
+      getCurrentMetadata: getMetadata,
+      getSnapshotMetadata: getRoomPosterMetadata,
+    });
+    return proxyPoster(
+      meta,
+      req,
+      res,
+      `public, max-age=${ROOM_POSTER_MAX_AGE_SECONDS}`,
+    );
   });
 
   // --- SPA fallback middleware ---
@@ -230,16 +424,15 @@ const preStaticInjection = (router) => {
     );
 
     if (mediaMatch) {
-      const [, machineIdentifier, ratingKey] = mediaMatch;
-      const key = `${machineIdentifier}\0${ratingKey}`;
-      const meta = getMetadata(key);
+      const machineIdentifier = decodePathSegment(mediaMatch[1]);
+      const ratingKey = decodePathSegment(mediaMatch[2]);
+      const meta = machineIdentifier != null && ratingKey != null
+        ? getMetadata(metadataCacheKey(machineIdentifier, ratingKey))
+        : null;
 
       if (meta) {
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers['x-forwarded-host'] || req.get('host');
-        const baseUrl = `${protocol}://${host}`;
-        const posterProxyUrl = meta.posterUrl
-          ? `${baseUrl}/share/poster/${machineIdentifier}/${ratingKey}`
+        const posterProxyUrl = meta.posterUrl && publicOrigin
+          ? `${publicOrigin}${posterPath(machineIdentifier, ratingKey)}`
           : null;
 
         const html = injectOgTags(indexHtml, { ...meta, posterProxyUrl });
@@ -251,15 +444,12 @@ const preStaticInjection = (router) => {
     // Check if this is a room invite link — inject OG tags for current room media
     const roomMatch = req.path.match(/^\/join\/([^/]+)/);
     if (roomMatch) {
-      const [, roomCode] = roomMatch;
-      const meta = getMetadata(`room\0${roomCode}`);
+      const roomCode = decodePathSegment(roomMatch[1]);
+      const meta = roomCode != null ? getMetadata(roomMetadataCacheKey(roomCode)) : null;
 
       if (meta) {
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers['x-forwarded-host'] || req.get('host');
-        const baseUrl = `${protocol}://${host}`;
-        const posterProxyUrl = meta.posterUrl
-          ? `${baseUrl}/share/poster/${meta.machineIdentifier}/${meta.ratingKey}`
+        const posterProxyUrl = meta.posterUrl && publicOrigin
+          ? `${publicOrigin}${roomPosterPath(roomCode, meta.roomPreviewRevision)}`
           : null;
 
         const html = injectOgTags(indexHtml, { ...meta, posterProxyUrl });
@@ -282,9 +472,35 @@ const preStaticInjection = (router) => {
   });
 };
 
-const socketConfig = syncloungeServer.getConfig();
+const onRoomMediaUpdate = ({ roomId, roomPreview }) => {
+  const roomKey = roomMetadataCacheKey(roomId);
+  if (!roomPreview) {
+    deleteMetadata(roomKey);
+    return;
+  }
+  const currentPreview = getMetadata(roomKey);
+  const previewUnchanged = currentPreview != null
+    && ROOM_PREVIEW_FIELDS.every(
+      (fieldName) => Object.is(currentPreview[fieldName], roomPreview[fieldName]),
+    );
+  if (previewUnchanged) {
+    setMetadata(roomKey, currentPreview);
+    return;
+  }
+  const previewSnapshot = {
+    ...roomPreview,
+    roomPreviewRevision: randomUUID(),
+  };
+  setMetadata(roomKey, previewSnapshot);
+  setRoomPosterMetadata(
+    roomPosterMetadataCacheKey(roomId, previewSnapshot.roomPreviewRevision),
+    previewSnapshot,
+  );
+};
+
 syncloungeServer.socketServer({
   ...socketConfig,
   static_path: path.join(__dirname, 'dist'),
   preStaticInjection,
+  onRoomMediaUpdate,
 });

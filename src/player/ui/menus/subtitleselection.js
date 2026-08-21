@@ -1,4 +1,4 @@
-import shaka from 'shaka-player/dist/shaka-player.ui.debug';
+import shaka from 'shaka-player/dist/shaka-player.ui';
 import {
   setDisplay, getDescendantIfExists, removeAllChildren, focusOnTheChosenItem, checkmarkIcon,
 } from '@/player/ui/utils';

@@ -25,6 +25,7 @@ describe('synclounge actions', () => {
   let actions;
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     vi.resetModules();
     vi.stubGlobal('Audio', createAudioMock());
     actions = (await import('@/store/modules/synclounge/actions')).default;
@@ -93,6 +94,120 @@ describe('synclounge actions', () => {
       });
 
       expect(dispatch).toHaveBeenLastCalledWith('CONNECT_AND_JOIN_ROOM', { syncOnJoin: false });
+    });
+  });
+
+  describe('socket event deadlines', () => {
+    it.each([
+      ['slPing', 'ESTABLISH_SOCKET_CONNECTION'],
+      ['joinResult', 'JOIN_ROOM_AND_INIT'],
+    ])('disconnects and rethrows when the %s deadline expires', async (eventName, failingAction) => {
+      const timeoutError = new Error(`Timed out waiting for ${eventName}`);
+      const dispatch = vi.fn(async (type) => {
+        if (type === failingAction) throw timeoutError;
+      });
+
+      await expect(actions.CONNECT_AND_JOIN_ROOM({ dispatch }, { syncOnJoin: true }))
+        .rejects.toBe(timeoutError);
+
+      expect(dispatch).toHaveBeenCalledWith('DISCONNECT');
+      expect(dispatch).toHaveBeenLastCalledWith('DISCONNECT');
+    });
+
+    it('bounds the initial server ping wait', async () => {
+      socketMocks.open.mockResolvedValue({ id: 'socket-1' });
+      socketMocks.waitForEvent.mockResolvedValue('secret');
+      const dispatch = vi.fn().mockResolvedValue(undefined);
+
+      await actions.ESTABLISH_SOCKET_CONNECTION({
+        getters: { GET_SERVER: '' },
+        rootGetters: { GET_CONFIG: { socket_event_timeout: 4321 } },
+        commit: vi.fn(),
+        dispatch,
+      });
+
+      expect(socketMocks.waitForEvent).toHaveBeenCalledWith('slPing', 4321);
+      expect(dispatch).toHaveBeenCalledWith('HANDLE_SLPING', 'secret');
+    });
+
+    it('bounds the room join result wait', async () => {
+      socketMocks.waitForEvent.mockResolvedValue({
+        success: true,
+        user: { id: 'socket-1' },
+      });
+      const dispatch = vi.fn().mockResolvedValue({ state: 'stopped' });
+
+      await actions.JOIN_ROOM({
+        getters: {
+          GET_ROOM: 'room-1',
+          GET_DISPLAY_USERNAME: 'viewer',
+          IS_PARTY_PAUSING_ENABLED: false,
+          IS_AUTO_HOST_ENABLED: false,
+        },
+        rootGetters: {
+          GET_CONFIG: { socket_event_timeout: 6789 },
+          'plex/GET_PLEX_USER': { thumb: 'avatar' },
+          'settings/GET_SYNCFLEXIBILITY': {},
+        },
+        dispatch,
+      });
+
+      expect(socketMocks.waitForEvent).toHaveBeenCalledWith('joinResult', 6789);
+    });
+
+    it.each([undefined, null, 0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2_147_483_648])(
+      'falls back to a safe timeout for invalid value %s',
+      async (socketEventTimeout) => {
+        socketMocks.open.mockResolvedValue({ id: 'socket-1' });
+        socketMocks.waitForEvent.mockResolvedValue('secret');
+
+        await actions.ESTABLISH_SOCKET_CONNECTION({
+          getters: { GET_SERVER: '' },
+          rootGetters: { GET_CONFIG: { socket_event_timeout: socketEventTimeout } },
+          commit: vi.fn(),
+          dispatch: vi.fn().mockResolvedValue(undefined),
+        });
+
+        expect(socketMocks.waitForEvent).toHaveBeenCalledWith('slPing', 15000);
+      },
+    );
+
+    it.each([undefined, null, 0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+      'uses a safe room join timeout for invalid value %s',
+      async (socketEventTimeout) => {
+        socketMocks.waitForEvent.mockResolvedValue({ success: true });
+
+        await actions.JOIN_ROOM({
+          getters: {
+            GET_ROOM: 'room-1',
+            GET_DISPLAY_USERNAME: 'viewer',
+            IS_PARTY_PAUSING_ENABLED: false,
+            IS_AUTO_HOST_ENABLED: false,
+          },
+          rootGetters: {
+            GET_CONFIG: { socket_event_timeout: socketEventTimeout },
+            'plex/GET_PLEX_USER': {},
+            'settings/GET_SYNCFLEXIBILITY': {},
+          },
+          dispatch: vi.fn().mockResolvedValue({}),
+        });
+
+        expect(socketMocks.waitForEvent).toHaveBeenCalledWith('joinResult', 15000);
+      },
+    );
+
+    it('accepts the maximum browser timer deadline', async () => {
+      socketMocks.open.mockResolvedValue({ id: 'socket-1' });
+      socketMocks.waitForEvent.mockResolvedValue('secret');
+
+      await actions.ESTABLISH_SOCKET_CONNECTION({
+        getters: { GET_SERVER: '' },
+        rootGetters: { GET_CONFIG: { socket_event_timeout: 2_147_483_647 } },
+        commit: vi.fn(),
+        dispatch: vi.fn().mockResolvedValue(undefined),
+      });
+
+      expect(socketMocks.waitForEvent).toHaveBeenCalledWith('slPing', 2_147_483_647);
     });
   });
 
@@ -591,6 +706,57 @@ describe('synclounge actions', () => {
       );
       expect(dispatch).toHaveBeenCalledWith('PLAY_MEDIA_AND_SYNC_TIME', bestMatch);
       expect(dispatch).not.toHaveBeenCalledWith('plexclients/PRESS_STOP', null, { root: true });
+    });
+  });
+
+  describe('PROCESS_MEDIA_UPDATE', () => {
+    it('sends null media and preview when the player reports stopped', async () => {
+      socketMocks.emit.mockClear();
+      socketMocks.isConnected.mockReturnValue(true);
+      const commit = vi.fn();
+      const stoppedState = {
+        state: 'stopped',
+        time: 0,
+        duration: 1000,
+        playbackRate: 1,
+      };
+      const dispatch = vi.fn(async (type) => {
+        if (type === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') {
+          return stoppedState;
+        }
+        return undefined;
+      });
+      const getters = {
+        IS_IN_ROOM: true,
+        GET_UP_NEXT_TRIGGERED: false,
+        GET_SOCKET_ID: 'socket-1',
+      };
+      const rootGetters = {
+        GET_UP_NEXT_POST_PLAY_DATA: null,
+        'plexclients/GET_ACTIVE_MEDIA_POLL_METADATA': { ratingKey: 'stale-media' },
+        'plexclients/GET_ACTIVE_MEDIA_ROOM_PREVIEW': { title: 'Stale Preview' },
+      };
+
+      await actions.PROCESS_MEDIA_UPDATE({
+        dispatch,
+        getters,
+        commit,
+        rootGetters,
+      }, true);
+
+      expect(commit).toHaveBeenCalledWith('SET_USER_MEDIA', {
+        id: 'socket-1',
+        media: null,
+      });
+      expect(socketMocks.emit).toHaveBeenCalledWith({
+        eventName: 'mediaUpdate',
+        data: {
+          media: null,
+          roomPreview: null,
+          ...stoppedState,
+          userInitiated: true,
+        },
+      });
     });
   });
 });

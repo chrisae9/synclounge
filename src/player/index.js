@@ -1,3 +1,4 @@
+import { buildPlaybackDiagnostics } from '@/utils/playbackdiagnostics';
 import {
   getPlayer, getRawPlayer, setPlayer, getOverlay, setOverlay, isCasting,
 } from './state';
@@ -113,9 +114,15 @@ export const waitForMediaElementEvent = ({ signal, type }) => new Promise((resol
 
 export const cancelTrickPlay = () => getPlayer().cancelTrickPlay();
 
-export const load = (...args) => getPlayer().load(...args);
+export const load = (...args) => {
+  cachedDuration = 0;
+  return getPlayer().load(...args);
+};
 
-export const unload = (...args) => getPlayer().unload(...args);
+export const unload = (...args) => {
+  cachedDuration = 0;
+  return getPlayer().unload(...args);
+};
 
 export const getPlaybackRate = () => getPlayer().getPlaybackRate();
 
@@ -156,6 +163,11 @@ export const insertElementBeforeVideo = (element) => {
 
 export const getMediaElement = () => getRawPlayer()?.getMediaElement?.() || null;
 
+export const getPlaybackDiagnostics = () => buildPlaybackDiagnostics({
+  mediaElement: getMediaElement(),
+  stats: getPlayer()?.getStats?.(),
+});
+
 export { isCasting };
 
 export const addCastStatusListener = (callback) => {
@@ -179,5 +191,8 @@ export const destroy = async () => {
   const savedOverlay = getOverlay();
   setPlayer(null);
   setOverlay(null);
-  await savedOverlay.destroy();
+  cachedDuration = 0;
+  if (savedOverlay) {
+    await savedOverlay.destroy();
+  }
 };

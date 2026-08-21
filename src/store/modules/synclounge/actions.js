@@ -8,6 +8,17 @@ import {
 import notificationSound from '@/assets/sounds/notification_simple-01.wav';
 
 const notificationAudio = new Audio(notificationSound);
+const DEFAULT_SOCKET_EVENT_TIMEOUT = 15000;
+const MAX_TIMEOUT_MS = 2_147_483_647;
+
+const getSocketEventTimeout = (rootGetters) => {
+  const configuredTimeout = rootGetters.GET_CONFIG?.socket_event_timeout;
+  return Number.isSafeInteger(configuredTimeout)
+    && configuredTimeout > 0
+    && configuredTimeout <= MAX_TIMEOUT_MS
+    ? configuredTimeout
+    : DEFAULT_SOCKET_EVENT_TIMEOUT;
+};
 
 // Hold the requested party-pause state until the host confirms the matching command.
 let pendingPartyPause = null;
@@ -30,8 +41,13 @@ let visibilityChangeHandler = null;
 
 export default {
   CONNECT_AND_JOIN_ROOM: async ({ dispatch }, options) => {
-    await dispatch('ESTABLISH_SOCKET_CONNECTION');
-    await dispatch('JOIN_ROOM_AND_INIT', options);
+    try {
+      await dispatch('ESTABLISH_SOCKET_CONNECTION');
+      await dispatch('JOIN_ROOM_AND_INIT', options);
+    } catch (error) {
+      await dispatch('DISCONNECT');
+      throw error;
+    }
   },
 
   SET_AND_CONNECT_AND_JOIN_ROOM: async (
@@ -57,7 +73,9 @@ export default {
     }
   },
 
-  ESTABLISH_SOCKET_CONNECTION: async ({ getters, commit, dispatch }) => {
+  ESTABLISH_SOCKET_CONNECTION: async ({
+    getters, rootGetters, commit, dispatch,
+  }) => {
     await dispatch('DISCONNECT_IF_CONNECTED');
 
     const properBase = new URL(getters.GET_SERVER || '/', window.location.origin);
@@ -78,7 +96,8 @@ export default {
     // handler might be fired first, which means it will do stuff before actually responding to the
     // ping(which the normal handler does). I am not very happy with this but I don't know of a easy
     // better way atm. Maybe reactive streams in the future, but that's a bit over my head now
-    const secret = await waitForEvent('slPing');
+    const eventTimeout = getSocketEventTimeout(rootGetters);
+    const secret = await waitForEvent('slPing', eventTimeout);
 
     // Explicitly handling the slping because we haven't registered the events yet
     await dispatch('HANDLE_SLPING', secret);
@@ -105,7 +124,8 @@ export default {
       },
     });
 
-    const { success, error, ...rest } = await waitForEvent('joinResult');
+    const eventTimeout = getSocketEventTimeout(rootGetters);
+    const { success, error, ...rest } = await waitForEvent('joinResult', eventTimeout);
     if (!success) {
       throw new Error(error);
     }
@@ -544,7 +564,13 @@ export default {
       commit('SET_UP_NEXT_TRIGGERED', false);
     }
 
-    const media = rootGetters['plexclients/GET_ACTIVE_MEDIA_POLL_METADATA'];
+    const isStopped = playerState.state === 'stopped';
+    const media = isStopped
+      ? null
+      : rootGetters['plexclients/GET_ACTIVE_MEDIA_POLL_METADATA'];
+    const roomPreview = isStopped
+      ? null
+      : rootGetters['plexclients/GET_ACTIVE_MEDIA_ROOM_PREVIEW'];
 
     commit('SET_USER_MEDIA', {
       id: getters.GET_SOCKET_ID,
@@ -560,6 +586,7 @@ export default {
       eventName: 'mediaUpdate',
       data: {
         media,
+        roomPreview,
         ...playerState,
         userInitiated,
       },

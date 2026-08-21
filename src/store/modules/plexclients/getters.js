@@ -1,3 +1,40 @@
+const MAX_PREVIEW_STRING_LENGTH = 500;
+const MAX_PREVIEW_POSTER_URL_LENGTH = 2048;
+const MAX_PREVIEW_YEAR = 9999;
+const MAX_PREVIEW_INDEX = 999_999_999_999;
+
+const isPreviewIdentifier = (value) => {
+  if (Number.isSafeInteger(value)) return value >= 0;
+  if (typeof value !== 'string' || value.length === 0
+    || value.length > MAX_PREVIEW_STRING_LENGTH) return false;
+  try {
+    encodeURIComponent(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const boundedPreviewString = (value) => (
+  typeof value === 'string' && value.length <= MAX_PREVIEW_STRING_LENGTH
+    ? value
+    : undefined
+);
+
+const boundedPreviewYear = (value) => (
+  (Number.isSafeInteger(value) && value >= 0 && value <= MAX_PREVIEW_YEAR)
+    || (typeof value === 'string' && /^\d{1,4}$/.test(value))
+    ? value
+    : undefined
+);
+
+const boundedPreviewIndex = (value) => (
+  (Number.isSafeInteger(value) && value >= 0 && value <= MAX_PREVIEW_INDEX)
+    || (typeof value === 'string' && /^\d{1,12}$/.test(value))
+    ? value
+    : undefined
+);
+
 export default {
   GET_CHOSEN_CLIENT_ID: (state) => state.chosenClientId,
 
@@ -22,6 +59,42 @@ export default {
       index: getters.GET_ACTIVE_MEDIA_METADATA.index,
     }
     : null),
+
+  GET_ACTIVE_MEDIA_ROOM_PREVIEW: (state, getters, rootState, rootGetters) => {
+    const metadata = getters.GET_ACTIVE_MEDIA_METADATA;
+    if (!metadata) return null;
+    if (!isPreviewIdentifier(metadata.machineIdentifier)
+      || !isPreviewIdentifier(metadata.ratingKey)) return null;
+
+    let posterUrl;
+    try {
+      posterUrl = rootGetters['plexservers/GET_MEDIA_IMAGE_URL']({
+        machineIdentifier: metadata.machineIdentifier,
+        mediaUrl: metadata.thumb,
+        width: 600,
+        height: 900,
+      });
+    } catch {
+      posterUrl = undefined;
+    }
+    if (posterUrl != null
+      && (typeof posterUrl !== 'string' || posterUrl.length > MAX_PREVIEW_POSTER_URL_LENGTH)) {
+      posterUrl = undefined;
+    }
+
+    return {
+      title: boundedPreviewString(metadata.title),
+      year: boundedPreviewYear(metadata.year),
+      summary: boundedPreviewString(metadata.summary),
+      type: boundedPreviewString(metadata.type),
+      posterUrl,
+      machineIdentifier: metadata.machineIdentifier,
+      ratingKey: metadata.ratingKey,
+      grandparentTitle: boundedPreviewString(metadata.grandparentTitle),
+      parentIndex: boundedPreviewIndex(metadata.parentIndex),
+      index: boundedPreviewIndex(metadata.index),
+    };
+  },
 
   GET_ACTIVE_PLAY_QUEUE: (state) => state.activePlayQueue,
 

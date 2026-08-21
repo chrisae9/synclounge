@@ -25,7 +25,7 @@ const shakaMocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('shaka-player/dist/shaka-player.ui.debug', () => ({
+vi.mock('shaka-player/dist/shaka-player.ui', () => ({
   default: {
     ui: {
       SettingsMenu: shakaMocks.SettingsMenu,

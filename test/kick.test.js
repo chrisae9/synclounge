@@ -1,20 +1,24 @@
-const { describe, it, before, after } = require('node:test');
+const {
+  describe, it, before, after,
+} = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const { io } = require('socket.io-client');
 
 const BASE = 'http://localhost:18089';
 let serverProcess;
+let serverOutput = '';
 
 const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 function waitForSocketEvent(socket, eventName, timeoutMs = 2000) {
   return new Promise((resolve, reject) => {
+    let onEvent;
     const timeout = setTimeout(() => {
       socket.off(eventName, onEvent);
       reject(new Error(`Timed out waiting for ${eventName}`));
     }, timeoutMs);
-    const onEvent = (data) => {
+    onEvent = (data) => {
       clearTimeout(timeout);
       resolve(data);
     };
@@ -23,15 +27,63 @@ function waitForSocketEvent(socket, eventName, timeoutMs = 2000) {
 }
 
 async function waitForServer(url, retries = 30, delay = 200) {
-  for (let i = 0; i < retries; i++) {
+  for (let i = 0; i < retries; i += 1) {
     try {
-      await fetch(url);
-      return;
+      // Sequential polling is intentional: each request observes a later server state.
+      // eslint-disable-next-line no-await-in-loop
+      const response = await fetch(url, { signal: AbortSignal.timeout(500) });
+      const healthy = response.ok;
+      // eslint-disable-next-line no-await-in-loop
+      await response.body?.cancel();
+      if (healthy) return;
     } catch {
-      await wait(delay);
+      // Retry connection failures and per-attempt timeouts.
     }
+    // eslint-disable-next-line no-await-in-loop
+    await wait(delay);
   }
   throw new Error('Server did not start in time');
+}
+
+async function stopServer(processToStop) {
+  if (!processToStop
+    || processToStop.exitCode !== null
+    || processToStop.signalCode !== null) return;
+
+  const exited = new Promise((resolve) => {
+    processToStop.once('error', resolve);
+    processToStop.once('close', resolve);
+  });
+  const waitForExit = async () => {
+    let timeout;
+    const didExit = await Promise.race([
+      exited.then(() => true),
+      new Promise((resolve) => {
+        timeout = setTimeout(() => resolve(false), 2000);
+      }),
+    ]);
+    clearTimeout(timeout);
+    return didExit;
+  };
+
+  if (processToStop.exitCode !== null || processToStop.signalCode !== null) return;
+  processToStop.kill('SIGTERM');
+  if (!await waitForExit()
+    && processToStop.exitCode === null
+    && processToStop.signalCode === null) {
+    processToStop.kill('SIGKILL');
+    assert.ok(await waitForExit(), 'server did not exit after SIGKILL');
+  }
+}
+
+async function waitForOutput(text, retries = 30, delay = 50) {
+  for (let i = 0; i < retries; i += 1) {
+    if (serverOutput.includes(text)) return;
+    // Sequential polling is intentional: each check observes later process output.
+    // eslint-disable-next-line no-await-in-loop
+    await wait(delay);
+  }
+  throw new Error(`Server output did not contain: ${text}`);
 }
 
 function joinClient({ roomId, username }) {
@@ -76,7 +128,7 @@ function joinClient({ roomId, username }) {
 describe('kick socket event', () => {
   before(async () => {
     serverProcess = spawn('node', ['server.js'], {
-      cwd: __dirname + '/..',
+      cwd: `${__dirname}/..`,
       env: {
         ...process.env,
         PORT: '18089',
@@ -85,14 +137,13 @@ describe('kick socket event', () => {
       },
       stdio: 'pipe',
     });
+    serverProcess.stdout.on('data', (data) => { serverOutput += data.toString(); });
     serverProcess.stderr.on('data', (d) => process.stderr.write(d));
     await waitForServer(`${BASE}/health`);
   });
 
-  after(() => {
-    if (serverProcess) {
-      serverProcess.kill('SIGTERM');
-    }
+  after(async () => {
+    await stopServer(serverProcess);
   });
 
   it('server removes kicked users even if the kicked client does not disconnect itself', async () => {
@@ -153,6 +204,52 @@ describe('kick socket event', () => {
     } finally {
       host.socket.close();
       guest.socket.close();
+    }
+  });
+
+  it('writes sanitized client playback diagnostics to the server log', async () => {
+    const roomId = `diagnostics-${Date.now()}`;
+    const client = await joinClient({ roomId, username: 'diagnostic-user' });
+
+    try {
+      client.socket.emit('playbackDiagnostic', {
+        event: 'buffering-start',
+        browser: { name: 'firefox', os: 'Linux' },
+        playback: { bufferAhead: 0.125, readyState: 2 },
+        accessToken: 'do-not-log-this',
+      });
+      await waitForOutput('playback-diagnostic');
+
+      const line = serverOutput.split('\n')
+        .find((entry) => entry.includes('diagnostic-user') && entry.includes('playback-diagnostic'));
+      assert.ok(line);
+      assert.ok(line.includes('"event":"buffering-start"'));
+      assert.ok(line.includes('"bufferAhead":0.125'));
+      assert.ok(line.includes(`"room":"${roomId}"`));
+      assert.equal(line.includes('do-not-log-this'), false);
+    } finally {
+      client.socket.close();
+    }
+  });
+
+  it('disconnects a client that floods playback diagnostics', async () => {
+    const roomId = `diagnostics-flood-${Date.now()}`;
+    const client = await joinClient({ roomId, username: 'diagnostic-flooder' });
+
+    try {
+      const disconnectPromise = waitForSocketEvent(client.socket, 'disconnect');
+      for (let index = 0; index < 61; index += 1) {
+        client.socket.emit('playbackDiagnostic', {
+          event: 'playback-health',
+          playback: { currentTime: index },
+        });
+      }
+
+      await disconnectPromise;
+      assert.equal(client.socket.connected, false);
+      await waitForOutput('Rate limit exceeded for playbackDiagnostic');
+    } finally {
+      client.socket.close();
     }
   });
 });
