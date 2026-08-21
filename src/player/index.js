@@ -1,3 +1,4 @@
+import { buildPlaybackDiagnostics } from '@/utils/playbackdiagnostics';
 import {
   getPlayer, getRawPlayer, setPlayer, getOverlay, setOverlay, isCasting,
 } from './state';
@@ -161,6 +162,11 @@ export const insertElementBeforeVideo = (element) => {
 };
 
 export const getMediaElement = () => getRawPlayer()?.getMediaElement?.() || null;
+
+export const getPlaybackDiagnostics = () => buildPlaybackDiagnostics({
+  mediaElement: getMediaElement(),
+  stats: getPlayer()?.getStats?.(),
+});
 
 export { isCasting };
 

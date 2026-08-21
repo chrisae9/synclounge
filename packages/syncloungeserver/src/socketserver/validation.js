@@ -178,6 +178,7 @@ const validators = {
     assertObject(eventName, data);
     assertString(eventName, 'requestId', data.requestId, { min: 1, max: 512 });
   },
+  playbackDiagnostic: assertObject,
   kick: (eventName, data) => assertString(eventName, 'socketId', data, { min: 1, max: 256 }),
 };
 

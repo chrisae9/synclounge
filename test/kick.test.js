@@ -7,6 +7,7 @@ const { io } = require('socket.io-client');
 
 const BASE = 'http://localhost:18089';
 let serverProcess;
+let serverOutput = '';
 
 const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
@@ -75,6 +76,16 @@ async function stopServer(processToStop) {
   }
 }
 
+async function waitForOutput(text, retries = 30, delay = 50) {
+  for (let i = 0; i < retries; i += 1) {
+    if (serverOutput.includes(text)) return;
+    // Sequential polling is intentional: each check observes later process output.
+    // eslint-disable-next-line no-await-in-loop
+    await wait(delay);
+  }
+  throw new Error(`Server output did not contain: ${text}`);
+}
+
 function joinClient({ roomId, username }) {
   return new Promise((resolve, reject) => {
     const socket = io(BASE, {
@@ -126,6 +137,7 @@ describe('kick socket event', () => {
       },
       stdio: 'pipe',
     });
+    serverProcess.stdout.on('data', (data) => { serverOutput += data.toString(); });
     serverProcess.stderr.on('data', (d) => process.stderr.write(d));
     await waitForServer(`${BASE}/health`);
   });
@@ -192,6 +204,52 @@ describe('kick socket event', () => {
     } finally {
       host.socket.close();
       guest.socket.close();
+    }
+  });
+
+  it('writes sanitized client playback diagnostics to the server log', async () => {
+    const roomId = `diagnostics-${Date.now()}`;
+    const client = await joinClient({ roomId, username: 'diagnostic-user' });
+
+    try {
+      client.socket.emit('playbackDiagnostic', {
+        event: 'buffering-start',
+        browser: { name: 'firefox', os: 'Linux' },
+        playback: { bufferAhead: 0.125, readyState: 2 },
+        accessToken: 'do-not-log-this',
+      });
+      await waitForOutput('playback-diagnostic');
+
+      const line = serverOutput.split('\n')
+        .find((entry) => entry.includes('diagnostic-user') && entry.includes('playback-diagnostic'));
+      assert.ok(line);
+      assert.ok(line.includes('"event":"buffering-start"'));
+      assert.ok(line.includes('"bufferAhead":0.125'));
+      assert.ok(line.includes(`"room":"${roomId}"`));
+      assert.equal(line.includes('do-not-log-this'), false);
+    } finally {
+      client.socket.close();
+    }
+  });
+
+  it('disconnects a client that floods playback diagnostics', async () => {
+    const roomId = `diagnostics-flood-${Date.now()}`;
+    const client = await joinClient({ roomId, username: 'diagnostic-flooder' });
+
+    try {
+      const disconnectPromise = waitForSocketEvent(client.socket, 'disconnect');
+      for (let index = 0; index < 61; index += 1) {
+        client.socket.emit('playbackDiagnostic', {
+          event: 'playback-health',
+          playback: { currentTime: index },
+        });
+      }
+
+      await disconnectPromise;
+      assert.equal(client.socket.connected, false);
+      await waitForOutput('Rate limit exceeded for playbackDiagnostic');
+    } finally {
+      client.socket.close();
     }
   });
 });
