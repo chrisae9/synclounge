@@ -133,6 +133,7 @@ import {
 import { defineAsyncComponent } from 'vue';
 import clipboard from '@/mixins/clipboard';
 import linkWithRoom from '@/mixins/linkwithroom';
+import { getSignInRoute } from '@/router/guardutils';
 import { PlexAuthError } from '@/utils/fetchutils';
 
 export default {
@@ -146,6 +147,10 @@ export default {
     clipboard,
     linkWithRoom,
   ],
+
+  data: () => ({
+    pendingAuthRedirect: null,
+  }),
 
   computed: {
     ...mapGetters([
@@ -230,24 +235,27 @@ export default {
     async GET_NAVIGATE_SIGN_IN(navigate) {
       if (navigate) {
         console.debug('NAVIGATE_SIGN_IN');
-        this.$router.push({ name: 'SignIn' });
+        await this.navigateToSignIn();
         this.SET_NAVIGATE_SIGN_IN(false);
       }
     },
   },
 
   async created() {
+    this.rememberAuthRedirect();
+
     if (this.GET_PLEX_AUTH_TOKEN) {
       try {
         await Promise.all([
           this.FETCH_PLEX_USER(),
           this.FETCH_PLEX_DEVICES(),
         ]);
+        this.pendingAuthRedirect = null;
       } catch (e) {
         console.error(e);
         if (e instanceof PlexAuthError) {
           this.SET_PLEX_AUTH_TOKEN(null);
-          this.$router.push({ name: 'SignIn' });
+          await this.navigateToSignIn();
         } else {
           await this.DISPLAY_NOTIFICATION({
             text: 'Failed to connect to Plex API. Try logging out and back in.',
@@ -259,6 +267,35 @@ export default {
   },
 
   methods: {
+    rememberAuthRedirect() {
+      const redirect = getSignInRoute(this.$route).query?.redirect
+        || (this.$route.name === 'SignIn' ? this.$route.query.redirect : null);
+      if (typeof redirect === 'string') {
+        this.pendingAuthRedirect = redirect;
+      }
+    },
+
+    async navigateToSignIn() {
+      // Auth expiry can be reported by both the user and device requests. Preserve the route
+      // captured before either request began, even if another report reached bare SignIn first.
+      this.rememberAuthRedirect();
+      const currentRedirect = this.$route.name === 'SignIn'
+        ? (this.$route.query.redirect || null)
+        : null;
+      const redirect = currentRedirect || this.pendingAuthRedirect;
+
+      if (this.$route.name !== 'SignIn' || currentRedirect !== redirect) {
+        await this.$router.push({
+          name: 'SignIn',
+          ...(redirect && { query: { redirect } }),
+        });
+      }
+
+      // Once SignIn owns the redirect, duplicate expiry reports can read it from the route.
+      // Do not retain it in app state where a later, unrelated sign-in could reuse it.
+      this.pendingAuthRedirect = null;
+    },
+
     mediaSlug(meta) {
       let name;
       if (meta.type === 'episode') {

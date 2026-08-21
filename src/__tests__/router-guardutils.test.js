@@ -1,7 +1,44 @@
 import { describe, it, expect } from 'vitest';
-import { shouldApplyAutojoin, shouldRedirectProtectedRoute } from '@/router/guardutils';
+import {
+  getSignInRoute,
+  shouldApplyAutojoin,
+  shouldRedirectProtectedRoute,
+} from '@/router/guardutils';
 
 describe('router guard helpers', () => {
+  it.each([
+    '/join/movie-night/server-1?watching=example-movie-2026',
+    '/join/movie-night?watching=example-movie-2026',
+  ])('preserves invite URL %s and its watching context through sign-in', (fullPath) => {
+    expect(getSignInRoute({
+      name: 'RoomJoin',
+      fullPath,
+      matched: [{ meta: { requiresAuth: true } }],
+    })).toEqual({
+      name: 'SignIn',
+      query: { redirect: fullPath },
+    });
+  });
+
+  it('returns the basic sign-in route when no current route is available', () => {
+    expect(getSignInRoute()).toEqual({ name: 'SignIn' });
+  });
+
+  it('does not attach a redirect when the route has no matched records', () => {
+    expect(getSignInRoute({
+      fullPath: '/join/movie-night',
+      matched: [],
+    })).toEqual({ name: 'SignIn' });
+  });
+
+  it('does not attach a redirect for routes that do not require authentication', () => {
+    expect(getSignInRoute({
+      name: 'SignOut',
+      fullPath: '/signout',
+      matched: [{ meta: { requiresPlexToken: true } }],
+    })).toEqual({ name: 'SignIn' });
+  });
+
   it('does not autojoin over explicit room deep links', () => {
     expect(shouldApplyAutojoin({
       fullPath: '/room/stale123/player',
