@@ -2,6 +2,7 @@ import {
   describe, expect, it, vi,
 } from 'vitest';
 import App from '@/App.vue';
+import { PlexAuthError } from '@/utils/fetchutils';
 
 describe('expired authentication navigation', () => {
   it.each([
@@ -116,6 +117,43 @@ describe('expired authentication navigation', () => {
 
     await App.created.call(context);
 
+    expect(context.pendingAuthRedirect).toBeNull();
+  });
+
+  it('preserves the captured invite when bootstrap authentication expires', async () => {
+    const fullPath = '/join/movie-night?watching=example-movie-2026';
+    const push = vi.fn().mockResolvedValue(undefined);
+    const setPlexAuthToken = vi.fn();
+    const context = {
+      pendingAuthRedirect: null,
+      GET_PLEX_AUTH_TOKEN: 'expired-token',
+      $route: {
+        name: 'RoomJoin',
+        fullPath,
+        matched: [{ meta: { requiresAuth: true } }],
+      },
+      $router: { push },
+      rememberAuthRedirect: App.methods.rememberAuthRedirect,
+      navigateToSignIn: App.methods.navigateToSignIn,
+      FETCH_PLEX_USER: vi.fn().mockRejectedValue(
+        new PlexAuthError(401, 'Unauthorized', 'https://plex.tv/api/v2/user'),
+      ),
+      FETCH_PLEX_DEVICES: vi.fn().mockResolvedValue(undefined),
+      SET_PLEX_AUTH_TOKEN: setPlexAuthToken,
+    };
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await App.created.call(context);
+    } finally {
+      consoleError.mockRestore();
+    }
+
+    expect(setPlexAuthToken).toHaveBeenCalledWith(null);
+    expect(push).toHaveBeenCalledWith({
+      name: 'SignIn',
+      query: { redirect: fullPath },
+    });
     expect(context.pendingAuthRedirect).toBeNull();
   });
 });
