@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.22.2",
+    "express": "^5.2.1",
     "ipaddr.js": "^2.5.0",
     "nconf": "^0.13.0",
     "socket.io": "^4.8.3",
