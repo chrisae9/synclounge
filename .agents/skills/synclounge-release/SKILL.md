@@ -133,9 +133,12 @@ unattended release tagging in the same request.
    ```sh
    APPROVED_NOTES_FILE=/path/to/approved-release-notes.md
    test -s "$APPROVED_NOTES_FILE"
-   git tag -a "v$VERSION" -F "$APPROVED_NOTES_FILE"
+   git tag -a "v$VERSION" --cleanup=verbatim -F "$APPROVED_NOTES_FILE"
    git push origin "v$VERSION"
    ```
+
+   `--cleanup=verbatim` preserves Markdown headings. Git's default tag-message
+   cleanup treats lines beginning with `#` as comments and removes them.
 
 3. Monitor the tag-triggered release workflow:
 
