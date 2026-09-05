@@ -500,6 +500,7 @@ const onRoomMediaUpdate = ({ roomId, roomPreview }) => {
 
 syncloungeServer.socketServer({
   ...socketConfig,
+  authentication: appConfig.authentication,
   static_path: path.join(__dirname, 'dist'),
   preStaticInjection,
   onRoomMediaUpdate,

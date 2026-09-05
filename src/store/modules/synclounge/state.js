@@ -25,6 +25,7 @@ const state = () => ({
   joinSyncInProgress: false,
 
   // Host leave grace period: delays host transfer so original host can reconnect
+  hostGracePreviousHostIdentity: null,
   hostGracePreviousHostUsername: null,
   hostGracePreviousHostThumb: null,
   hostGracePreviousHostState: null,

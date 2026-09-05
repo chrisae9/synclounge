@@ -1,4 +1,5 @@
 import { CAF } from 'caf';
+import { abortable, throwIfAborted } from '@/utils/cancellation';
 
 import { getRandomPlexId } from '@/utils/random';
 import { fetchJson, queryFetch } from '@/utils/fetchutils';
@@ -18,6 +19,7 @@ import subtitleActions from './subtitleActions';
 
 // Module-level guard for play queue transitions (not reactive, so reads are synchronous)
 let isPlayQueueTransitioning = false;
+let sourceRevision = 0;
 let bufferingStartedAt = null;
 let bufferingEpisode = 0;
 let lastHealthDiagnosticAt = 0;
@@ -128,9 +130,11 @@ export default {
     ? getters.GET_OFFSET_MS
     : getCurrentTimeMs() || getters.GET_OFFSET_MS),
 
-  SEND_PLEX_DECISION_REQUEST: async ({ getters, commit, dispatch }) => {
+  SEND_PLEX_DECISION_REQUEST: async ({ getters, commit, dispatch }, { signal, ensureCurrent = () => {} } = {}) => {
     console.debug('SEND_PLEX_DECISION_REQUEST:', getters.GET_DECISION_URL);
-    const data = await fetchJson(getters.GET_DECISION_URL, getters.GET_DECISION_AND_START_PARAMS);
+    const data = await fetchJson(getters.GET_DECISION_URL, getters.GET_DECISION_AND_START_PARAMS, { signal });
+    throwIfAborted(signal);
+    ensureCurrent();
     const meta = data?.MediaContainer?.Metadata?.[0];
     const part = meta?.Media?.[0]?.Part?.[0];
     console.debug('Plex decision:', {
@@ -201,11 +205,19 @@ export default {
     }
   },
 
-  CHANGE_PLAYER_SRC: async ({ getters, commit, dispatch }) => {
+  CHANGE_PLAYER_SRC: async ({ getters, commit, dispatch }, { signal } = {}) => {
+    sourceRevision += 1;
+    const revision = sourceRevision;
+    const ensureCurrent = () => {
+      throwIfAborted(signal);
+      if (revision !== sourceRevision) throw new DOMException('Source replaced', 'AbortError');
+    };
+    ensureCurrent();
     console.debug('CHANGE_PLAYER_SRC');
 
     // Abort subtitle requests now or else we get ugly errors from the server closing it.
     await dispatch('DESTROY_ASS');
+    ensureCurrent();
 
     if (getters.GET_FORCE_TRANSCODE_RETRY) {
       commit('SET_FORCE_TRANSCODE_RETRY', false);
@@ -219,9 +231,12 @@ export default {
 
     try {
       try {
-        await dispatch('SEND_PLEX_DECISION_REQUEST');
-        await dispatch('LOAD_PLAYER_SRC');
+        await abortable(dispatch('SEND_PLEX_DECISION_REQUEST', { signal, ensureCurrent }), signal);
+        ensureCurrent();
+        await abortable(dispatch('LOAD_PLAYER_SRC', { signal, ensureCurrent }), signal);
+        ensureCurrent();
       } catch (e) {
+        ensureCurrent();
         if (getters.GET_FORCE_TRANSCODE) {
           throw e;
         }
@@ -229,18 +244,28 @@ export default {
 
         // Try again with forced transcoding
         commit('SET_FORCE_TRANSCODE_RETRY', true);
-        await dispatch('SEND_PLEX_DECISION_REQUEST');
-        await dispatch('LOAD_PLAYER_SRC');
+        await abortable(dispatch('SEND_PLEX_DECISION_REQUEST', { signal, ensureCurrent }), signal);
+        ensureCurrent();
+        await abortable(dispatch('LOAD_PLAYER_SRC', { signal, ensureCurrent }), signal);
+        ensureCurrent();
       }
 
       await dispatch('CHANGE_SUBTITLES');
+      ensureCurrent();
 
       // TODO: potentially avoid sending updates on media change since we already do that
       if (getters.GET_MASK_PLAYER_STATE) {
         commit('SET_MASK_PLAYER_STATE', false);
       }
     } finally {
-      commit('SET_IS_CHANGING_SOURCE', false);
+      if (signal?.aborted && revision === sourceRevision) {
+        try {
+          await unload();
+        } catch (error) {
+          console.warn('Cancelled source cleanup failed', error);
+        }
+      }
+      if (revision === sourceRevision) commit('SET_IS_CHANGING_SOURCE', false);
     }
   },
 
@@ -349,11 +374,18 @@ export default {
     await dispatch('DESTROY_ASS');
   },
 
-  HANDLE_SEEKED: async ({ state, dispatch }) => {
+  HANDLE_SEEKED: async ({ state, commit, dispatch }) => {
     if (state.isChangingSource) {
       return;
     }
     console.debug('HANDLE_SEEKED');
+    const automatic = state.syncSeekTarget != null
+      && Math.abs(getCurrentTimeMs() - state.syncSeekTarget) < 1000;
+    commit('SET_SYNC_SEEK_TARGET', null);
+    await dispatch('synclounge/PROCESS_PLAYER_STATE_UPDATE', {
+      noSync: true,
+      userInitiatedSeek: !automatic,
+    }, { root: true });
     await dispatch('CHANGE_SUBTITLES');
   },
 
@@ -471,6 +503,8 @@ export default {
   },
 
   PRESS_STOP: async ({ getters, commit, dispatch }) => {
+    await dispatch('plexclients/CANCEL_PLAY_MEDIA', null, { root: true });
+    sourceRevision += 1;
     const mediaElement = getMediaElement();
     if (getters.IS_AUTOPLAY_BLOCKED && mediaElement) {
       mediaElement.muted = false;
@@ -485,6 +519,7 @@ export default {
       throw new Error('Soft seek not allowed outside of buffered range');
     }
 
+    commit('SET_SYNC_SEEK_TARGET', seekToMs);
     commit('SET_OFFSET_MS', seekToMs);
     setCurrentTimeMs(seekToMs);
   },
@@ -534,6 +569,7 @@ export default {
 
   NORMAL_SEEK: async ({ rootGetters, commit }, { cancelSignal, seekToMs }) => {
     console.debug('NORMAL_SEEK', seekToMs);
+    commit('SET_SYNC_SEEK_TARGET', seekToMs);
     commit('SET_OFFSET_MS', seekToMs);
 
     const timeoutToken = CAF.timeout(
@@ -630,21 +666,31 @@ export default {
     await plexTimelineUpdatePromise;
   },
 
-  LOAD_PLAYER_SRC: async ({ getters, dispatch }) => {
+  LOAD_PLAYER_SRC: async ({ getters, commit, dispatch }, { signal, ensureCurrent = () => {} } = {}) => {
+    const url = getters.GET_SRC_URL;
+    const offset = getters.GET_OFFSET_MS;
     // TODO: potentailly unload if already loaded to avoid load interrupted errors
     // However, while its loading, potentially   reporting the old time...
     console.debug('LOAD_PLAYER_SRC:', getters.GET_SRC_URL);
     await unload();
-    await load(getters.GET_SRC_URL);
+    throwIfAborted(signal);
+    ensureCurrent();
+    await abortable(load(url), signal);
+    throwIfAborted(signal);
+    ensureCurrent();
     console.debug('LOAD_PLAYER_SRC: loaded, offset:', getters.GET_OFFSET_MS);
     dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'playback-loaded' });
 
-    if (getters.GET_OFFSET_MS > 0) {
-      setCurrentTimeMs(getters.GET_OFFSET_MS);
+    if (offset > 0) {
+      commit('SET_SYNC_SEEK_TARGET', offset);
+      setCurrentTimeMs(offset);
     }
   },
 
-  NAVIGATE_AND_INITIALIZE_PLAYER: ({ commit }) => {
+  NAVIGATE_AND_INITIALIZE_PLAYER: ({ getters, commit }) => {
+    if (getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE) {
+      return getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE.promise;
+    }
     console.debug('NAVIGATE_AND_INITIALIZE_PLAYER');
     // I don't really like this. I'd rather have the player be part of the main app rather than a
     // vue route
@@ -671,7 +717,9 @@ export default {
       await dispatch('START_UPDATE_PLAYER_CONTROLS_SHOWN_INTERVAL');
       setVolume(rootGetters['settings/GET_SLPLAYERVOLUME']);
 
-      if (rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']
+      // PLAY_MEDIA owns source loading when navigation has a waiting caller.
+      if (!getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE
+        && rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']
         && rootGetters['plexclients/GET_ACTIVE_SERVER_ID']) {
         await dispatch('CHANGE_PLAYER_SRC');
         const shouldPlayOnLoad = getters.GET_SHOULD_PLAY_ON_LOAD
@@ -730,6 +778,7 @@ export default {
   },
 
   DESTROY_PLAYER_STATE: async ({ getters, commit, dispatch }) => {
+    sourceRevision += 1;
     console.debug('DESTROY_PLAYER_STATE');
     bufferingStartedAt = null;
     bufferingEpisode = 0;
@@ -758,6 +807,7 @@ export default {
     commit('SET_SUBTITLE_OFFSET', 0);
     await destroy();
     commit('SET_OFFSET_MS', 0);
+    commit('SET_SYNC_SEEK_TARGET', null);
   },
 
   REGISTER_PLAYER_EVENTS: ({ commit, dispatch }) => {

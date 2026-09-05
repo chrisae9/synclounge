@@ -6,7 +6,18 @@ export const open = async (url, options) => {
   console.debug('Socket: connecting to', url);
 
   return new Promise(((resolve, reject) => {
-    socket = io.connect(url, options);
+    const storageKey = `synclounge:reconnect:${url}:${options.path}`;
+    let reconnectToken;
+    try { reconnectToken = sessionStorage.getItem(storageKey); } catch { /* Storage may be disabled. */ }
+    socket = io.connect(url, {
+      ...options,
+      auth: (callback) => callback({ ...options.auth, reconnectToken }),
+    });
+    socket.on('session', (data) => {
+      if (typeof data?.reconnectToken !== 'string' || data.reconnectToken.length > 256) return;
+      reconnectToken = data.reconnectToken;
+      try { sessionStorage.setItem(storageKey, reconnectToken); } catch { /* Keep the in-memory proof. */ }
+    });
 
     socket.once('connect', () => {
       console.debug('Socket: connected, id:', socket.id);

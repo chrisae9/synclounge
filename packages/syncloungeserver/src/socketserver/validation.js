@@ -147,6 +147,9 @@ const assertPlayerState = (eventName, data) => {
   assertFiniteNumber(eventName, 'time', data.time, { min: 0, max: Number.MAX_SAFE_INTEGER });
   assertFiniteNumber(eventName, 'duration', data.duration, { min: 0, max: Number.MAX_SAFE_INTEGER });
   assertFiniteNumber(eventName, 'playbackRate', data.playbackRate, { min: 0, max: 16 });
+  if (data.userInitiatedSeek !== undefined) {
+    assertBoolean(eventName, 'userInitiatedSeek', data.userInitiatedSeek);
+  }
 };
 
 const validators = {

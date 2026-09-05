@@ -80,7 +80,7 @@ export const createState = () => {
   };
 
   const addUserToRoom = ({
-    socketId, roomId, desiredUsername, thumb, playerProduct,
+    socketId, roomId, desiredUsername, thumb, playerProduct, reconnectIdentity,
   }) => {
     const { users } = rooms.get(roomId);
 
@@ -88,6 +88,7 @@ export const createState = () => {
 
     socketRoomId.set(socketId, roomId);
     users.set(socketId, {
+      reconnectIdentity,
       username: getUniqueUsername({ usernames, desiredUsername }),
       thumb,
       playerProduct,
@@ -132,7 +133,7 @@ export const createState = () => {
   const getRoomHostId = (roomId) => rooms.get(roomId).hostId;
 
   const getJoinData = ({ roomId, socketId }) => {
-    const { username } = getRoomUserData(socketId);
+    const { username, reconnectIdentity } = getRoomUserData(socketId);
     const { isPartyPausingEnabled, isAutoHostEnabled } = rooms.get(roomId);
 
     return {
@@ -142,6 +143,7 @@ export const createState = () => {
       user: {
         id: socketId,
         username,
+        reconnectIdentity,
       },
       users: getOtherUserData({ roomId, exceptSocketId: socketId }),
     };

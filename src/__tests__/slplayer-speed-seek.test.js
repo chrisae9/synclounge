@@ -572,3 +572,54 @@ describe('SPEED_OR_NORMAL_SEEK', () => {
     expect(dispatch).not.toHaveBeenCalledWith('SPEED_SEEK', expect.anything());
   });
 });
+
+describe('Source request cancellation', () => {
+  it('does not commit a decision response after cancellation', async () => {
+    const { fetchJson } = await import('@/utils/fetchutils');
+    let finish;
+    fetchJson.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const controller = new AbortController();
+    const commit = vi.fn();
+    const pending = slplayerActions.SEND_PLEX_DECISION_REQUEST(
+      { getters: {}, commit, dispatch: vi.fn() },
+      { signal: controller.signal },
+    );
+    controller.abort();
+    finish({ MediaContainer: {} });
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('does not retry transcoding after cancellation during source load', async () => {
+    const controller = new AbortController();
+    const commit = vi.fn();
+    let started = false;
+    const dispatch = vi.fn((type) => {
+      if (type === 'LOAD_PLAYER_SRC') {
+        started = true;
+        return new Promise(() => {});
+      }
+      return Promise.resolve();
+    });
+    const pending = slplayerActions.CHANGE_PLAYER_SRC({ getters: {}, commit, dispatch }, { signal: controller.signal });
+    await vi.waitFor(() => expect(started).toBe(true));
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    controller.abort();
+    await rejected;
+    const { unload } = await import('@/player');
+    expect(unload).toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalledWith('SET_FORCE_TRANSCODE_RETRY', true);
+    expect(commit).toHaveBeenCalledWith('SET_IS_CHANGING_SOURCE', false);
+  });
+
+  it('shares player initialization between overlapping callers', () => {
+    const getters = {};
+    const commit = vi.fn((type, value) => {
+      if (type === 'SET_PLAYER_INITIALIZED_DEFERRED_PROMISE') getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE = value;
+    });
+    const first = slplayerActions.NAVIGATE_AND_INITIALIZE_PLAYER({ getters, commit });
+    const second = slplayerActions.NAVIGATE_AND_INITIALIZE_PLAYER({ getters, commit });
+    expect(first).toBe(second);
+    expect(commit.mock.calls.filter(([type]) => type === 'SET_NAVIGATE_TO_PLAYER')).toHaveLength(1);
+  });
+});

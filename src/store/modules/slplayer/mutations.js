@@ -17,6 +17,10 @@ export default {
     state.offsetMs = offset;
   },
 
+  SET_SYNC_SEEK_TARGET: (state, target) => {
+    state.syncSeekTarget = target;
+  },
+
   SET_MEDIA_INDEX: (state, index) => {
     state.mediaIndex = index;
   },

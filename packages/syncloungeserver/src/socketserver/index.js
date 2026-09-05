@@ -8,11 +8,12 @@ import { Server } from 'socket.io';
 import { createState } from './state';
 import { createActions } from './actions';
 import { createEventHandlers } from './handlers';
+import { createSocketAuthentication, createReconnectIdentity } from './authentication';
 
 const socketServer = ({
   base_url: baseUrl, static_path: staticPath, port, ping_interval: pingInterval = 10000,
   ping_timeout: pingTimeout = 10000, preStaticInjection, trust_proxy: trustProxy,
-  onRoomMediaUpdate,
+  onRoomMediaUpdate, authentication,
 }) => {
   if (!Number.isFinite(pingInterval) || pingInterval <= 0) {
     throw new TypeError('ping_interval must be a positive number');
@@ -24,6 +25,8 @@ const socketServer = ({
     throw new TypeError('onRoomMediaUpdate must be a function');
   }
 
+  const authenticate = createSocketAuthentication(authentication);
+  const reconnectIdentity = createReconnectIdentity();
   const app = express();
   const server = http.Server(app);
   const router = express.Router();
@@ -49,6 +52,27 @@ const socketServer = ({
     maxHttpBufferSize: 64 * 1024,
     // Use websockets first
     transports: ['websocket', 'polling'],
+  });
+
+  socketio.use(async (socket, next) => {
+    const { data, handshake } = socket;
+    try {
+      await authenticate(socket.handshake.auth?.plexToken);
+      const session = reconnectIdentity(socket.handshake.auth?.reconnectToken);
+      data.reconnectIdentity = session.identity;
+      data.reconnectToken = session.token;
+      // Do not retain the Plex credential after verification.
+      delete handshake.auth?.plexToken;
+      next();
+    } catch {
+      delete handshake.auth?.plexToken;
+      next(new Error('Not authorized to use this SyncLounge server'));
+    }
+  });
+  socketio.on('connection', (socket) => {
+    const { data } = socket;
+    socket.emit('session', { reconnectToken: data.reconnectToken });
+    delete data.reconnectToken;
   });
 
   const state = createState();
