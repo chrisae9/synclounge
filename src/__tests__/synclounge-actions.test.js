@@ -718,10 +718,13 @@ describe('synclounge actions', () => {
 
       expect(dispatch).toHaveBeenCalledWith(
         'plexservers/FIND_BEST_MEDIA_MATCH',
-        hostMedia,
+        { ...hostMedia, signal: expect.any(AbortSignal) },
         { root: true },
       );
-      expect(dispatch).toHaveBeenCalledWith('PLAY_MEDIA_AND_SYNC_TIME', bestMatch);
+      expect(dispatch).toHaveBeenCalledWith(
+        'PLAY_MEDIA_AND_SYNC_TIME',
+        { ...bestMatch, signal: expect.any(AbortSignal) },
+      );
       expect(dispatch).not.toHaveBeenCalledWith('plexclients/PRESS_STOP', null, { root: true });
     });
   });

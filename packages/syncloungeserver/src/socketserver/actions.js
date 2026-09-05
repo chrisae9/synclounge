@@ -166,7 +166,7 @@ export const createActions = (socketState) => {
       });
   };
 
-  const emitPlayerStateUpdateToRoom = ({ server, socketId }) => {
+  const emitPlayerStateUpdateToRoom = ({ server, socketId, userInitiatedSeek }) => {
     const {
       updatedAt, state, time, duration, playbackRate,
     } = getRoomUserData(socketId);
@@ -176,6 +176,7 @@ export const createActions = (socketState) => {
       eventName: 'playerStateUpdate',
       exceptSocketId: socketId,
       userData: {
+        ...(userInitiatedSeek !== undefined && { userInitiatedSeek }),
         updatedAt,
         state,
         time,

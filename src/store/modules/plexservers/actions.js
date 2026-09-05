@@ -1,3 +1,4 @@
+import { throwIfAborted } from '@/utils/cancellation';
 import { randomInt } from '@/utils/lightlodash';
 import { fetchJson, queryFetch } from '@/utils/fetchutils';
 import weightedRandomChoice from '@/utils/weightedrandomchoice';
@@ -164,21 +165,25 @@ export default {
     };
   },
 
-  SEARCH_ENABLED_PLEX_SERVERS: ({ getters, dispatch }, query) => Promise.allSettled(
+  SEARCH_ENABLED_PLEX_SERVERS: ({ getters, dispatch }, input) => Promise.allSettled(
     getters.GET_ENABLED_PLEX_SERVER_IDS.map((machineIdentifier) => dispatch(
       'SEARCH_PLEX_SERVER',
       {
         machineIdentifier,
-        query,
+        query: typeof input === 'string' ? input : input.query,
+        signal: typeof input === 'string' ? undefined : input.signal,
       },
     )),
   ).then((results) => results.filter((r) => r.status === 'fulfilled').flatMap((r) => r.value)),
 
   FIND_BEST_MEDIA_MATCH: async ({ getters, dispatch }, hostTimeline) => {
+    const { signal } = hostTimeline;
+    throwIfAborted(signal);
     // If we have access the same server, play same content
     if (getters.IS_PLEX_SERVER_ENABLED(hostTimeline.machineIdentifier)) {
       try {
         const metadata = await dispatch('FETCH_PLEX_METADATA', {
+          signal,
           ratingKey: hostTimeline.ratingKey,
           machineIdentifier: hostTimeline.machineIdentifier,
         });
@@ -188,11 +193,13 @@ export default {
           mediaIndex: hostTimeline.mediaIndex,
         };
       } catch (e) {
+        throwIfAborted(signal);
         console.warn('Error fetching metadata for same media as host', e);
       }
     }
 
-    const results = await dispatch('SEARCH_ENABLED_PLEX_SERVERS', hostTimeline.title);
+    const results = await dispatch('SEARCH_ENABLED_PLEX_SERVERS', { query: hostTimeline.title, signal });
+    throwIfAborted(signal);
     if (results.length <= 0) {
       return null;
     }
@@ -205,6 +212,7 @@ export default {
       .reduce((prev, current) => (prev.score > current.score ? prev : current)).result;
 
     const metadata = await dispatch('FETCH_PLEX_METADATA', {
+      signal,
       ratingKey: bestResult.ratingKey,
       machineIdentifier: bestResult.machineIdentifier,
     });
