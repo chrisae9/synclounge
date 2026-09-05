@@ -34,8 +34,27 @@ const clearPendingPartyPause = () => {
 
 // Cooldown after buffering ends — prevents aggressive sync from causing rebuffering loop.
 // The periodic 5s poll will handle sync after the player stabilizes.
-let lastBufferingEndTime = 0;
+let lastBufferingEndTime = null;
+let wasBuffering = false;
 const POST_BUFFERING_COOLDOWN_MS = 5000;
+
+const isRecoveringFromBuffering = (state) => {
+  if (state === 'stopped') {
+    wasBuffering = false;
+    lastBufferingEndTime = null;
+    return false;
+  }
+  if (state === 'buffering') {
+    wasBuffering = true;
+    return true;
+  }
+  if (wasBuffering) {
+    wasBuffering = false;
+    lastBufferingEndTime = Date.now();
+  }
+  return lastBufferingEndTime != null
+    && Date.now() - lastBufferingEndTime < POST_BUFFERING_COOLDOWN_MS;
+};
 
 // Visibility change handler reference for cleanup in DISCONNECT
 let visibilityChangeHandler = null;
@@ -248,6 +267,7 @@ export default {
   },
 
   DISCONNECT: async ({ commit, dispatch }) => {
+    isRecoveringFromBuffering('stopped');
     await dispatch('plexclients/CANCEL_PLAY_MEDIA', null, { root: true });
     await dispatch('INVALIDATE_PARTY_PAUSE_COMMANDS');
     clearPendingPartyPause();
@@ -523,6 +543,8 @@ export default {
       { root: true },
     );
 
+    const inPostBufferingCooldown = isRecoveringFromBuffering(playerState.state);
+
     commit('SET_USER_PLAYER_STATE', {
       ...playerState,
       id: getters.GET_SOCKET_ID,
@@ -535,12 +557,7 @@ export default {
 
     await dispatch('PROCESS_UPNEXT', playerState);
 
-    if (playerState.state === 'buffering') {
-      lastBufferingEndTime = Date.now();
-      return;
-    }
-
-    const inPostBufferingCooldown = (Date.now() - lastBufferingEndTime) < POST_BUFFERING_COOLDOWN_MS;
+    if (playerState.state === 'buffering') return;
 
     if (!noSync && !getters.IS_JOIN_SYNC_IN_PROGRESS && !inPostBufferingCooldown) {
       await dispatch('SYNC_PLAYER_STATE');
@@ -936,6 +953,11 @@ export default {
     if (hostUser.state === 'buffering') {
       return;
     }
+
+    // Polls and host events also reach this path, bypassing PROCESS_PLAYER_STATE_UPDATE.
+    // Let a recovering follower fill its buffer before another automatic correction.
+    // Host pause commands above and explicit MANUAL_SYNC remain available.
+    if (isRecoveringFromBuffering(timeline.state) && hostUser.state === 'playing') return;
 
     // TODO: potentially update the player state if we paused or played so we know in the sync
     await dispatch('plexclients/SYNC', cancelSignal, { root: true });
