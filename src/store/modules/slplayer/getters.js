@@ -220,7 +220,10 @@ export default {
 
   GET_OFFSET_MS: (state) => state.offsetMs,
 
-  GET_PLAYER_STATE: (state) => state.playerState,
+  // Native pause/playing events can fire while Shaka is still replacing the source.
+  // Do not advertise restored playback (and reclaim host) until that load settles.
+  GET_PLAYER_STATE: (state) => (state.playerState !== 'stopped'
+    && (state.maskPlayerState || state.isChangingSource) ? 'buffering' : state.playerState),
 
   GET_TITLE: (state, getters, rootState, rootGetters) => (
     rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']

@@ -267,6 +267,9 @@ export default {
       }
       if (revision === sourceRevision) commit('SET_IS_CHANGING_SOURCE', false);
     }
+    ensureCurrent();
+    // Publish readiness only after cancellation cleanup can no longer unload this source.
+    await dispatch('REFRESH_PLAYER_STATE');
   },
 
   SEND_PLEX_TIMELINE_UPDATE: async (
