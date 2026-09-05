@@ -15,7 +15,7 @@ const makeReaderDecoder = (encoding, reader) => {
 
 // https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read
 async function* fetchLineGenerator(url, signal) {
-  console.debug('fetchLineGenerator: starting stream from:', url);
+  console.debug('fetchLineGenerator: starting stream');
   const reader = await fetchBodyReader(url, null, { signal });
 
   const readerDecoder = makeReaderDecoder('utf-8', reader);
