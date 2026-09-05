@@ -47,6 +47,8 @@ const diagnosticSchema = {
     transcode: true,
   },
   playback: {
+    isCasting: true,
+    buffering: true,
     attached: true,
     currentTime: true,
     duration: true,

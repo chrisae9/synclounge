@@ -18,6 +18,8 @@ test('sanitizes structured playback diagnostics without accepting unrelated fiel
     browser: { name: 'firefox', os: 'Linux\nforged-log-line' },
     playback: {
       currentTime: 10,
+      isCasting: true,
+      buffering: false,
       bufferAhead: Number.POSITIVE_INFINITY,
       accessToken: 'nested-secret',
       oversized: Object.fromEntries(Array.from({ length: 1000 }, (_, index) => [index, index])),
@@ -29,6 +31,8 @@ test('sanitizes structured playback diagnostics without accepting unrelated fiel
   assert.equal(diagnostic.browser.os, 'Linux forged-log-line');
   assert.deepEqual(diagnostic.details, { episode: 3, durationMs: 142 });
   assert.equal(diagnostic.playback.currentTime, 10);
+  assert.equal(diagnostic.playback.isCasting, true);
+  assert.equal(diagnostic.playback.buffering, false);
   assert.equal(diagnostic.playback.bufferAhead, null);
   assert.equal(diagnostic.playback.accessToken, undefined);
   assert.equal(diagnostic.playback.oversized, undefined);
