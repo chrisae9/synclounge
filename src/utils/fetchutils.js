@@ -11,7 +11,7 @@ export class PlexAuthError extends Error {
     super(`${status} ${statusText}`);
     this.name = 'PlexAuthError';
     this.status = status;
-    this.url = url;
+    [this.url] = String(url || '').split(/[?#]/, 1);
   }
 }
 
@@ -19,7 +19,7 @@ const safeFetch = async (...args) => {
   const response = await fetch(...args);
   if (!response.ok) {
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url;
-    console.warn(`HTTP ${response.status} ${response.statusText}: ${url}`);
+    console.warn(`HTTP request failed: ${response.status}`);
 
     if ((response.status === 401 || response.status === 403)
       && url && url.includes('plex.tv')) {

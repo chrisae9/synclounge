@@ -674,7 +674,7 @@ export default {
     const offset = getters.GET_OFFSET_MS;
     // TODO: potentailly unload if already loaded to avoid load interrupted errors
     // However, while its loading, potentially   reporting the old time...
-    console.debug('LOAD_PLAYER_SRC:', getters.GET_SRC_URL);
+    console.debug('LOAD_PLAYER_SRC: loading');
     await unload();
     throwIfAborted(signal);
     ensureCurrent();

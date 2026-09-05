@@ -17,7 +17,7 @@ export const randomAlphanumericString = (length) => {
 
     for (let i = 0; i < array.length && randomString.length < length; i += 1) {
       const digit = array[i];
-      if (digit <= max) {
+      if (digit < max) {
         const newChar = alphanumericCharacters[digit % alphanumericCharacters.length];
         randomString += newChar;
       }
@@ -27,7 +27,7 @@ export const randomAlphanumericString = (length) => {
   return randomString;
 };
 
-const roomIdLength = 5;
+const roomIdLength = 22;
 
 export const getRandomRoomId = () => randomAlphanumericString(roomIdLength);
 
