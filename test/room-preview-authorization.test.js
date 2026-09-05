@@ -142,7 +142,7 @@ async function postMetadata(body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 410);
 }
 
 async function getJoinHtml(roomId) {
@@ -178,6 +178,35 @@ const playerUpdate = (media, roomPreview) => ({
 });
 
 describe('room preview authorization', () => {
+  it('scopes browse previews to their room and escapes hostile metadata', async () => {
+    const roomId = 'isolated-preview';
+    const host = await joinClient({
+      roomId,
+      username: 'host',
+      media: { machineIdentifier: 'same-machine', ratingKey: '1' },
+      roomPreview: {
+        machineIdentifier: 'same-machine',
+        ratingKey: '1',
+        type: 'episode',
+        grandparentTitle: '<SCRIPT>alert(1)</SCRIPT>',
+        title: 'Host title',
+        summary: '" onload="bad & <img>',
+      },
+    });
+    try {
+      const html = await (await fetch(`${baseUrl}/room/${roomId}/browse/server/same-machine/ratingKey/1`)).text();
+      assert.ok(html.includes('&lt;SCRIPT&gt;alert(1)&lt;/SCRIPT&gt;'));
+      assert.ok(html.includes('&quot; onload=&quot;bad &amp; &lt;img&gt;'));
+      assert.ok(!html.includes('<SCRIPT>'));
+      const otherRoom = await (await fetch(`${baseUrl}/room/other/browse/server/same-machine/ratingKey/1`)).text();
+      assert.ok(!otherRoom.includes('Host title'));
+      const otherMedia = await (await fetch(`${baseUrl}/room/${roomId}/browse/server/same-machine/ratingKey/2`)).text();
+      assert.ok(!otherMedia.includes('Host title'));
+    } finally {
+      host.close();
+    }
+  });
+
   before(async () => {
     posterFixtureServer = http.createServer((req, res) => {
       const posterBodies = {
