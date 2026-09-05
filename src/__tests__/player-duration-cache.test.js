@@ -16,6 +16,7 @@ vi.mock('@/player/state', () => ({
   setPlayer: (player) => { playerState.player = player; },
   getOverlay: () => playerState.overlay,
   setOverlay: (overlay) => { playerState.overlay = overlay; },
+  setControlsCleanup: vi.fn(),
   isCasting: vi.fn(() => false),
 }));
 
