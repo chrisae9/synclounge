@@ -19,8 +19,10 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
   } = actions;
 
   let partyPauseRequestId = 0;
+  const recentSeeks = new Map();
 
   const removeSocketFromRoom = ({ server, socket, onRoomMediaUpdate }) => {
+    recentSeeks.delete(socket.id);
     const roomId = getUserRoomId(socket.id);
     const wasHost = isUserHost(socket.id);
     const remainingRoomId = removeUserAndUpdateRoom({ server, socketId: socket.id });
@@ -69,6 +71,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     }
 
     addUserToRoom({
+      reconnectIdentity: socket.data?.reconnectIdentity,
       socketId: socket.id,
       roomId,
       desiredUsername,
@@ -184,7 +187,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
 
   const playerStateUpdate = ({
     server, socket, data: {
-      state, time, duration, playbackRate,
+      state, time, duration, playbackRate, userInitiatedSeek,
     },
   }) => {
     if (!isUserInARoom(socket.id)) {
@@ -192,11 +195,28 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       return;
     }
 
+    const previous = { ...getRoomUserData(socket.id) };
     updateUserPlayerState({
       socketId: socket.id, state, time, duration, playbackRate,
     });
+    const current = getRoomUserData(socket.id);
+    const expectedTime = previous.time + (previous.state === 'playing'
+      ? (current.updatedAt - previous.updatedAt) * previous.playbackRate : 0);
+    // Shaka can send buffering at the new position before seeked, followed by
+    // a stable state. Keep the observed discontinuity until that sequence ends.
+    if (previous.state !== 'stopped' && state !== 'stopped'
+      && Number.isFinite(expectedTime) && Math.abs(current.time - expectedTime) > 250) {
+      recentSeeks.set(socket.id, { time: current.time, at: current.updatedAt, intent: false });
+    }
+    const recent = recentSeeks.get(socket.id);
+    const matchesRecent = recent && current.updatedAt - recent.at <= 30000
+      && Math.abs(current.time - recent.time) <= 1000;
+    if (matchesRecent && userInitiatedSeek === true) recent.intent = true;
+    const verifiedSeek = Boolean(matchesRecent && recent.intent && ['playing', 'paused'].includes(state));
+    if (verifiedSeek || !matchesRecent || state === 'stopped') recentSeeks.delete(socket.id);
+    const marker = userInitiatedSeek === undefined && !verifiedSeek ? undefined : verifiedSeek;
 
-    emitPlayerStateUpdateToRoom({ server, socketId: socket.id });
+    emitPlayerStateUpdateToRoom({ server, socketId: socket.id, userInitiatedSeek: marker });
   };
 
   const mediaUpdate = ({
@@ -210,6 +230,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       return;
     }
 
+    recentSeeks.delete(socket.id);
     updateUserPlayerState({
       socketId: socket.id, state, time, duration, playbackRate,
     });

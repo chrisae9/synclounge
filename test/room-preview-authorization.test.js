@@ -227,8 +227,8 @@ describe('room preview authorization', () => {
   it('allows only the current socket host to bind cached media to a room', async () => {
     const roomId = `preview-${Date.now()}`;
     const hostMedia = {
-      machineIdentifier: 'host/machine?#%',
-      ratingKey: 'host/rating?#%',
+      machineIdentifier: 'host-machine',
+      ratingKey: 'host-rating',
     };
     const guestMedia = {
       machineIdentifier: 'guest-machine',

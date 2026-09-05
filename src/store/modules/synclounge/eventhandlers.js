@@ -1,18 +1,8 @@
 import { CAF } from 'caf';
 import { emit, waitForEvent, getId } from '@/socket';
 
-// Strip server-assigned dedup suffix like "(1)", "(2)" for username comparison.
-// When the same Plex user reconnects, the server may assign a different suffix.
-const stripUsernameSuffix = (name) => name?.replace(/\(\d+\)$/, '').trim();
-
-const matchesPreviousHost = (getters, user) => {
-  const thumbMatch = user?.thumb
-    && user.thumb === getters.GET_HOST_GRACE_PREVIOUS_HOST_THUMB;
-  const nameMatch = user?.username
-    && stripUsernameSuffix(user.username)
-      === stripUsernameSuffix(getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME);
-  return thumbMatch || nameMatch;
-};
+const matchesPreviousHost = (getters, user) => Boolean(user?.reconnectIdentity
+  && user.reconnectIdentity === getters.GET_HOST_GRACE_PREVIOUS_HOST_IDENTITY);
 
 const hasRestoredPlayback = (user) => user?.media
   && (user.state === 'playing' || user.state === 'paused');
@@ -31,11 +21,11 @@ const getExpectedUserTime = (user) => {
   return user.time + elapsed * playbackRate;
 };
 
-const isNonHostSeek = (previousUser, data) => {
+const isNonHostSeek = (previousUser, data, threshold = NON_HOST_SEEK_THRESHOLD_MS) => {
   const expectedTime = getExpectedUserTime(previousUser);
   return expectedTime != null
     && Number.isFinite(data.time)
-    && Math.abs(data.time - expectedTime) > NON_HOST_SEEK_THRESHOLD_MS;
+    && Math.abs(data.time - expectedTime) > threshold;
 };
 
 const HOST_RESTORE_TIMEOUT = 30000;
@@ -215,6 +205,7 @@ export default {
     commit('SET_PENDING_HOST_ID', null);
     commit('SET_HOST_GRACE_PREVIOUS_HOST_USERNAME', null);
     commit('SET_HOST_GRACE_PREVIOUS_HOST_THUMB', null);
+    commit('SET_HOST_GRACE_PREVIOUS_HOST_IDENTITY', null);
     commit('SET_HOST_GRACE_PREVIOUS_HOST_STATE', null);
     commit('SET_HOST_GRACE_RESTORE_DEADLINE_AT', null);
   },
@@ -321,12 +312,7 @@ export default {
     // If we're in a grace period and the original host reconnected, cancel the grace period
     // and keep the original host
     const newUser = getters.GET_USER(hostId);
-    const newThumbMatch = newUser?.thumb
-      && newUser.thumb === getters.GET_HOST_GRACE_PREVIOUS_HOST_THUMB;
-    const newNameMatch = getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME
-      && stripUsernameSuffix(newUser?.username)
-        === stripUsernameSuffix(getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME);
-    if (getters.IS_HOST_GRACE_PERIOD && (newThumbMatch || newNameMatch)) {
+    if (getters.IS_HOST_GRACE_PERIOD && matchesPreviousHost(getters, newUser)) {
       const expectedState = getters.GET_HOST_GRACE_PREVIOUS_HOST_STATE;
       const restoreDeadline = getters.GET_HOST_GRACE_RESTORE_DEADLINE_AT
         ?? Date.now() + HOST_RESTORE_TIMEOUT;
@@ -374,6 +360,7 @@ export default {
         }
         return;
       }
+      commit('SET_HOST_GRACE_PREVIOUS_HOST_IDENTITY', previousHost.reconnectIdentity || null);
       commit('SET_HOST_GRACE_PREVIOUS_HOST_USERNAME', previousHost.username);
       commit('SET_HOST_GRACE_PREVIOUS_HOST_THUMB', previousHost.thumb || null);
       commit(
@@ -446,7 +433,7 @@ export default {
       return;
     }
 
-    const previousUser = getters.GET_USER(data.id);
+    const previousUser = { ...getters.GET_USER(data.id) };
     const previousState = previousUser?.state;
     commit('SET_USER_PLAYER_STATE', data);
     commit('RECORD_USER_EVENT', { id: data.id, fields: ['player'] });
@@ -484,14 +471,16 @@ export default {
     }
 
     if (data.id === getters.GET_HOST_ID) {
+      if (getters.GET_SYNC_CANCEL_TOKEN?.kind === 'media') return;
       await dispatch('CANCEL_IN_PROGRESS_SYNC');
       await dispatch('SYNC_PLAYER_STATE');
     } else if (data.id !== getters.GET_SOCKET_ID && getters.AM_I_HOST
       && !rootGetters['slplayer/IS_CHANGING_SOURCE']
       && !rootGetters['slplayer/IS_PLAY_QUEUE_TRANSITIONING']
-      && isNonHostSeek(previousUser, data)
+      && (data.userInitiatedSeek === true
+        || (data.userInitiatedSeek === undefined && isNonHostSeek(previousUser, data)))
       && data.state !== 'buffering') {
-      // Non-host user seeked (time jump > 5s) — follow their seek
+      // Older clients have no explicit seek marker; infer only large timeline discontinuities.
       const user = getters.GET_USER(data.id);
       console.debug('Non-host seek detected from', user?.username, 'seeking to', data.time);
       await dispatch('DISPLAY_NOTIFICATION', {

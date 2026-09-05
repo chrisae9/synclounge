@@ -1,4 +1,5 @@
 import { CAF } from 'caf';
+import { abortable, throwIfAborted } from '@/utils/cancellation';
 import eventhandlers from '@/store/modules/synclounge/eventhandlers';
 import { combineUrl, combineRelativeUrlParts } from '@/utils/combineurl';
 import { fetchJson } from '@/utils/fetchutils';
@@ -85,6 +86,8 @@ export default {
 
     const { id } = await open(url.origin, {
       path: url.pathname,
+      auth: url.origin === window.location.origin && rootGetters.GET_CONFIG?.authentication?.mechanism === 'plex'
+        ? { plexToken: rootGetters['plex/GET_PLEX_AUTH_TOKEN'] } : {},
       transports: ['websocket', 'polling'],
     });
 
@@ -227,24 +230,25 @@ export default {
           dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
         }
       }, 2000);
-
-      // Start periodic sync polling to correct drift during continuous playback
-      dispatch('START_SYNC_POLL_INTERVAL');
-
-      // Re-sync when the tab becomes visible again (Chrome pauses video in background tabs)
-      if (visibilityChangeHandler) {
-        document.removeEventListener('visibilitychange', visibilityChangeHandler);
-      }
-      visibilityChangeHandler = () => {
-        if (document.visibilityState === 'visible' && getters.IS_IN_ROOM && !getters.AM_I_HOST) {
-          dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
-        }
-      };
-      document.addEventListener('visibilitychange', visibilityChangeHandler);
     }
+
+    // Room maintenance must also run after a browse-only join.
+    dispatch('START_SYNC_POLL_INTERVAL');
+
+    // Re-sync when the tab becomes visible again (Chrome pauses video in background tabs)
+    if (visibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', visibilityChangeHandler);
+    }
+    visibilityChangeHandler = () => {
+      if (document.visibilityState === 'visible' && getters.IS_IN_ROOM && !getters.AM_I_HOST) {
+        dispatch('SYNC_PLAYER_STATE');
+      }
+    };
+    document.addEventListener('visibilitychange', visibilityChangeHandler);
   },
 
   DISCONNECT: async ({ commit, dispatch }) => {
+    await dispatch('plexclients/CANCEL_PLAY_MEDIA', null, { root: true });
     await dispatch('INVALIDATE_PARTY_PAUSE_COMMANDS');
     clearPendingPartyPause();
     await dispatch('CANCEL_IN_PROGRESS_SYNC');
@@ -508,7 +512,9 @@ export default {
     }
   },
 
-  PROCESS_PLAYER_STATE_UPDATE: async ({ getters, dispatch, commit }, noSync) => {
+  PROCESS_PLAYER_STATE_UPDATE: async ({ getters, dispatch, commit }, options) => {
+    const noSync = typeof options === 'object' ? options?.noSync : options;
+    const userInitiatedSeek = options?.userInitiatedSeek === true;
     if (!getters.IS_IN_ROOM || !isConnected()) return;
 
     const playerState = await dispatch(
@@ -524,7 +530,7 @@ export default {
 
     emit({
       eventName: 'playerStateUpdate',
-      data: playerState,
+      data: { ...playerState, userInitiatedSeek },
     });
 
     await dispatch('PROCESS_UPNEXT', playerState);
@@ -714,6 +720,7 @@ export default {
 
     // eslint-disable-next-line new-cap
     const token = new CAF.cancelToken();
+    token.kind = 'media';
     commit('SET_SYNC_CANCEL_TOKEN', token);
 
     // Safety timeout: abort if sync takes too long, preventing token deadlock
@@ -725,7 +732,7 @@ export default {
     }, 30000);
 
     try {
-      await dispatch('_SYNC_MEDIA_AND_PLAYER_STATE', token.signal);
+      await abortable(dispatch('_SYNC_MEDIA_AND_PLAYER_STATE', token.signal), token.signal);
     } catch (e) {
       if (!token.signal.aborted) {
         console.error('Error in sync media logic:', e);
@@ -746,6 +753,17 @@ export default {
     if (!getters.GET_HOST_USER) {
       return;
     }
+    throwIfAborted(cancelSignal);
+    const hostId = getters.GET_HOST_ID;
+    const room = getters.GET_ROOM;
+    const { media } = getters.GET_HOST_USER;
+    const ensureCurrent = () => {
+      throwIfAborted(cancelSignal);
+      if (hostId !== getters.GET_HOST_ID || room !== getters.GET_ROOM
+        || media !== getters.GET_HOST_USER?.media) {
+        throw new DOMException('Host selection changed', 'AbortError');
+      }
+    };
     console.debug('_SYNC_MEDIA_AND_PLAYER_STATE');
     const timeline = await dispatch(
       'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE',
@@ -753,11 +771,14 @@ export default {
       { root: true },
     );
 
+    throwIfAborted(cancelSignal);
     // Host may have left the room during the await above — re-check before use
     let hostUser = getters.GET_HOST_USER;
     if (!hostUser) {
       return;
     }
+
+    ensureCurrent();
 
     const stopIfNeeded = async () => {
       if (timeline.state !== 'stopped') {
@@ -765,6 +786,7 @@ export default {
           text: 'The host pressed stop',
           color: 'info',
         }, { root: true });
+        ensureCurrent();
         await dispatch('plexclients/PRESS_STOP', null, { root: true });
       }
     };
@@ -776,16 +798,18 @@ export default {
 
     // Logic for deciding whether we should play somethign different
     if (rootGetters['settings/GET_AUTOPLAY']) {
-      const bestMatch = await dispatch(
+      const bestMatch = await abortable(dispatch(
         'plexservers/FIND_BEST_MEDIA_MATCH',
-        hostUser.media,
+        { ...hostUser.media, signal: cancelSignal },
         { root: true },
-      );
+      ), cancelSignal);
+      throwIfAborted(cancelSignal);
       // Re-check host after await
       hostUser = getters.GET_HOST_USER;
       if (!hostUser) {
         return;
       }
+      ensureCurrent();
       console.debug('_SYNC_MEDIA_AND_PLAYER_STATE: match result:', {
         hostMedia: hostUser.media?.title,
         bestMatch: bestMatch ? { title: bestMatch.title, ratingKey: bestMatch.ratingKey } : null,
@@ -794,10 +818,13 @@ export default {
       if (bestMatch) {
         if (!rootGetters['plexclients/IS_THIS_MEDIA_PLAYING'](bestMatch)) {
           // If we aren't playing the best match, play it
-          await dispatch('PLAY_MEDIA_AND_SYNC_TIME', bestMatch);
+          await dispatch('PLAY_MEDIA_AND_SYNC_TIME', { ...bestMatch, signal: cancelSignal });
+          ensureCurrent();
+          if (getters.GET_HOST_USER.state !== 'stopped') {
+            await dispatch('_SYNC_PLAYER_STATE', cancelSignal);
+          }
           return;
         }
-        // TODO: fix
       } else {
         const text = `Failed to find a compatible copy of ${hostUser.media?.title ?? 'host media'
         }. If you have access to the content try manually playing it.`;
@@ -836,7 +863,7 @@ export default {
     }, 30000);
 
     try {
-      await dispatch('_SYNC_PLAYER_STATE', token.signal);
+      await abortable(dispatch('_SYNC_PLAYER_STATE', token.signal), token.signal);
     } catch (e) {
       if (!token.signal.aborted) {
         console.error('Error in sync player logic:', e);
@@ -856,6 +883,7 @@ export default {
     if (!getters.GET_HOST_USER) {
       return;
     }
+    throwIfAborted(cancelSignal);
     console.debug('_SYNC_PLAYER_STATE:', {
       hostState: getters.GET_HOST_USER.state,
       hostTime: getters.GET_HOST_USER.time,
@@ -866,6 +894,7 @@ export default {
       { root: true },
     );
 
+    throwIfAborted(cancelSignal);
     // Host may have left the room during the await above — re-check before use
     const hostUser = getters.GET_HOST_USER;
     if (!hostUser) {
@@ -888,6 +917,7 @@ export default {
         text: 'Resuming..',
         color: 'info',
       }, { root: true });
+      throwIfAborted(cancelSignal);
       await dispatch('plexclients/PRESS_PLAY', cancelSignal, { root: true });
       // Fall through to SYNC below to also seek to the correct host position
     }
@@ -897,6 +927,7 @@ export default {
         text: 'Pausing..',
         color: 'info',
       }, { root: true });
+      throwIfAborted(cancelSignal);
       await dispatch('plexclients/PRESS_PAUSE', cancelSignal, { root: true });
       return;
     }
@@ -912,9 +943,11 @@ export default {
   },
 
   PLAY_MEDIA_AND_SYNC_TIME: async ({ getters, dispatch }, media) => {
+    throwIfAborted(media.signal);
     const offset = getters.GET_ADJUSTED_HOST_TIME();
 
     await dispatch('plexclients/PLAY_MEDIA', {
+      signal: media.signal,
       mediaIndex: media.mediaIndex || 0,
       // TODO: potentially play ahead a bit by the time it takes to buffer / transcode.
       offset: offset || 0,

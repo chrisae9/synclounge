@@ -199,6 +199,59 @@ describe('socket event validation', () => {
     }
   });
 
+  it('clears an explicit seek marker on an unchanged paused timeline and forwards an actual seek', async () => {
+    const sender = connectClient();
+    const observer = connectClient();
+    try {
+      await Promise.all([respondToPing(sender), respondToPing(observer)]);
+      const payload = {
+        roomId: `seek-${Date.now()}`,
+        desiredUsername: 'sender',
+        thumb: '',
+        playerProduct: 'test',
+        desiredPartyPausingEnabled: true,
+        desiredAutoHostEnabled: false,
+        state: 'paused',
+        time: 10000,
+        duration: 100000,
+        playbackRate: 1,
+        media: null,
+        syncFlexibility: 3000,
+      };
+      const joined = waitForEvent(sender, 'joinResult');
+      sender.emit('join', payload);
+      await joined;
+      const observerJoined = waitForEvent(observer, 'joinResult');
+      observer.emit('join', { ...payload, desiredUsername: 'observer' });
+      await observerJoined;
+      const unchanged = waitForEvent(observer, 'playerStateUpdate');
+      sender.emit('playerStateUpdate', { ...payload, userInitiatedSeek: true });
+      assert.equal((await unchanged).userInitiatedSeek, false);
+      const sought = waitForEvent(observer, 'playerStateUpdate');
+      sender.emit('playerStateUpdate', { ...payload, time: 20000, userInitiatedSeek: true });
+      assert.equal((await sought).userInitiatedSeek, true);
+      const buffering = waitForEvent(observer, 'playerStateUpdate');
+      sender.emit('playerStateUpdate', {
+        ...payload, time: 50000, state: 'buffering', userInitiatedSeek: false,
+      });
+      assert.equal((await buffering).userInitiatedSeek, false);
+      const seeked = waitForEvent(observer, 'playerStateUpdate');
+      sender.emit('playerStateUpdate', {
+        ...payload, time: 50000, state: 'buffering', userInitiatedSeek: true,
+      });
+      assert.equal((await seeked).userInitiatedSeek, false);
+      const stable = waitForEvent(observer, 'playerStateUpdate');
+      sender.emit('playerStateUpdate', { ...payload, time: 50000, userInitiatedSeek: false });
+      assert.equal((await stable).userInitiatedSeek, true);
+      const duplicate = waitForEvent(observer, 'playerStateUpdate');
+      sender.emit('playerStateUpdate', { ...payload, time: 50000, userInitiatedSeek: true });
+      assert.equal((await duplicate).userInitiatedSeek, false);
+    } finally {
+      sender.close();
+      observer.close();
+    }
+  });
+
   it('rejects events larger than the transport limit without crashing the server', async () => {
     const socket = connectClient();
     try {

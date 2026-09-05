@@ -3,71 +3,49 @@ import {
 } from 'vitest';
 import suppressStationaryMouseMoves from '@/player/suppressStationaryMouseMoves';
 
+const move = (screenX, screenY) => new MouseEvent('mousemove', { screenX, screenY, bubbles: true });
+
 describe('Shaka controls mouse handling', () => {
-  it('ignores stationary synthetic mousemoves but preserves real movement and touch', () => {
-    const originalHandler = vi.fn();
-    const controls = { onMouseMove_: originalHandler, onMouseLeave_: vi.fn() };
-    const { mouseMoveHandler } = suppressStationaryMouseMoves(controls);
-    controls.onMouseMove_ = mouseMoveHandler;
-
-    const firstMove = { type: 'mousemove', screenX: 10, screenY: 20 };
-    const duplicateMove = { type: 'mousemove', screenX: 10, screenY: 20 };
-    const realMove = { type: 'mousemove', screenX: 11, screenY: 20 };
-    const coordinateLessMove = { type: 'mousemove' };
-    const touchMove = { type: 'touchmove', screenX: 11, screenY: 20 };
-
-    controls.onMouseMove_(firstMove);
-    controls.onMouseMove_(duplicateMove);
-    controls.onMouseMove_(realMove);
-    controls.onMouseMove_(coordinateLessMove);
-    controls.onMouseMove_(touchMove);
-
-    expect(originalHandler.mock.calls.map(([event]) => event)).toEqual([
-      firstMove,
-      realMove,
-      coordinateLessMove,
-      touchMove,
-    ]);
+  it('ignores stationary synthetic moves but preserves real movement and touch', () => {
+    const container = document.createElement('div');
+    const cleanup = suppressStationaryMouseMoves(container);
+    const handler = vi.fn();
+    container.addEventListener('mousemove', handler);
+    container.addEventListener('touchmove', handler);
+    const first = move(10, 20);
+    const real = move(11, 20);
+    const touch = new Event('touchmove');
+    const unknown = new Event('mousemove');
+    [first, move(10, 20), real, touch, unknown].forEach((event) => container.dispatchEvent(event));
+    expect(handler.mock.calls.map(([event]) => event)).toEqual([first, real, touch, unknown]);
+    cleanup();
+    container.dispatchEvent(move(11, 20));
+    expect(handler).toHaveBeenCalledTimes(5);
   });
 
-  it('forwards mousemoves with non-finite coordinates', () => {
-    const originalHandler = vi.fn();
-    const controls = { onMouseMove_: originalHandler };
-    const { mouseMoveHandler } = suppressStationaryMouseMoves(controls);
-    controls.onMouseMove_ = mouseMoveHandler;
-
-    const nanMove = { type: 'mousemove', screenX: Number.NaN, screenY: 20 };
-    const infiniteMove = { type: 'mousemove', screenX: 10, screenY: Number.POSITIVE_INFINITY };
-    controls.onMouseMove_(nanMove);
-    controls.onMouseMove_(infiniteMove);
-
-    expect(originalHandler.mock.calls.map(([event]) => event)).toEqual([
-      nanMove,
-      infiniteMove,
-    ]);
+  it('forwards moves with non-finite coordinates', () => {
+    const container = document.createElement('div');
+    const cleanup = suppressStationaryMouseMoves(container);
+    const handler = vi.fn();
+    container.addEventListener('mousemove', handler);
+    for (const screenX of [NaN, Infinity]) {
+      const event = new Event('mousemove');
+      Object.defineProperties(event, { screenX: { value: screenX }, screenY: { value: 20 } });
+      container.dispatchEvent(event);
+    }
+    expect(handler).toHaveBeenCalledTimes(2);
+    cleanup();
   });
 
   it('forwards the first move after the pointer leaves and re-enters', () => {
-    const originalHandler = vi.fn();
-    const originalMouseLeaveHandler = vi.fn();
-    const controls = {
-      onMouseMove_: originalHandler,
-      onMouseLeave_: originalMouseLeaveHandler,
-    };
-    const { mouseMoveHandler, mouseLeaveHandler } = suppressStationaryMouseMoves(controls);
-    controls.onMouseMove_ = mouseMoveHandler;
-    controls.onMouseLeave_ = mouseLeaveHandler;
-
-    const initialMove = { type: 'mousemove', screenX: 10, screenY: 20 };
-    const reentryMove = { type: 'mousemove', screenX: 10, screenY: 20 };
-    controls.onMouseMove_(initialMove);
-    controls.onMouseLeave_();
-    controls.onMouseMove_(reentryMove);
-
-    expect(originalMouseLeaveHandler).toHaveBeenCalledOnce();
-    expect(originalHandler.mock.calls.map(([event]) => event)).toEqual([
-      initialMove,
-      reentryMove,
-    ]);
+    const container = document.createElement('div');
+    const cleanup = suppressStationaryMouseMoves(container);
+    const handler = vi.fn();
+    container.addEventListener('mousemove', handler);
+    container.dispatchEvent(move(10, 20));
+    container.dispatchEvent(new Event('mouseleave'));
+    container.dispatchEvent(move(10, 20));
+    expect(handler).toHaveBeenCalledTimes(2);
+    cleanup();
   });
 });
