@@ -4,6 +4,7 @@ import vuetify from 'vite-plugin-vuetify';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
+import fs from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -41,6 +42,17 @@ export function generateConfigPlugin({
 
 export default defineConfig({
   plugins: [
+    {
+      name: 'cast-receiver-assets',
+      generateBundle() {
+        for (const [fileName, modulePath] of [
+          ['cast-vendor/mux.min.js', 'cast-mux.js/dist/mux.min.js'],
+          ['cast-vendor/shaka-player.compiled.js', 'shaka-player/dist/shaka-player.compiled.js'],
+        ]) {
+          this.emitFile({ type: 'asset', fileName, source: fs.readFileSync(require.resolve(modulePath)) });
+        }
+      },
+    },
     patchLibjassPlugin(),
     generateConfigPlugin(),
     vue({

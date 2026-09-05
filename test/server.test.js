@@ -82,6 +82,20 @@ async function stopServer(processToStop) {
 }
 
 describe('server', () => {
+  it('sets anti-framing, nosniff and referrer protections on HTML and static responses', async () => {
+    const responses = await Promise.all(['/', '/signin', '/cast-receiver.html', '/cast-receiver.js']
+      .map((url) => request(url)));
+    for (const response of responses) {
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('x-frame-options'), 'DENY');
+      assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+      assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+      assert.equal(response.headers.get('x-powered-by'), null);
+    }
+    await Promise.all(responses.map((response) => response.body.cancel()));
+  });
+
   before(async () => {
     const port = await getFreePort();
     baseUrl = `http://127.0.0.1:${port}`;
