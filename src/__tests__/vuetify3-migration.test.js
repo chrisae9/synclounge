@@ -9,6 +9,7 @@ import {
   describe, it, expect, vi, beforeEach,
 } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
+import { parse } from 'vue/compiler-sfc';
 import { createStore } from 'vuex';
 import { createVuetify } from 'vuetify';
 import * as components from 'vuetify/components';
@@ -792,9 +793,9 @@ describe('Vuetify 2 Pattern Audit', () => {
 
   it('no beforeDestroy lifecycle hook', () => {
     Object.entries(vueFiles).forEach(([file, source]) => {
-      const scriptMatch = source.match(/<script[\s\S]*?<\/script>/);
-      if (!scriptMatch) return;
-      const hasBeforeDestroy = /beforeDestroy/.test(scriptMatch[0]);
+      const { script } = parse(source).descriptor;
+      if (!script) return;
+      const hasBeforeDestroy = /beforeDestroy/.test(script.content);
       expect(hasBeforeDestroy, `${file} has beforeDestroy`).toBe(false);
     });
   });
@@ -833,9 +834,9 @@ describe('Vuetify 2 Pattern Audit', () => {
 
   it('no $vuetify.breakpoint (should be $vuetify.display)', () => {
     Object.entries(vueFiles).forEach(([file, source]) => {
-      const scriptMatch = source.match(/<script[\s\S]*?<\/script>/);
-      if (!scriptMatch) return;
-      expect(scriptMatch[0], `${file} has $vuetify.breakpoint`)
+      const { script } = parse(source).descriptor;
+      if (!script) return;
+      expect(script.content, `${file} has $vuetify.breakpoint`)
         .not.toMatch(/\$vuetify\.breakpoint/);
     });
   });
