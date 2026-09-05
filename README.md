@@ -101,6 +101,12 @@ per-IP limits. Do not use `TRUST_PROXY=true`. Set `PUBLIC_ORIGIN` to the externa
 HTTP(S) origin (for example, `https://synclounge.example.com`) to enable absolute poster URLs in
 Open Graph previews. Incoming `Host` headers are never used to construct those URLs.
 
+Shared previews come from the current room host's validated socket updates. Browse links
+show media details only when they match that room's current media; other links use the
+generic preview. The legacy `/api/metadata` writer and `/share/poster` relay return HTTP 410.
+Poster snapshots use unguessable revision URLs and remain available for up to six hours
+after a media change so link-preview caches can finish fetching them.
+
 ## Reverse Proxy (Nginx)
 
 Socket admission defaults to 512 clients overall, 32 clients per IP, 32 pending Plex
