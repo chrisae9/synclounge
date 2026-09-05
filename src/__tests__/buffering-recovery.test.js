@@ -30,6 +30,25 @@ beforeEach(async () => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('automatic follower buffering recovery', () => {
+  it('measures recovery before waiting for up-next processing', async () => {
+    timeline.state = 'buffering';
+    await actions.PROCESS_PLAYER_STATE_UPDATE(context, true);
+    timeline.state = 'playing';
+    let finishUpNext;
+    context.dispatch.mockImplementation(async (type) => {
+      if (type === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') return timeline;
+      if (type === 'PROCESS_UPNEXT') return new Promise((resolve) => { finishUpNext = resolve; });
+      return undefined;
+    });
+    const update = actions.PROCESS_PLAYER_STATE_UPDATE(context, true);
+    await vi.waitFor(() => expect(finishUpNext).toBeTypeOf('function'));
+    vi.advanceTimersByTime(5000);
+    finishUpNext();
+    await update;
+    await actions._SYNC_PLAYER_STATE(context);
+    expect(context.dispatch).toHaveBeenCalledWith('plexclients/SYNC', undefined, { root: true });
+  });
+
   it('does not seek a buffering follower through the periodic sync path', async () => {
     timeline.state = 'buffering';
     await actions._SYNC_PLAYER_STATE(context);

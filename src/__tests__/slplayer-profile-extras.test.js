@@ -10,6 +10,20 @@ vi.mock('@/utils/mediasupport', () => ({
 }));
 
 describe('slplayer Plex profile extras', () => {
+  it.each([
+    [20000, '1920x1080'], [12000, '1920x1080'], [10000, '1920x1080'],
+    [8000, '1920x1080'], [4000, '1280x720'], [3000, '1280x720'],
+    [2000, '1280x720'], [1500, '720x480'], [720, undefined], [null, undefined],
+  ])('limits quality %s to its advertised resolution', (bitrate, resolution) => {
+    const params = slplayerGetters.GET_DECISION_AND_START_PARAMS({}, {}, {}, {
+      'settings/GET_SLPLAYERQUALITY': bitrate,
+      'plex/GET_PLEX_BASE_PARAMS': () => ({}),
+    });
+    expect(params.videoResolution).toBe(resolution);
+    expect(params.maxVideoBitrate).toBe(bitrate ?? undefined);
+    if (bitrate === null) expect(params).not.toHaveProperty('videoResolution');
+  });
+
   it('uses Plex Web-style DASH profile extras for browser-supported HEVC playback', () => {
     const getters = {
       GET_STREAMING_PROTOCOL: 'dash',

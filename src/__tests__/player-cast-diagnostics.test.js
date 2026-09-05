@@ -33,3 +33,26 @@ it('reports the Cast receiver timeline and buffer instead of the idle sender vid
   expect(result.mediaQuality).toBeNull();
   expect(result.shaka.decodedFrames).toBe(2500);
 });
+
+const detachedPlayers = [null, { getMediaElement: () => null, isBuffering: () => undefined }];
+it.each(detachedPlayers)('reports detached playback without an active media element', (player) => {
+  state.remote = player;
+  expect(getPlaybackDiagnostics()).toEqual({
+    attached: false, shaka: {}, isCasting: true, buffering: null,
+  });
+});
+
+it('reports an empty receiver buffer without local video measurements', () => {
+  state.remote = {
+    getMediaElement: () => ({ currentTime: 125, paused: false, buffered: { length: 0 } }),
+    isBuffering: () => true,
+  };
+  expect(getPlaybackDiagnostics()).toMatchObject({
+    currentTime: 125,
+    bufferAhead: 0,
+    bufferedRanges: [],
+    buffering: true,
+    mediaQuality: null,
+    shaka: {},
+  });
+});

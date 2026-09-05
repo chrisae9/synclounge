@@ -543,6 +543,8 @@ export default {
       { root: true },
     );
 
+    const inPostBufferingCooldown = isRecoveringFromBuffering(playerState.state);
+
     commit('SET_USER_PLAYER_STATE', {
       ...playerState,
       id: getters.GET_SOCKET_ID,
@@ -555,7 +557,6 @@ export default {
 
     await dispatch('PROCESS_UPNEXT', playerState);
 
-    const inPostBufferingCooldown = isRecoveringFromBuffering(playerState.state);
     if (playerState.state === 'buffering') return;
 
     if (!noSync && !getters.IS_JOIN_SYNC_IN_PROGRESS && !inPostBufferingCooldown) {

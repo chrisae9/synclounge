@@ -68,3 +68,13 @@ test('rejects malformed diagnostics', () => {
   assert.equal(sanitizePlaybackDiagnostic(null), null);
   assert.equal(sanitizePlaybackDiagnostic({ playback: {} }), null);
 });
+
+test('accepts only boolean Cast flags and nullable buffering state', () => {
+  [true, false, null, 'false', 1, {}, []].forEach((value) => {
+    const { playback } = sanitizePlaybackDiagnostic({
+      event: 'playback-health', playback: { isCasting: value, buffering: value },
+    });
+    assert.equal(playback.isCasting, typeof value === 'boolean' ? value : undefined);
+    assert.equal(playback.buffering, typeof value === 'boolean' || value === null ? value : undefined);
+  });
+});
