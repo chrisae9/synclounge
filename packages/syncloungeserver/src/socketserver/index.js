@@ -28,6 +28,16 @@ const socketServer = ({
   const authenticate = createSocketAuthentication(authentication);
   const reconnectIdentity = createReconnectIdentity();
   const app = express();
+  app.disable('x-powered-by');
+  app.use((req, res, next) => {
+    res.set({
+      'Content-Security-Policy': "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
+      'X-Frame-Options': 'DENY',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer',
+    });
+    next();
+  });
   const server = http.Server(app);
   const router = express.Router();
 
