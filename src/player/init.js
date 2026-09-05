@@ -12,7 +12,6 @@ window.muxjs = muxjs;
 
 playerUiPlugins(store);
 
-shaka.log.setLevel(shaka.log.Level.ERROR);
 shaka.polyfill.installAll();
 
 const initialize = async ({
