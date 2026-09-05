@@ -593,3 +593,42 @@ describe('Sync poll interval guards', () => {
     vi.useRealTimers();
   });
 });
+
+describe('Cancellation across ordinary async dependencies', () => {
+  it.each(['SYNC_PLAYER_STATE', 'SYNC_MEDIA_AND_PLAYER_STATE'])('%s unlocks when timed out', async (action) => {
+    vi.useFakeTimers();
+    try {
+      const ctx = createSyncContext();
+      ctx.dispatch.mockReturnValue(new Promise(() => {}));
+      const pending = actions[action](ctx);
+      expect(ctx.getSyncCancelToken()).toBeTruthy();
+      await vi.advanceTimersByTimeAsync(30000);
+      await pending;
+      expect(ctx.getSyncCancelToken()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cannot play a cancelled match after the replacement selection has completed', async () => {
+    const controller = new AbortController();
+    const ctx = createSyncContext({ GET_HOST_USER: { state: 'playing', media: { ratingKey: '1' } } });
+    ctx.rootGetters['settings/GET_AUTOPLAY'] = true;
+    ctx.rootGetters['plexclients/IS_THIS_MEDIA_PLAYING'] = () => false;
+    let finishMatch;
+    ctx.dispatch.mockImplementation((type) => {
+      if (type === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') return { state: 'stopped' };
+      if (type === 'plexservers/FIND_BEST_MEDIA_MATCH') return new Promise((resolve) => { finishMatch = resolve; });
+      return undefined;
+    });
+    const old = actions._SYNC_MEDIA_AND_PLAYER_STATE(ctx, controller.signal);
+    await vi.waitFor(() => expect(finishMatch).toBeTypeOf('function'));
+    const rejected = expect(old).rejects.toMatchObject({ name: 'AbortError' });
+    controller.abort();
+    await rejected;
+    ctx.getters.GET_HOST_USER.media = { ratingKey: '2' };
+    finishMatch({ ratingKey: '1' });
+    await Promise.resolve();
+    expect(ctx.dispatch.mock.calls.some(([type]) => type === 'PLAY_MEDIA_AND_SYNC_TIME')).toBe(false);
+  });
+});
