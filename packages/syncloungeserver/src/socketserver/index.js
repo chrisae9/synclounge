@@ -3,17 +3,23 @@
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
+import proxyaddr from 'proxy-addr';
 
 import { Server } from 'socket.io';
 import { createState } from './state';
 import { createActions } from './actions';
 import { createEventHandlers } from './handlers';
 import { createSocketAuthentication, createReconnectIdentity } from './authentication';
+import createAdmission from './admission';
 
 const socketServer = ({
   base_url: baseUrl, static_path: staticPath, port, ping_interval: pingInterval = 10000,
   ping_timeout: pingTimeout = 10000, preStaticInjection, trust_proxy: trustProxy,
   onRoomMediaUpdate, authentication,
+  socket_max_connections: maxConnections = 512,
+  socket_max_per_ip: maxPerIp = 32,
+  socket_max_pending_auth: maxPending = 32,
+  socket_attempts_per_minute: attemptsPerMinute = 60,
 }) => {
   if (!Number.isFinite(pingInterval) || pingInterval <= 0) {
     throw new TypeError('ping_interval must be a positive number');
@@ -39,6 +45,11 @@ const socketServer = ({
     next();
   });
   const server = http.Server(app);
+  // Bound transport-only clients, including those that never send namespace auth.
+  server.maxConnections = maxConnections * 2;
+  const admit = createAdmission({
+    maxConnections, maxPerIp, maxPending, attemptsPerMinute,
+  });
   const router = express.Router();
 
   if (trustProxy === true) {
@@ -66,8 +77,19 @@ const socketServer = ({
 
   socketio.use(async (socket, next) => {
     const { data, handshake } = socket;
+    let lease;
     try {
+      const address = proxyaddr(socket.request, app.get('trust proxy fn'));
+      lease = admit(address);
+      // Keep authentication work counted until it settles, even if the peer leaves.
       await authenticate(socket.handshake.auth?.plexToken);
+      if (socket.conn.readyState !== 'open') {
+        lease.release();
+        return;
+      }
+      lease.authenticated();
+      socket.once('disconnect', lease.release);
+      socket.conn.once('close', lease.release);
       const session = reconnectIdentity(socket.handshake.auth?.reconnectToken);
       data.reconnectIdentity = session.identity;
       data.reconnectToken = session.token;
@@ -75,8 +97,11 @@ const socketServer = ({
       delete handshake.auth?.plexToken;
       next();
     } catch {
+      lease?.release();
       delete handshake.auth?.plexToken;
       next(new Error('Not authorized to use this SyncLounge server'));
+    } finally {
+      delete handshake.auth?.plexToken;
     }
   });
   socketio.on('connection', (socket) => {
