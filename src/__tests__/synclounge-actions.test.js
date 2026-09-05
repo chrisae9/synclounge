@@ -114,6 +114,23 @@ describe('synclounge actions', () => {
       expect(dispatch).toHaveBeenLastCalledWith('DISCONNECT');
     });
 
+    it.each(['', 'https://remote.example'])('limits Plex credentials to the app origin (%s)', async (server) => {
+      socketMocks.open.mockResolvedValue({ id: 'socket-1' });
+      socketMocks.waitForEvent.mockResolvedValue('secret');
+      await actions.ESTABLISH_SOCKET_CONNECTION({
+        getters: { GET_SERVER: server },
+        rootGetters: {
+          GET_CONFIG: { authentication: { mechanism: 'plex' } },
+          'plex/GET_PLEX_AUTH_TOKEN': 'test-credential',
+        },
+        commit: vi.fn(),
+        dispatch: vi.fn().mockResolvedValue(undefined),
+      });
+      expect(socketMocks.open.mock.calls.at(-1)[1].auth).toEqual(
+        server ? {} : { plexToken: 'test-credential' },
+      );
+    });
+
     it('bounds the initial server ping wait', async () => {
       socketMocks.open.mockResolvedValue({ id: 'socket-1' });
       socketMocks.waitForEvent.mockResolvedValue('secret');

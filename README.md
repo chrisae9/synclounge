@@ -81,6 +81,16 @@ AUTHENTICATION='{"mechanism":"plex","type":["server"],"authorized":["MACHINE_ID"
 SERVERS='[{"name":"My Server","location":"Mothership","url":"https://myserver.com"}]'
 ```
 
+`AUTHENTICATION` is enforced on socket connections using the signed-in user's Plex
+account or accessible server IDs. Invalid restrictions fail startup; rejected or unavailable
+Plex verification denies the connection. Restricted deployments must serve the web app and
+socket endpoint from the same origin: the browser sends its Plex credential only to its
+own origin. Unrestricted deployments keep `mechanism: "none"`.
+
+Host recovery uses a server-issued reconnect proof stored per browser tab. Reloading that
+tab preserves its identity; clearing session storage or restarting the server starts a new
+identity and lets the usual host election proceed.
+
 Only documented browser configuration is returned from `/config.json`; arbitrary keys in a
 configuration file remain server-side. `TRUST_PROXY` controls which reverse proxies may supply
 client addresses. It defaults to `loopback`, matching the Nginx example below. For a proxy on a

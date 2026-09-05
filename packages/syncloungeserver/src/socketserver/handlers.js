@@ -69,6 +69,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     }
 
     addUserToRoom({
+      reconnectIdentity: socket.data?.reconnectIdentity,
       socketId: socket.id,
       roomId,
       desiredUsername,

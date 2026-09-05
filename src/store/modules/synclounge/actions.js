@@ -85,6 +85,8 @@ export default {
 
     const { id } = await open(url.origin, {
       path: url.pathname,
+      auth: url.origin === window.location.origin && rootGetters.GET_CONFIG?.authentication?.mechanism === 'plex'
+        ? { plexToken: rootGetters['plex/GET_PLEX_AUTH_TOKEN'] } : {},
       transports: ['websocket', 'polling'],
     });
 
