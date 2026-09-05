@@ -62,7 +62,7 @@ describe('plexclients PLAY_MEDIA', () => {
       shouldPlay: true,
     });
 
-    expect(dispatch).toHaveBeenCalledWith('slplayer/CHANGE_PLAYER_SRC', true, { root: true });
+    expect(dispatch).toHaveBeenCalledWith('slplayer/CHANGE_PLAYER_SRC', { signal: undefined }, { root: true });
     expect(dispatch).toHaveBeenCalledWith('slplayer/PRESS_PLAY', null, { root: true });
     expect(dispatch).toHaveBeenCalledWith(
       'slplayer/START_PERIODIC_PLEX_TIMELINE_UPDATE',
@@ -99,7 +99,7 @@ describe('plexclients PLAY_MEDIA', () => {
       shouldPlay: false,
     });
 
-    expect(dispatch).toHaveBeenCalledWith('slplayer/CHANGE_PLAYER_SRC', true, { root: true });
+    expect(dispatch).toHaveBeenCalledWith('slplayer/CHANGE_PLAYER_SRC', { signal: undefined }, { root: true });
     expect(dispatch).not.toHaveBeenCalledWith('slplayer/PRESS_PLAY', null, { root: true });
     expect(dispatch).toHaveBeenCalledWith(
       'slplayer/START_PERIODIC_PLEX_TIMELINE_UPDATE',
@@ -286,5 +286,47 @@ describe('plexclients SYNC drift strategy', () => {
     );
     expect(dispatch).not.toHaveBeenCalledWith('slplayer/SPEED_OR_NORMAL_SEEK', expect.anything(), expect.anything());
     expect(dispatch).not.toHaveBeenCalledWith('slplayer/SPEED_SEEK', expect.anything(), expect.anything());
+  });
+});
+
+describe('Playback request ownership', () => {
+  it('does not commit an older queue after a newer playback request completes', async () => {
+    let finishOldQueue;
+    const commit = vi.fn();
+    const dispatch = vi.fn((type, payload) => {
+      if (type === 'plexservers/CREATE_PLAY_QUEUE' && payload.ratingKey === '1') {
+        return new Promise((resolve) => { finishOldQueue = resolve; });
+      }
+      return Promise.resolve({ playQueueID: 2 });
+    });
+    const ctx = { commit, dispatch, rootGetters: { 'slplayer/IS_PLAYER_INITIALIZED': true } };
+    const old = plexclientActions.PLAY_MEDIA(ctx, { metadata: { ratingKey: '1' } });
+    await plexclientActions.PLAY_MEDIA(ctx, { metadata: { ratingKey: '2' } });
+    finishOldQueue({ playQueueID: 1 });
+    await expect(old).rejects.toMatchObject({ name: 'AbortError' });
+    expect(commit.mock.calls.filter(([type]) => type === 'SET_ACTIVE_MEDIA_METADATA')).toEqual([
+      ['SET_ACTIVE_MEDIA_METADATA', { ratingKey: '2' }],
+    ]);
+  });
+
+  it('does not load a cancelled selection when shared player initialization eventually completes', async () => {
+    const controller = new AbortController();
+    let finishInitialization;
+    const dispatch = vi.fn((type) => {
+      if (type === 'slplayer/NAVIGATE_AND_INITIALIZE_PLAYER') {
+        return new Promise((resolve) => { finishInitialization = resolve; });
+      }
+      return Promise.resolve({});
+    });
+    const pending = plexclientActions.PLAY_MEDIA({ commit: vi.fn(), dispatch, rootGetters: {} }, {
+      metadata: { ratingKey: '1' }, signal: controller.signal,
+    });
+    await vi.waitFor(() => expect(finishInitialization).toBeTypeOf('function'));
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    controller.abort();
+    await rejected;
+    finishInitialization();
+    await Promise.resolve();
+    expect(dispatch.mock.calls.some(([type]) => type === 'slplayer/CHANGE_PLAYER_SRC')).toBe(false);
   });
 });

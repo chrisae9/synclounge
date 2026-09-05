@@ -484,6 +484,7 @@ export default {
     }
 
     if (data.id === getters.GET_HOST_ID) {
+      if (getters.GET_SYNC_CANCEL_TOKEN?.kind === 'media') return;
       await dispatch('CANCEL_IN_PROGRESS_SYNC');
       await dispatch('SYNC_PLAYER_STATE');
     } else if (data.id !== getters.GET_SOCKET_ID && getters.AM_I_HOST
