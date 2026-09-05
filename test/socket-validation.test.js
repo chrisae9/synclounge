@@ -230,6 +230,22 @@ describe('socket event validation', () => {
       const sought = waitForEvent(observer, 'playerStateUpdate');
       sender.emit('playerStateUpdate', { ...payload, time: 20000, userInitiatedSeek: true });
       assert.equal((await sought).userInitiatedSeek, true);
+      const buffering = waitForEvent(observer, 'playerStateUpdate');
+      sender.emit('playerStateUpdate', {
+        ...payload, time: 50000, state: 'buffering', userInitiatedSeek: false,
+      });
+      assert.equal((await buffering).userInitiatedSeek, false);
+      const seeked = waitForEvent(observer, 'playerStateUpdate');
+      sender.emit('playerStateUpdate', {
+        ...payload, time: 50000, state: 'buffering', userInitiatedSeek: true,
+      });
+      assert.equal((await seeked).userInitiatedSeek, false);
+      const stable = waitForEvent(observer, 'playerStateUpdate');
+      sender.emit('playerStateUpdate', { ...payload, time: 50000, userInitiatedSeek: false });
+      assert.equal((await stable).userInitiatedSeek, true);
+      const duplicate = waitForEvent(observer, 'playerStateUpdate');
+      sender.emit('playerStateUpdate', { ...payload, time: 50000, userInitiatedSeek: true });
+      assert.equal((await duplicate).userInitiatedSeek, false);
     } finally {
       sender.close();
       observer.close();
