@@ -228,21 +228,21 @@ export default {
           dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
         }
       }, 2000);
-
-      // Start periodic sync polling to correct drift during continuous playback
-      dispatch('START_SYNC_POLL_INTERVAL');
-
-      // Re-sync when the tab becomes visible again (Chrome pauses video in background tabs)
-      if (visibilityChangeHandler) {
-        document.removeEventListener('visibilitychange', visibilityChangeHandler);
-      }
-      visibilityChangeHandler = () => {
-        if (document.visibilityState === 'visible' && getters.IS_IN_ROOM && !getters.AM_I_HOST) {
-          dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
-        }
-      };
-      document.addEventListener('visibilitychange', visibilityChangeHandler);
     }
+
+    // Room maintenance must also run after a browse-only join.
+    dispatch('START_SYNC_POLL_INTERVAL');
+
+    // Re-sync when the tab becomes visible again (Chrome pauses video in background tabs)
+    if (visibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', visibilityChangeHandler);
+    }
+    visibilityChangeHandler = () => {
+      if (document.visibilityState === 'visible' && getters.IS_IN_ROOM && !getters.AM_I_HOST) {
+        dispatch('SYNC_PLAYER_STATE');
+      }
+    };
+    document.addEventListener('visibilitychange', visibilityChangeHandler);
   },
 
   DISCONNECT: async ({ commit, dispatch }) => {
@@ -510,7 +510,9 @@ export default {
     }
   },
 
-  PROCESS_PLAYER_STATE_UPDATE: async ({ getters, dispatch, commit }, noSync) => {
+  PROCESS_PLAYER_STATE_UPDATE: async ({ getters, dispatch, commit }, options) => {
+    const noSync = typeof options === 'object' ? options?.noSync : options;
+    const userInitiatedSeek = options?.userInitiatedSeek === true;
     if (!getters.IS_IN_ROOM || !isConnected()) return;
 
     const playerState = await dispatch(
@@ -526,7 +528,7 @@ export default {
 
     emit({
       eventName: 'playerStateUpdate',
-      data: playerState,
+      data: { ...playerState, userInitiatedSeek },
     });
 
     await dispatch('PROCESS_UPNEXT', playerState);

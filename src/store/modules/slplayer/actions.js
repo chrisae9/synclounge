@@ -258,6 +258,13 @@ export default {
         commit('SET_MASK_PLAYER_STATE', false);
       }
     } finally {
+      if (signal?.aborted && revision === sourceRevision) {
+        try {
+          await unload();
+        } catch (error) {
+          console.warn('Cancelled source cleanup failed', error);
+        }
+      }
       if (revision === sourceRevision) commit('SET_IS_CHANGING_SOURCE', false);
     }
   },
@@ -367,11 +374,18 @@ export default {
     await dispatch('DESTROY_ASS');
   },
 
-  HANDLE_SEEKED: async ({ state, dispatch }) => {
+  HANDLE_SEEKED: async ({ state, commit, dispatch }) => {
     if (state.isChangingSource) {
       return;
     }
     console.debug('HANDLE_SEEKED');
+    const automatic = state.syncSeekTarget != null
+      && Math.abs(getCurrentTimeMs() - state.syncSeekTarget) < 1000;
+    commit('SET_SYNC_SEEK_TARGET', null);
+    await dispatch('synclounge/PROCESS_PLAYER_STATE_UPDATE', {
+      noSync: true,
+      userInitiatedSeek: !automatic,
+    }, { root: true });
     await dispatch('CHANGE_SUBTITLES');
   },
 
@@ -505,6 +519,7 @@ export default {
       throw new Error('Soft seek not allowed outside of buffered range');
     }
 
+    commit('SET_SYNC_SEEK_TARGET', seekToMs);
     commit('SET_OFFSET_MS', seekToMs);
     setCurrentTimeMs(seekToMs);
   },
@@ -554,6 +569,7 @@ export default {
 
   NORMAL_SEEK: async ({ rootGetters, commit }, { cancelSignal, seekToMs }) => {
     console.debug('NORMAL_SEEK', seekToMs);
+    commit('SET_SYNC_SEEK_TARGET', seekToMs);
     commit('SET_OFFSET_MS', seekToMs);
 
     const timeoutToken = CAF.timeout(
@@ -650,7 +666,7 @@ export default {
     await plexTimelineUpdatePromise;
   },
 
-  LOAD_PLAYER_SRC: async ({ getters, dispatch }, { signal, ensureCurrent = () => {} } = {}) => {
+  LOAD_PLAYER_SRC: async ({ getters, commit, dispatch }, { signal, ensureCurrent = () => {} } = {}) => {
     const url = getters.GET_SRC_URL;
     const offset = getters.GET_OFFSET_MS;
     // TODO: potentailly unload if already loaded to avoid load interrupted errors
@@ -666,6 +682,7 @@ export default {
     dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'playback-loaded' });
 
     if (offset > 0) {
+      commit('SET_SYNC_SEEK_TARGET', offset);
       setCurrentTimeMs(offset);
     }
   },
@@ -790,6 +807,7 @@ export default {
     commit('SET_SUBTITLE_OFFSET', 0);
     await destroy();
     commit('SET_OFFSET_MS', 0);
+    commit('SET_SYNC_SEEK_TARGET', null);
   },
 
   REGISTER_PLAYER_EVENTS: ({ commit, dispatch }) => {

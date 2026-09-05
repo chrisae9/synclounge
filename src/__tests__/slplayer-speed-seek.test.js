@@ -606,6 +606,8 @@ describe('Source request cancellation', () => {
     const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
     controller.abort();
     await rejected;
+    const { unload } = await import('@/player');
+    expect(unload).toHaveBeenCalled();
     expect(commit).not.toHaveBeenCalledWith('SET_FORCE_TRANSCODE_RETRY', true);
     expect(commit).toHaveBeenCalledWith('SET_IS_CHANGING_SOURCE', false);
   });
