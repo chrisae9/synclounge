@@ -109,6 +109,13 @@ after a media change so link-preview caches can finish fetching them.
 
 ## Reverse Proxy (Nginx)
 
+Socket admission defaults to 512 clients overall, 32 clients per IP, 32 pending Plex
+authentication requests, and 60 connection attempts per IP per minute. Override with
+`SOCKET_MAX_CONNECTIONS`, `SOCKET_MAX_PER_IP`, `SOCKET_MAX_PENDING_AUTH`, and
+`SOCKET_ATTEMPTS_PER_MINUTE` (positive integers). Transport-only TCP clients are capped
+at twice `SOCKET_MAX_CONNECTIONS`. Set `TRUST_PROXY` correctly so a reverse proxy does
+not make all users share one IP allowance. Limits apply separately to each server process.
+
 ```nginx
 map $http_upgrade $connection_upgrade {
     default upgrade;
