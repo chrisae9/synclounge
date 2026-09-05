@@ -22,7 +22,20 @@ describe('credential-safe request errors', () => {
     expect(failure).toBeInstanceOf(PlexAuthError);
     expect(JSON.stringify(warn.mock.calls)).not.toContain('SENTINEL_SECRET');
     expect(JSON.stringify(failure)).not.toContain('SENTINEL_SECRET');
+    expect(String(failure)).not.toContain('SENTINEL_SECRET');
+    expect(warn).toHaveBeenCalledWith('HTTP request failed: 401');
     expect(failure.url).toBe('https://plex.tv/api/v2/user');
+  });
+
+  it.each([
+    ['https://plex.tv/user#SENTINEL_SECRET', 'https://plex.tv/user'],
+    ['invalid?SENTINEL_SECRET', 'invalid'],
+    ['', ''],
+    [undefined, ''],
+  ])('retains only a credential-free diagnostic path for %s', (url, expected) => {
+    const error = new PlexAuthError(403, 'Forbidden', url);
+    expect(error.url).toBe(expected);
+    expect(`${String(error)} ${JSON.stringify(error)}`).not.toContain('SENTINEL_SECRET');
   });
 });
 
