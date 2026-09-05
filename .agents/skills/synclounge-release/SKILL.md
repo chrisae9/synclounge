@@ -53,6 +53,11 @@ two-lane branch model: changes merge into `dev`, then `dev` is promoted to
    npm version <VERSION> --no-git-tag-version
    ```
 
+   If `origin/main` is not an ancestor of this branch, merge it into the release
+   branch and resolve conflicts while preserving the reviewed release delta.
+   Verify the resulting application diff before continuing. Land that PR with
+   a merge commit so the reconciliation ancestry reaches `dev`.
+
    `<VERSION>` excludes the `v` prefix. Verify that `package.json` and the root
    lockfile agree.
 
@@ -74,7 +79,10 @@ two-lane branch model: changes merge into `dev`, then `dev` is promoted to
 
 4. Promote `dev` to `main` with a separate pull request whose head is the
    repository's `dev` branch. Do not push directly to `main`. Wait for required
-   checks and merge the promotion before tagging.
+   checks and merge the promotion with a merge commit before tagging. Do not
+   squash or rebase promotions: removing their shared ancestry causes recurring
+   conflicts in later releases. Keep merge commits enabled and linear-history
+   enforcement disabled on both release lanes while retaining CI and review rules.
 
 ## Write release notes
 

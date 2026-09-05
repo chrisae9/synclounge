@@ -24,6 +24,10 @@ Behavior changes need focused regression tests. Pull requests must list the comm
 ## Pull requests
 
 - Target `dev`; only release promotions target `main`.
+- Squash ordinary feature and fix PRs. Use merge commits for `dev` → `main`
+  promotions and release-history reconciliation PRs so both branches retain
+  their common ancestry. The repository must allow merge commits on these
+  branches; required CI checks and review rules still apply.
 - Include screenshots for visible UI changes.
 - Update stable documentation when behavior or configuration changes.
 - Treat socket payload handling, poster proxying, GitHub Actions, dependencies, and releases as security-sensitive surfaces.
