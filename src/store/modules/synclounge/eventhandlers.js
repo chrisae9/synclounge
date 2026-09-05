@@ -31,11 +31,11 @@ const getExpectedUserTime = (user) => {
   return user.time + elapsed * playbackRate;
 };
 
-const isNonHostSeek = (previousUser, data) => {
+const isNonHostSeek = (previousUser, data, threshold = NON_HOST_SEEK_THRESHOLD_MS) => {
   const expectedTime = getExpectedUserTime(previousUser);
   return expectedTime != null
     && Number.isFinite(data.time)
-    && Math.abs(data.time - expectedTime) > NON_HOST_SEEK_THRESHOLD_MS;
+    && Math.abs(data.time - expectedTime) > threshold;
 };
 
 const HOST_RESTORE_TIMEOUT = 30000;
@@ -489,7 +489,7 @@ export default {
     } else if (data.id !== getters.GET_SOCKET_ID && getters.AM_I_HOST
       && !rootGetters['slplayer/IS_CHANGING_SOURCE']
       && !rootGetters['slplayer/IS_PLAY_QUEUE_TRANSITIONING']
-      && (data.userInitiatedSeek === true
+      && ((data.userInitiatedSeek === true && isNonHostSeek(previousUser, data, 250))
         || (data.userInitiatedSeek === undefined && isNonHostSeek(previousUser, data)))
       && data.state !== 'buffering') {
       // Older clients have no explicit seek marker; infer only large timeline discontinuities.

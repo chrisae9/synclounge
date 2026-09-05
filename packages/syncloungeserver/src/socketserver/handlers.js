@@ -192,11 +192,21 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       return;
     }
 
+    const previous = { ...getRoomUserData(socket.id) };
     updateUserPlayerState({
       socketId: socket.id, state, time, duration, playbackRate,
     });
+    const current = getRoomUserData(socket.id);
+    const expectedTime = previous.time + (previous.state === 'playing'
+      ? (current.updatedAt - previous.updatedAt) * previous.playbackRate : 0);
+    // A marker alone cannot turn an ordinary timeline update into a room seek.
+    const verifiedSeek = userInitiatedSeek === undefined ? undefined : userInitiatedSeek
+      && ['playing', 'paused'].includes(state)
+      && previous.state !== 'stopped'
+      && Number.isFinite(expectedTime)
+      && Math.abs(current.time - expectedTime) > 250;
 
-    emitPlayerStateUpdateToRoom({ server, socketId: socket.id, userInitiatedSeek });
+    emitPlayerStateUpdateToRoom({ server, socketId: socket.id, userInitiatedSeek: verifiedSeek });
   };
 
   const mediaUpdate = ({

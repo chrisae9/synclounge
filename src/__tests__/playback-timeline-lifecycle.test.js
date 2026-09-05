@@ -22,6 +22,7 @@ vi.mock('@/player', () => ({ getCurrentTimeMs: vi.fn(() => 90000) }));
 afterEach(() => { vi.useRealTimers(); });
 
 it.each([
+  [90000, undefined, true], [10000, undefined, false], [10000, true, false],
   [90000, true, true], [11000, true, true], [0, true, true],
   [10000, false, false], [90000, false, false],
 ])('handles guest position %s with explicit seek=%s using real mutations', async (time, explicit, seeks) => {
@@ -51,7 +52,7 @@ it.each([
     time,
     duration: 100000,
     playbackRate: 1,
-    userInitiatedSeek: explicit,
+    ...(explicit === undefined ? {} : { userInitiatedSeek: explicit }),
   });
   expect(ctx.dispatch.mock.calls.some(([type]) => type === 'plexclients/SEEK_TO')).toBe(seeks);
 });
@@ -71,7 +72,9 @@ it.each([null, 90000])('publishes a paused seek and identifies automatic target 
 });
 
 it('starts ongoing synchronization after a browse join without autoplay', async () => {
-  const getters = { GET_USERS: {}, GET_USER_EVENT_REVISIONS: {} };
+  const getters = {
+    GET_USERS: {}, GET_USER_EVENT_REVISIONS: {}, IS_IN_ROOM: true, AM_I_HOST: false,
+  };
   const dispatch = vi.fn(async (type) => {
     if (type === 'JOIN_ROOM') {
       return { user: { id: 'me' }, users: {}, hostId: 'host' };
@@ -83,5 +86,9 @@ it('starts ongoing synchronization after a browse join without autoplay', async 
   }, { syncOnJoin: false });
   expect(dispatch).toHaveBeenCalledWith('START_SYNC_POLL_INTERVAL');
   expect(dispatch).not.toHaveBeenCalledWith('SYNC_MEDIA_AND_PLAYER_STATE');
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+  document.dispatchEvent(new Event('visibilitychange'));
+  expect(dispatch).toHaveBeenCalledWith('SYNC_PLAYER_STATE');
   await sync.DISCONNECT({ commit: vi.fn(), dispatch });
+  vi.restoreAllMocks();
 });
