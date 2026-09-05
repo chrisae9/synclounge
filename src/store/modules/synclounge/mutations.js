@@ -133,6 +133,10 @@ export default {
     state.isHostGracePeriod = value;
   },
 
+  SET_HOST_GRACE_PREVIOUS_HOST_IDENTITY: (state, identity) => {
+    state.hostGracePreviousHostIdentity = identity;
+  },
+
   SET_HOST_GRACE_PREVIOUS_HOST_USERNAME: (state, username) => {
     state.hostGracePreviousHostUsername = username;
   },

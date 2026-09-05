@@ -52,6 +52,20 @@ const assertMetadataIdentifier = (eventName, fieldName, value) => {
   }
 };
 
+const assertMedia = (eventName, media) => {
+  assertObject(eventName, media);
+  ['ratingKey', 'machineIdentifier'].forEach((fieldName) => {
+    const value = media[fieldName];
+    if (value == null) return;
+    const validType = typeof value === 'string' || (Number.isSafeInteger(value) && value >= 0);
+    if (!validType || !/^[A-Za-z0-9_-]{1,500}$/.test(String(value))) {
+      fail(eventName, `media.${fieldName} must be a Plex identifier without URL syntax`);
+    }
+  });
+  assertOptionalString(eventName, 'media.title', media.title, 1000);
+  assertOptionalString(eventName, 'media.type', media.type, 64);
+};
+
 const MAX_METADATA_YEAR = 9999;
 const MAX_METADATA_INDEX = 999_999_999_999;
 
@@ -133,6 +147,9 @@ const assertPlayerState = (eventName, data) => {
   assertFiniteNumber(eventName, 'time', data.time, { min: 0, max: Number.MAX_SAFE_INTEGER });
   assertFiniteNumber(eventName, 'duration', data.duration, { min: 0, max: Number.MAX_SAFE_INTEGER });
   assertFiniteNumber(eventName, 'playbackRate', data.playbackRate, { min: 0, max: 16 });
+  if (data.userInitiatedSeek !== undefined) {
+    assertBoolean(eventName, 'userInitiatedSeek', data.userInitiatedSeek);
+  }
 };
 
 const validators = {
@@ -145,7 +162,7 @@ const validators = {
     assertOptionalString(eventName, 'thumb', data.thumb, 2048);
     assertOptionalString(eventName, 'playerProduct', data.playerProduct, 128);
     if (data.media != null) {
-      assertObject(eventName, data.media);
+      assertMedia(eventName, data.media);
     }
     assertRoomPreview(eventName, data.roomPreview, data.media);
     assertFiniteNumber(eventName, 'syncFlexibility', data.syncFlexibility, {
@@ -158,7 +175,7 @@ const validators = {
   mediaUpdate: (eventName, data) => {
     assertPlayerState(eventName, data);
     if (data.media != null) {
-      assertObject(eventName, data.media);
+      assertMedia(eventName, data.media);
     }
     assertRoomPreview(eventName, data.roomPreview, data.media);
     if (data.userInitiated != null) {
