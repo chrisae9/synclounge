@@ -1,33 +1,26 @@
-const suppressStationaryMouseMoves = (controls) => {
-  const originalHandler = controls.onMouseMove_.bind(controls);
-  const originalMouseLeaveHandler = typeof controls.onMouseLeave_ === 'function'
-    ? controls.onMouseLeave_.bind(controls)
-    : null;
+// Filter at the DOM boundary: private Shaka control methods are renamed in
+// production builds and must not be patched by name.
+const suppressStationaryMouseMoves = (container) => {
   let hasRecordedCoordinates = false;
   let lastScreenX;
   let lastScreenY;
-
-  const mouseLeaveHandler = originalMouseLeaveHandler
-    ? (...args) => {
-      hasRecordedCoordinates = false;
-      return originalMouseLeaveHandler(...args);
-    }
-    : null;
-
+  const mouseLeaveHandler = () => { hasRecordedCoordinates = false; };
   const mouseMoveHandler = (event) => {
-    const hasCoordinates = Number.isFinite(event.screenX) && Number.isFinite(event.screenY);
-    if (event.type === 'mousemove' && hasCoordinates) {
-      if (hasRecordedCoordinates
-        && lastScreenX === event.screenX
-        && lastScreenY === event.screenY) return;
-      hasRecordedCoordinates = true;
-      lastScreenX = event.screenX;
-      lastScreenY = event.screenY;
+    if (!Number.isFinite(event.screenX) || !Number.isFinite(event.screenY)) return;
+    if (hasRecordedCoordinates && lastScreenX === event.screenX && lastScreenY === event.screenY) {
+      event.stopImmediatePropagation();
+      return;
     }
-    originalHandler(event);
+    hasRecordedCoordinates = true;
+    lastScreenX = event.screenX;
+    lastScreenY = event.screenY;
   };
-
-  return { mouseMoveHandler, mouseLeaveHandler };
+  container.addEventListener('mousemove', mouseMoveHandler, true);
+  container.addEventListener('mouseleave', mouseLeaveHandler, true);
+  return () => {
+    container.removeEventListener('mousemove', mouseMoveHandler, true);
+    container.removeEventListener('mouseleave', mouseLeaveHandler, true);
+  };
 };
 
 export default suppressStationaryMouseMoves;

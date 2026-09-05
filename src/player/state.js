@@ -1,5 +1,11 @@
 let player = null;
 let overlay = null;
+let controlsCleanup = null;
+
+export const setControlsCleanup = (cleanup) => {
+  controlsCleanup?.();
+  controlsCleanup = cleanup;
+};
 
 export const getPlayer = () => {
   const castProxy = overlay?.getControls()?.getCastProxy();

@@ -27,7 +27,6 @@ vi.mock('shaka-player/dist/shaka-player.ui', () => ({
 }));
 vi.mock('@/store', () => ({ default: {} }));
 vi.mock('@/player/ui', () => ({ default: vi.fn() }));
-vi.mock('@/player/suppressStationaryMouseMoves', () => ({ default: () => ({ mouseMoveHandler: vi.fn() }) }));
 
 it('imports and initializes the player with the production Shaka API', async () => {
   const { default: initialize } = await import('@/player/init');
