@@ -1,3 +1,4 @@
+import plexIdentifier from '@/utils/plexidentifier';
 import { throwIfAborted } from '@/utils/cancellation';
 import { randomInt } from '@/utils/lightlodash';
 import { fetchJson, queryFetch } from '@/utils/fetchutils';
@@ -140,7 +141,7 @@ export default {
       },
     } = await dispatch('FETCH_PLEX_SERVER', {
       machineIdentifier,
-      path: `/library/metadata/${ratingKey}`,
+      path: `/library/metadata/${plexIdentifier(ratingKey)}`,
       params: {
         includeConcerts: 1,
         includeExtras: 1,
@@ -296,7 +297,7 @@ export default {
   ) => {
     const { MediaContainer } = await dispatch('FETCH_PLEX_SERVER', {
       machineIdentifier,
-      path: `/library/metadata/${ratingKey}/children`,
+      path: `/library/metadata/${plexIdentifier(ratingKey)}/children`,
       params: {
         'X-Plex-Container-Start': start,
         'X-Plex-Container-Size': size,
@@ -330,7 +331,7 @@ export default {
         MediaContainer: { Hub, librarySectionID },
       } = await dispatch('FETCH_PLEX_SERVER', {
         machineIdentifier,
-        path: `/library/metadata/${ratingKey}/related`,
+        path: `/library/metadata/${plexIdentifier(ratingKey)}/related`,
         params: {
           excludeFields: 'summary',
           count,
@@ -413,7 +414,7 @@ export default {
       params: {
         type: 'video',
         continuous: 1,
-        uri: `server://${id}/com.plexapp.plugins.library/library/metadata/${ratingKey}`,
+        uri: `server://${plexIdentifier(id)}/com.plexapp.plugins.library/library/metadata/${plexIdentifier(ratingKey)}`,
         repeat: 0,
         ...playQueueParams,
       },
