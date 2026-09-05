@@ -31,11 +31,11 @@ const getExpectedUserTime = (user) => {
   return user.time + elapsed * playbackRate;
 };
 
-const isNonHostSeek = (previousUser, data) => {
+const isNonHostSeek = (previousUser, data, threshold = NON_HOST_SEEK_THRESHOLD_MS) => {
   const expectedTime = getExpectedUserTime(previousUser);
   return expectedTime != null
     && Number.isFinite(data.time)
-    && Math.abs(data.time - expectedTime) > NON_HOST_SEEK_THRESHOLD_MS;
+    && Math.abs(data.time - expectedTime) > threshold;
 };
 
 const HOST_RESTORE_TIMEOUT = 30000;
@@ -446,7 +446,7 @@ export default {
       return;
     }
 
-    const previousUser = getters.GET_USER(data.id);
+    const previousUser = { ...getters.GET_USER(data.id) };
     const previousState = previousUser?.state;
     commit('SET_USER_PLAYER_STATE', data);
     commit('RECORD_USER_EVENT', { id: data.id, fields: ['player'] });
@@ -489,9 +489,10 @@ export default {
     } else if (data.id !== getters.GET_SOCKET_ID && getters.AM_I_HOST
       && !rootGetters['slplayer/IS_CHANGING_SOURCE']
       && !rootGetters['slplayer/IS_PLAY_QUEUE_TRANSITIONING']
-      && isNonHostSeek(previousUser, data)
+      && ((data.userInitiatedSeek === true && isNonHostSeek(previousUser, data, 250))
+        || (data.userInitiatedSeek === undefined && isNonHostSeek(previousUser, data)))
       && data.state !== 'buffering') {
-      // Non-host user seeked (time jump > 5s) — follow their seek
+      // Older clients have no explicit seek marker; infer only large timeline discontinuities.
       const user = getters.GET_USER(data.id);
       console.debug('Non-host seek detected from', user?.username, 'seeking to', data.time);
       await dispatch('DISPLAY_NOTIFICATION', {
