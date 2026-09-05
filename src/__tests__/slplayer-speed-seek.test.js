@@ -3,6 +3,7 @@ import {
 } from 'vitest';
 import { CAF } from 'caf';
 import slplayerActions from '@/store/modules/slplayer/actions';
+import slplayerGetters from '@/store/modules/slplayer/getters';
 
 vi.mock('@/player', () => ({
   setPlaybackRate: vi.fn(),
@@ -574,6 +575,61 @@ describe('SPEED_OR_NORMAL_SEEK', () => {
 });
 
 describe('Source request cancellation', () => {
+  it('keeps early native pause events buffering until source loading has settled', async () => {
+    const state = { playerState: 'buffering', maskPlayerState: true, isChangingSource: false };
+    const getters = {
+      get GET_PLAYER_STATE() { return slplayerGetters.GET_PLAYER_STATE(state); },
+      get GET_MASK_PLAYER_STATE() { return state.maskPlayerState; },
+    };
+    const controller = new AbortController();
+    let finishLoad;
+    const commit = (type, value) => {
+      if (type === 'SET_PLAYER_STATE') state.playerState = value;
+      if (type === 'SET_MASK_PLAYER_STATE') state.maskPlayerState = value;
+      if (type === 'SET_IS_CHANGING_SOURCE') state.isChangingSource = value;
+    };
+    const reports = [];
+    const dispatch = vi.fn(async (type, value) => {
+      if (type === 'LOAD_PLAYER_SRC') await new Promise((resolve) => { finishLoad = resolve; });
+      if (type === 'REFRESH_PLAYER_STATE') {
+        await slplayerActions.REFRESH_PLAYER_STATE({ commit, dispatch });
+      }
+      if (type === 'synclounge/PROCESS_PLAYER_STATE_UPDATE') {
+        const timeline = await slplayerActions.FETCH_TIMELINE_POLL_DATA({ getters, dispatch });
+        reports.push(timeline.state);
+        // A stable timeline can immediately trigger host reclamation and cancel follower sync.
+        if (timeline.state === 'paused') controller.abort();
+      }
+      if (type === 'CHANGE_PLAYER_STATE') {
+        await slplayerActions.CHANGE_PLAYER_STATE({ commit, dispatch }, value);
+      }
+    });
+    const { unload } = await import('@/player');
+    unload.mockClear();
+    isPaused.mockReturnValue(true);
+    const pending = slplayerActions.CHANGE_PLAYER_SRC({ getters, commit, dispatch }, {
+      signal: controller.signal,
+    });
+    await vi.waitFor(() => expect(finishLoad).toBeTypeOf('function'));
+    await slplayerActions.HANDLE_PLAYER_BUFFERING({ getters, dispatch }, { buffering: false });
+    await slplayerActions.REFRESH_PLAYER_STATE({ commit, dispatch });
+    expect(reports).toEqual(['buffering', 'buffering']);
+    expect(controller.signal.aborted).toBe(false);
+    finishLoad();
+    await pending;
+    expect(reports).toEqual(['buffering', 'buffering', 'paused']);
+    expect(state.isChangingSource).toBe(false);
+    expect(state.maskPlayerState).toBe(false);
+    expect(controller.signal.aborted).toBe(true);
+    expect(unload).not.toHaveBeenCalled();
+  });
+
+  it('preserves explicit stopped state during source cancellation', () => {
+    expect(slplayerGetters.GET_PLAYER_STATE({
+      playerState: 'stopped', maskPlayerState: true, isChangingSource: true,
+    })).toBe('stopped');
+  });
+
   it('does not commit a decision response after cancellation', async () => {
     const { fetchJson } = await import('@/utils/fetchutils');
     let finish;
