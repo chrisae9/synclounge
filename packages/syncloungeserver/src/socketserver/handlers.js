@@ -184,7 +184,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
 
   const playerStateUpdate = ({
     server, socket, data: {
-      state, time, duration, playbackRate,
+      state, time, duration, playbackRate, userInitiatedSeek,
     },
   }) => {
     if (!isUserInARoom(socket.id)) {
@@ -196,7 +196,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       socketId: socket.id, state, time, duration, playbackRate,
     });
 
-    emitPlayerStateUpdateToRoom({ server, socketId: socket.id });
+    emitPlayerStateUpdateToRoom({ server, socketId: socket.id, userInitiatedSeek });
   };
 
   const mediaUpdate = ({

@@ -7,6 +7,7 @@ const state = () => ({
   plexDecision: null,
   mediaIndex: 0,
   offsetMs: 0,
+  syncSeekTarget: null,
   playerState: 'stopped',
   playerControlsShown: false,
   playerControlsShownInterval: null,
