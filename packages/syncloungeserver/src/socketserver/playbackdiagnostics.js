@@ -47,6 +47,8 @@ const diagnosticSchema = {
     transcode: true,
   },
   playback: {
+    isCasting: 'boolean',
+    buffering: 'nullable-boolean',
     attached: true,
     currentTime: true,
     duration: true,
@@ -119,6 +121,14 @@ const sanitizeString = (value) => [...value.slice(0, MAX_STRING_LENGTH)]
   .join('');
 
 const sanitizeValue = (value, schema, depth, budget) => {
+  if (schema === 'boolean' || schema === 'nullable-boolean') {
+    if (!budget.hasRemaining() || depth > MAX_DEPTH) return undefined;
+    if (typeof value !== 'boolean' && !(value === null && schema === 'nullable-boolean')) {
+      return undefined;
+    }
+    budget.consume();
+    return value;
+  }
   if (!budget.hasRemaining() || depth > MAX_DEPTH || value == null) {
     return value == null ? null : undefined;
   }

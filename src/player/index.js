@@ -160,9 +160,13 @@ export const insertElementBeforeVideo = (element) => {
 
 export const getMediaElement = () => getRawPlayer()?.getMediaElement?.() || null;
 
-export const getPlaybackDiagnostics = () => buildPlaybackDiagnostics({
-  mediaElement: getMediaElement(),
-  stats: getPlayer()?.getStats?.(),
+export const getPlaybackDiagnostics = () => ({
+  ...buildPlaybackDiagnostics({
+    mediaElement: getPlayer()?.getMediaElement?.() || null,
+    stats: getPlayer()?.getStats?.(),
+  }),
+  isCasting: isCasting(),
+  buffering: isBuffering() ?? null,
 });
 
 export { isCasting };
