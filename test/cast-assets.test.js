@@ -8,8 +8,13 @@ const vm = require('node:vm');
 it('ships lockfile-pinned receiver dependencies with a CSP-compatible bootstrap', async () => {
   const dist = path.join(__dirname, '../dist');
   const html = fs.readFileSync(path.join(dist, 'cast-receiver.html'), 'utf8');
-  assert.ok(!html.includes('cdn.jsdelivr.net'));
-  assert.ok(!html.includes('src="//'));
+  const scripts = [...html.matchAll(/<script src="([^"]+)"/g)]
+    .map((match) => new URL(match[1], 'https://receiver.example/'));
+  assert.equal(scripts.length, 4);
+  assert.deepEqual(scripts.map((url) => url.origin), [
+    'https://www.gstatic.com', 'https://receiver.example',
+    'https://receiver.example', 'https://receiver.example',
+  ]);
   assert.ok(html.includes("script-src 'self' https://www.gstatic.com"));
   for (const [asset, modulePath] of [
     ['cast-vendor/mux.min.js', 'cast-mux.js/dist/mux.min.js'],
