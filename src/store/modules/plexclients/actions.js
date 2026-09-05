@@ -25,35 +25,6 @@ export default {
       offset,
     });
 
-    // Fire-and-forget: update room metadata for Discord embeds
-    try {
-      const posterUrl = rootGetters['plexservers/GET_MEDIA_IMAGE_URL']({
-        machineIdentifier,
-        mediaUrl: metadata.thumb,
-        width: 600,
-        height: 900,
-      });
-
-      fetch('/api/metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: metadata.title,
-          year: metadata.year,
-          summary: metadata.summary,
-          type: metadata.type,
-          posterUrl,
-          machineIdentifier,
-          ratingKey: metadata.ratingKey,
-          grandparentTitle: metadata.grandparentTitle,
-          parentIndex: metadata.parentIndex,
-          index: metadata.index,
-        }),
-      }).catch(() => {});
-    } catch {
-      // Best-effort
-    }
-
     const queue = await abortable(dispatch('plexservers/CREATE_PLAY_QUEUE', {
       signal,
       machineIdentifier,
