@@ -3,12 +3,10 @@
 const { randomUUID } = require('node:crypto');
 const path = require('path');
 const fs = require('fs');
-const express = require('express');
 const syncloungeServer = require('./packages/syncloungeserver/dist/lib.js'); // eslint-disable-line import/extensions
 const config = require('./config');
 const {
   createCache,
-  metadataCacheKey,
   roomMetadataCacheKey,
   roomPosterMetadataCacheKey,
   resolveRoomPosterMetadata,
@@ -47,9 +45,6 @@ const publicOrigin = parsePublicOrigin(socketConfig.public_origin);
 const ROOM_POSTER_CACHE_MAX_SIZE = 1000;
 const ROOM_POSTER_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
-const posterPath = (machineIdentifier, ratingKey) => (
-  `/share/poster/${encodeURIComponent(machineIdentifier)}/${encodeURIComponent(ratingKey)}`
-);
 const roomPosterPath = (room, revision) => (
   `/share/room-poster/${encodeURIComponent(room)}/${encodeURIComponent(revision)}`
 );
@@ -131,7 +126,6 @@ function parseRateLimit(name, defaultValue) {
   return parsedValue;
 }
 
-const METADATA_RATE_LIMIT = parseRateLimit('SL_METADATA_RATE_LIMIT', 30);
 const POSTER_RATE_LIMIT = parseRateLimit('SL_POSTER_RATE_LIMIT', 60);
 const RATE_LIMIT_MAX_BUCKETS = parseRateLimit('SL_RATE_LIMIT_MAX_BUCKETS', 10000);
 const RATE_LIMIT_WINDOW_MS = parseRateLimit('SL_RATE_LIMIT_WINDOW_MS', 60 * 1000);
@@ -187,11 +181,6 @@ function createRateLimiter(maxRequests, windowMs, maxBuckets) {
   };
 }
 
-const metadataLimiter = createRateLimiter(
-  METADATA_RATE_LIMIT,
-  RATE_LIMIT_WINDOW_MS,
-  RATE_LIMIT_MAX_BUCKETS,
-);
 const posterLimiter = createRateLimiter(
   POSTER_RATE_LIMIT,
   RATE_LIMIT_WINDOW_MS,
@@ -200,9 +189,6 @@ const posterLimiter = createRateLimiter(
 
 // --- File extension check for SPA fallback ---
 const STATIC_EXT_RE = /\.\w{2,}$/;
-const METADATA_BODY_LIMIT = '16kb';
-const MAX_METADATA_STRING_LENGTH = 500;
-const MAX_YEAR_STRING_LENGTH = 32;
 const ROOM_POSTER_MAX_AGE_SECONDS = 60;
 const ROOM_PREVIEW_FIELDS = [
   'title',
@@ -217,37 +203,12 @@ const ROOM_PREVIEW_FIELDS = [
   'index',
 ];
 
-function isBoundedScalar(value, maxStringLength) {
-  if (typeof value === 'string') return value.length <= maxStringLength;
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-function isBoundedIdentifier(value) {
-  if (typeof value === 'string') {
-    if (value.length > MAX_METADATA_STRING_LENGTH) return false;
-    try {
-      encodeURIComponent(value);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-  return Number.isSafeInteger(value) && value >= 0;
-}
-
 function decodePathSegment(value) {
   try {
     return decodeURIComponent(value);
   } catch {
     return null;
   }
-}
-
-function isBoundedIndex(value) {
-  if (typeof value === 'number') {
-    return Number.isSafeInteger(value) && value >= 0;
-  }
-  return typeof value === 'string' && /^\d{1,12}$/.test(value);
 }
 
 async function proxyPoster(meta, req, res, cacheControl = 'public, max-age=86400') {
@@ -281,105 +242,16 @@ async function proxyPoster(meta, req, res, cacheControl = 'public, max-age=86400
   }
 }
 
-function handleMetadataJsonError(error, req, res, next) {
-  if (error?.type === 'entity.too.large') {
-    return res.status(413).json({ error: 'Metadata body exceeds 16 KiB' });
-  }
-  if (error?.type === 'entity.parse.failed') {
-    return res.status(400).json({ error: 'Malformed JSON' });
-  }
-  return next(error);
-}
-
-function handleMetadataRequest(req, res) {
-  if (req.body == null || typeof req.body !== 'object' || Array.isArray(req.body)) {
-    return res.status(400).json({ error: 'Request body must be a JSON object' });
-  }
-
-  const {
-    title, year, summary, type, posterUrl, machineIdentifier, ratingKey,
-    grandparentTitle, parentIndex, index,
-  } = req.body;
-
-  if (machineIdentifier == null || machineIdentifier === ''
-    || ratingKey == null || ratingKey === '') {
-    return res.status(400).json({ error: 'machineIdentifier and ratingKey are required' });
-  }
-
-  const stringFields = {
-    title,
-    summary,
-    type,
-    posterUrl,
-    grandparentTitle,
-  };
-  for (const [name, val] of Object.entries(stringFields)) {
-    if (val != null && (typeof val !== 'string' || val.length > MAX_METADATA_STRING_LENGTH)) {
-      return res.status(400).json({
-        error: `${name} must be a string of at most ${MAX_METADATA_STRING_LENGTH} characters`,
-      });
-    }
-  }
-
-  // Numeric identifiers must round-trip through JSON without losing precision.
-  for (const [name, val] of Object.entries({ machineIdentifier, ratingKey })) {
-    if (!isBoundedIdentifier(val)) {
-      return res.status(400).json({
-        error: `${name} must be a non-negative safe integer or a string of at most `
-          + `${MAX_METADATA_STRING_LENGTH} characters`,
-      });
-    }
-  }
-  if (year != null && !isBoundedScalar(year, MAX_YEAR_STRING_LENGTH)) {
-    return res.status(400).json({
-      error: `year must be a finite number or a string of at most ${MAX_YEAR_STRING_LENGTH} characters`,
-    });
-  }
-  for (const [name, val] of Object.entries({ parentIndex, index })) {
-    if (val != null && !isBoundedIndex(val)) {
-      return res.status(400).json({
-        error: `${name} must be a non-negative safe integer or numeric string`,
-      });
-    }
-  }
-  const key = metadataCacheKey(machineIdentifier, ratingKey);
-  const meta = {
-    title,
-    year,
-    summary,
-    type,
-    posterUrl,
-    machineIdentifier,
-    ratingKey,
-    grandparentTitle,
-    parentIndex,
-    index,
-  };
-  setMetadata(key, meta);
-
-  return res.json({ ok: true });
-}
-
 const preStaticInjection = (router) => {
   // Add route for config
   router.get('/config.json', (req, res) => {
     res.json(publicAppConfig);
   });
 
-  // --- POST /api/metadata: receive metadata from client ---
-  router.post(
-    '/api/metadata',
-    metadataLimiter,
-    express.json({ limit: METADATA_BODY_LIMIT }),
-    handleMetadataJsonError,
-    handleMetadataRequest,
-  );
-
-  // --- GET /share/poster/:machineIdentifier/:ratingKey: proxy poster images ---
-  router.get('/share/poster/:machineIdentifier/:ratingKey', posterLimiter, async (req, res) => {
-    const key = metadataCacheKey(req.params.machineIdentifier, req.params.ratingKey);
-    return proxyPoster(getMetadata(key), req, res);
-  });
+  // Legacy global metadata writes had no ownership boundary. Only socket-host
+  // snapshots may supply shared previews now.
+  router.post('/api/metadata', (req, res) => res.status(410).json({ error: 'Use room previews' }));
+  router.get('/share/poster/:machineIdentifier/:ratingKey', (req, res) => res.sendStatus(410));
 
   // Room poster snapshots can only be selected by the current socket host.
   router.get('/share/room-poster/:room/:revision', posterLimiter, async (req, res) => {
@@ -418,26 +290,18 @@ const preStaticInjection = (router) => {
       return res.status(500).send('index.html not available');
     }
 
-    // Check if this is a media browse route we can inject OG tags for
+    // A browse link may expose only this room's current host-selected media.
     const mediaMatch = req.path.match(
-      /^\/room\/[^/]+\/browse\/server\/([^/]+)\/ratingKey\/([^/]+)/,
+      /^\/room\/([^/]+)\/browse\/server\/([^/]+)\/ratingKey\/([^/]+)\/?$/,
     );
-
     if (mediaMatch) {
-      const machineIdentifier = decodePathSegment(mediaMatch[1]);
-      const ratingKey = decodePathSegment(mediaMatch[2]);
-      const meta = machineIdentifier != null && ratingKey != null
-        ? getMetadata(metadataCacheKey(machineIdentifier, ratingKey))
-        : null;
-
-      if (meta) {
+      const [, room, machine, rating] = mediaMatch.map(decodePathSegment);
+      const meta = room == null ? null : getMetadata(roomMetadataCacheKey(room));
+      if (meta && String(meta.machineIdentifier) === machine && String(meta.ratingKey) === rating) {
         const posterProxyUrl = meta.posterUrl && publicOrigin
-          ? `${publicOrigin}${posterPath(machineIdentifier, ratingKey)}`
-          : null;
-
-        const html = injectOgTags(indexHtml, { ...meta, posterProxyUrl });
-        res.set('Content-Type', 'text/html');
-        return res.send(html);
+          ? `${publicOrigin}${roomPosterPath(room, meta.roomPreviewRevision)}` : null;
+        res.type('html');
+        return res.send(injectOgTags(indexHtml, { ...meta, posterProxyUrl }));
       }
     }
 

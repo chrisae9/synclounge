@@ -65,7 +65,6 @@ export default {
 
   computed: {
     ...mapGetters('plexservers', [
-      'GET_MEDIA_IMAGE_URL',
     ]),
 
     // This exists so we can watch if either of these change
@@ -121,39 +120,6 @@ export default {
         machineIdentifier: this.machineIdentifier,
         ...this.metadata,
       });
-
-      // Fire-and-forget: cache metadata on server for Discord embed previews
-      this.cacheMetadataOnServer();
-    },
-
-    cacheMetadataOnServer() {
-      try {
-        const posterUrl = this.GET_MEDIA_IMAGE_URL({
-          machineIdentifier: this.machineIdentifier,
-          mediaUrl: this.metadata.thumb,
-          width: 600,
-          height: 900,
-        });
-
-        fetch('/api/metadata', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: this.metadata.title,
-            year: this.metadata.year,
-            summary: this.metadata.summary,
-            type: this.metadata.type,
-            posterUrl,
-            machineIdentifier: this.machineIdentifier,
-            ratingKey: this.ratingKey,
-            grandparentTitle: this.metadata.grandparentTitle,
-            parentIndex: this.metadata.parentIndex,
-            index: this.metadata.index,
-          }),
-        }).catch(() => {});
-      } catch (e) {
-        // Ignore errors - this is best-effort
-      }
     },
 
     async fetchMetadata() {

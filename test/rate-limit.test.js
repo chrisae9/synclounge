@@ -76,8 +76,7 @@ async function startRateLimitServer(envOverrides = {}) {
         ...process.env,
         PORT: String(port),
         TRUST_PROXY: 'loopback',
-        SL_METADATA_RATE_LIMIT: '2',
-        SL_POSTER_RATE_LIMIT: '0',
+        SL_POSTER_RATE_LIMIT: '2',
         SL_RATE_LIMIT_MAX_BUCKETS: '4',
         SL_RATE_LIMIT_WINDOW_MS: '500',
         ...envOverrides,
@@ -103,18 +102,10 @@ async function startRateLimitServer(envOverrides = {}) {
   throw lastError;
 }
 
-const postMetadataTo = (url, forwardedFor) => fetch(`${url}/api/metadata`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'X-Forwarded-For': forwardedFor,
-  },
-  body: JSON.stringify({
-    machineIdentifier: 'machine',
-    ratingKey: 'rating',
-  }),
+const getPosterFrom = (url, forwardedFor) => fetch(`${url}/share/room-poster/unknown/revision`, {
+  headers: { 'X-Forwarded-For': forwardedFor },
 });
-const postMetadata = (forwardedFor) => postMetadataTo(baseUrl, forwardedFor);
+const getPoster = (forwardedFor) => getPosterFrom(baseUrl, forwardedFor);
 
 describe('reverse proxy rate limiting', () => {
   before(async () => {
@@ -128,25 +119,25 @@ describe('reverse proxy rate limiting', () => {
   });
 
   it('uses a trusted forwarded client address instead of the proxy address', async () => {
-    assert.equal((await postMetadata('198.51.100.10')).status, 200);
-    assert.equal((await postMetadata('198.51.100.10')).status, 200);
-    assert.equal((await postMetadata('198.51.100.20')).status, 200);
-    assert.equal((await postMetadata('198.51.100.10')).status, 429);
+    assert.equal((await getPoster('198.51.100.10')).status, 404);
+    assert.equal((await getPoster('198.51.100.10')).status, 404);
+    assert.equal((await getPoster('198.51.100.20')).status, 404);
+    assert.equal((await getPoster('198.51.100.10')).status, 429);
   });
 
   it('bounds client buckets and reuses capacity after the window expires', async () => {
     const isolated = await startRateLimitServer({ SL_RATE_LIMIT_MAX_BUCKETS: '2' });
     try {
-      assert.equal((await postMetadataTo(isolated.url, '198.51.100.30')).status, 200);
-      assert.equal((await postMetadataTo(isolated.url, '198.51.100.40')).status, 200);
-      const atCapacity = await postMetadataTo(isolated.url, '198.51.100.50');
+      assert.equal((await getPosterFrom(isolated.url, '198.51.100.30')).status, 404);
+      assert.equal((await getPosterFrom(isolated.url, '198.51.100.40')).status, 404);
+      const atCapacity = await getPosterFrom(isolated.url, '198.51.100.50');
       assert.equal(atCapacity.status, 429);
       assert.deepEqual(await atCapacity.json(), { error: 'Too many clients' });
 
       await new Promise((resolve) => {
         setTimeout(resolve, 550);
       });
-      assert.equal((await postMetadataTo(isolated.url, '198.51.100.50')).status, 200);
+      assert.equal((await getPosterFrom(isolated.url, '198.51.100.50')).status, 404);
     } finally {
       await stopServer(isolated.child);
     }
@@ -161,14 +152,14 @@ describe('reverse proxy rate limiting', () => {
           cwd: `${__dirname}/..`,
           env: {
             ...process.env,
-            SL_METADATA_RATE_LIMIT: value,
+            SL_POSTER_RATE_LIMIT: value,
           },
           encoding: 'utf8',
           timeout: 2000,
         });
 
         assert.notEqual(result.status, 0);
-        assert.match(result.stderr, /SL_METADATA_RATE_LIMIT must be a non-negative integer/);
+        assert.match(result.stderr, /SL_POSTER_RATE_LIMIT must be a non-negative integer/);
       });
     }
   });
