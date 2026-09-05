@@ -1,18 +1,8 @@
 import { CAF } from 'caf';
 import { emit, waitForEvent, getId } from '@/socket';
 
-// Strip server-assigned dedup suffix like "(1)", "(2)" for username comparison.
-// When the same Plex user reconnects, the server may assign a different suffix.
-const stripUsernameSuffix = (name) => name?.replace(/\(\d+\)$/, '').trim();
-
-const matchesPreviousHost = (getters, user) => {
-  const thumbMatch = user?.thumb
-    && user.thumb === getters.GET_HOST_GRACE_PREVIOUS_HOST_THUMB;
-  const nameMatch = user?.username
-    && stripUsernameSuffix(user.username)
-      === stripUsernameSuffix(getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME);
-  return thumbMatch || nameMatch;
-};
+const matchesPreviousHost = (getters, user) => Boolean(user?.reconnectIdentity
+  && user.reconnectIdentity === getters.GET_HOST_GRACE_PREVIOUS_HOST_IDENTITY);
 
 const hasRestoredPlayback = (user) => user?.media
   && (user.state === 'playing' || user.state === 'paused');
@@ -215,6 +205,7 @@ export default {
     commit('SET_PENDING_HOST_ID', null);
     commit('SET_HOST_GRACE_PREVIOUS_HOST_USERNAME', null);
     commit('SET_HOST_GRACE_PREVIOUS_HOST_THUMB', null);
+    commit('SET_HOST_GRACE_PREVIOUS_HOST_IDENTITY', null);
     commit('SET_HOST_GRACE_PREVIOUS_HOST_STATE', null);
     commit('SET_HOST_GRACE_RESTORE_DEADLINE_AT', null);
   },
@@ -321,12 +312,7 @@ export default {
     // If we're in a grace period and the original host reconnected, cancel the grace period
     // and keep the original host
     const newUser = getters.GET_USER(hostId);
-    const newThumbMatch = newUser?.thumb
-      && newUser.thumb === getters.GET_HOST_GRACE_PREVIOUS_HOST_THUMB;
-    const newNameMatch = getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME
-      && stripUsernameSuffix(newUser?.username)
-        === stripUsernameSuffix(getters.GET_HOST_GRACE_PREVIOUS_HOST_USERNAME);
-    if (getters.IS_HOST_GRACE_PERIOD && (newThumbMatch || newNameMatch)) {
+    if (getters.IS_HOST_GRACE_PERIOD && matchesPreviousHost(getters, newUser)) {
       const expectedState = getters.GET_HOST_GRACE_PREVIOUS_HOST_STATE;
       const restoreDeadline = getters.GET_HOST_GRACE_RESTORE_DEADLINE_AT
         ?? Date.now() + HOST_RESTORE_TIMEOUT;
@@ -374,6 +360,7 @@ export default {
         }
         return;
       }
+      commit('SET_HOST_GRACE_PREVIOUS_HOST_IDENTITY', previousHost.reconnectIdentity || null);
       commit('SET_HOST_GRACE_PREVIOUS_HOST_USERNAME', previousHost.username);
       commit('SET_HOST_GRACE_PREVIOUS_HOST_THUMB', previousHost.thumb || null);
       commit(
