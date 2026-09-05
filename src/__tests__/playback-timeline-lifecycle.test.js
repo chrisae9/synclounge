@@ -22,7 +22,8 @@ vi.mock('@/player', () => ({ getCurrentTimeMs: vi.fn(() => 90000) }));
 afterEach(() => { vi.useRealTimers(); });
 
 it.each([
-  [90000, undefined, true], [10000, undefined, false], [10000, true, false],
+  // Explicit markers are verified by the server, including after buffering already updated time.
+  [90000, undefined, true], [10000, undefined, false], [10000, true, true],
   [90000, true, true], [11000, true, true], [0, true, true],
   [10000, false, false], [90000, false, false],
 ])('handles guest position %s with explicit seek=%s using real mutations', async (time, explicit, seeks) => {

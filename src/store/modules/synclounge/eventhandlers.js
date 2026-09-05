@@ -477,7 +477,7 @@ export default {
     } else if (data.id !== getters.GET_SOCKET_ID && getters.AM_I_HOST
       && !rootGetters['slplayer/IS_CHANGING_SOURCE']
       && !rootGetters['slplayer/IS_PLAY_QUEUE_TRANSITIONING']
-      && ((data.userInitiatedSeek === true && isNonHostSeek(previousUser, data, 250))
+      && (data.userInitiatedSeek === true
         || (data.userInitiatedSeek === undefined && isNonHostSeek(previousUser, data)))
       && data.state !== 'buffering') {
       // Older clients have no explicit seek marker; infer only large timeline discontinuities.
