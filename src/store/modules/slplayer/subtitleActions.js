@@ -163,7 +163,7 @@ export default {
       getters.GET_SUBTITLE_BASE_URL,
       getters.GET_DECISION_AND_START_PARAMS,
     );
-    console.debug('MAKE_ASS: fetching subtitles from:', subtitleUrl);
+    console.debug('MAKE_ASS: fetching subtitles');
 
     const libjass = await import('synclounge-libjass');
 
