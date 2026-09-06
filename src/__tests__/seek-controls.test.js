@@ -4,6 +4,7 @@ import {
 import trackSeekControls from '@/player/trackSeekControls';
 import { consumeUserSeekIntent, recordSeekIntent } from '@/player/seekIntent';
 
+const settleControls = () => new Promise((resolve) => { setTimeout(resolve, 0); });
 let cleanup;
 afterEach(() => { cleanup?.(); cleanup = null; document.body.innerHTML = ''; recordSeekIntent(); });
 
@@ -81,11 +82,11 @@ it('distinguishes a mobile double-tap seek from a single tap', async () => {
   const { container } = setup();
   const target = container.querySelector('.shaka-fast-forward-container');
   target.dispatchEvent(new Event('touchend', { bubbles: true }));
-  await Promise.resolve();
+  await settleControls();
   expect(consumeUserSeekIntent()).toBe(false);
   target.dispatchEvent(new Event('touchend', { bubbles: true }));
   target.querySelector('span').textContent = '10s';
-  await Promise.resolve();
+  await settleControls();
   expect(consumeUserSeekIntent()).toBe(true);
 });
 
@@ -134,7 +135,7 @@ it.each(['mouseup', 'touchcancel'])('clears a %s gesture that produces no seek',
   bar.value = String(video.currentTime);
   bar.dispatchEvent(new Event(end === 'mouseup' ? 'mousedown' : 'touchstart', { bubbles: true }));
   bar.dispatchEvent(new Event(end, { bubbles: true }));
-  await Promise.resolve();
+  await settleControls();
   expect(consumeUserSeekIntent()).toBe(false); // A later decoder recovery is automatic.
 });
 
@@ -144,13 +145,26 @@ it('retains intent for a cancellation that actually seeks and protects newer int
   bar.dispatchEvent(new Event('touchstart', { bubbles: true }));
   bar.dispatchEvent(new Event('touchcancel', { bubbles: true }));
   video.seeking = true; // Shaka finalized a real seek during cancellation.
-  await Promise.resolve();
+  await settleControls();
   expect(consumeUserSeekIntent()).toBe(true);
   video.seeking = false;
   bar.value = String(video.currentTime);
   bar.dispatchEvent(new Event('mousedown', { bubbles: true }));
   bar.dispatchEvent(new Event('mouseup', { bubbles: true }));
   recordSeekIntent(true); // Another control requested a seek before deferred cleanup.
-  await Promise.resolve();
+  await settleControls();
   expect(consumeUserSeekIntent()).toBe(true);
+});
+
+it('preserves a completed drag while its seeked event is still queued', async () => {
+  const { container, video } = setup();
+  const bar = container.querySelector('.shaka-seek-bar');
+  bar.dispatchEvent(new Event('mousedown', { bubbles: true }));
+  video.currentTime = 131; // Shaka's debounce seek completes before mouseup.
+  video.seeking = false;
+  bar.value = '131';
+  bar.dispatchEvent(new Event('mouseup', { bubbles: true }));
+  await settleControls();
+  expect(consumeUserSeekIntent()).toBe(true); // Queued browser seeked arrives now.
+  expect(consumeUserSeekIntent()).toBe(false);
 });

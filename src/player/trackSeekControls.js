@@ -1,4 +1,4 @@
-import { clearSeekIntent, recordSeekIntent } from './seekIntent';
+import { clearSeekIntent, hasPendingUserSeek, recordSeekIntent } from './seekIntent';
 
 // Track actual UI requests rather than native seeking/seeked events, which are
 // also emitted by decoder recovery and automatic synchronization.
@@ -7,10 +7,12 @@ export default ({
 }) => {
   let tracking = true;
   let scrubBar = null;
+  let scrubStartTime;
   const onScrubStart = (event) => {
     if (container.contains(event.target)
       && event.target?.matches?.('.shaka-seek-bar') && !event.target.disabled) {
       scrubBar = event.target;
+      scrubStartTime = getPlayer()?.getMediaElement()?.currentTime;
       recordSeekIntent(true);
     }
   };
@@ -24,16 +26,20 @@ export default ({
       const bar = scrubBar;
       const video = getPlayer()?.getMediaElement();
       const beforeTime = video?.currentTime;
+      const awaitingScrubCompletion = hasPendingUserSeek() && beforeTime !== scrubStartTime;
       const intent = recordSeekIntent(true);
-      queueMicrotask(() => {
-        // Shaka's final setter runs synchronously in the target handler. Local
+      setTimeout(() => {
+        // Use a task: native events can flush microtasks between listeners,
+        // before Shaka's target handler performs the final setter. Local
         // media exposes seeking immediately; Cast may update its time later.
+        // Completion can be queued after seeking becomes false. Preserve the
+        // pending marker if this gesture already changed the media position.
         // An unchanged/cancelled gesture must not label a later recovery seek.
-        if (tracking && !video?.seeking && video?.currentTime === beforeTime
+        if (tracking && !awaitingScrubCompletion && !video?.seeking && video?.currentTime === beforeTime
           && (!controls.getCastProxy?.().isCasting() || Number(bar.value) === beforeTime)) {
           clearSeekIntent(intent);
         }
-      });
+      }, 0);
     }
     scrubBar = null;
   };
@@ -51,12 +57,12 @@ export default ({
       '.shaka-fast-forward-container, .shaka-rewind-container',
     );
     if (!target) return;
-    queueMicrotask(() => {
+    setTimeout(() => {
       // Shaka updates the displayed offset before its delayed double-tap seek.
       if (tracking && Number.parseInt(target.querySelector('span')?.textContent, 10)) {
         recordSeekIntent(true);
       }
-    });
+    }, 0);
   };
   const onInput = (event) => {
     if (event.target?.matches?.('.shaka-seek-bar')
