@@ -1,3 +1,4 @@
+import { setCurrentTimeMs } from '@/player';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 
 class Replay10Button extends shaka.ui.Element {
@@ -23,7 +24,7 @@ class Replay10Button extends shaka.ui.Element {
   }
 
   onButtonClicked() {
-    this.video.currentTime -= 10;
+    setCurrentTimeMs((Math.max(0, this.video.currentTime - 10)) * 1000, { userInitiated: true });
   }
 
   // Updates whether this should be enabled or disabled depending on

@@ -2,6 +2,7 @@ import muxjs from 'mux.js';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 import store from '@/store';
 import playerUiPlugins from '@/player/ui';
+import trackSeekControls from './trackSeekControls';
 import suppressStationaryMouseMoves from './suppressStationaryMouseMoves';
 
 import {
@@ -23,9 +24,24 @@ const initialize = async ({
     await getPlayer().attach(mediaElement, false);
     getPlayer().configure(playerConfig);
 
-    setControlsCleanup(suppressStationaryMouseMoves(videoContainer));
+    setControlsCleanup(null);
     setOverlay(new shaka.ui.Overlay(getPlayer(), videoContainer, mediaElement));
     getOverlay().configure(overlayConfig);
+    const stopMouseFilter = suppressStationaryMouseMoves(videoContainer);
+    const stopSeekTracking = trackSeekControls({
+      container: videoContainer, getPlayer, controls: getOverlay().getControls(),
+    });
+    const castProxy = getOverlay().getControls().getCastProxy();
+    const proxyVideo = castProxy.getVideo();
+    const onCastSeeked = () => {
+      if (castProxy.isCasting()) store.dispatch('slplayer/HANDLE_SEEKED');
+    };
+    proxyVideo.addEventListener('seeked', onCastSeeked);
+    setControlsCleanup(() => {
+      proxyVideo.removeEventListener('seeked', onCastSeeked);
+      stopMouseFilter();
+      stopSeekTracking();
+    });
     console.debug('Shaka player initialized, version:', shaka.Player.version);
   } catch (e) {
     console.error('Shaka player initialization failed:', e);
