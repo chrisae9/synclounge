@@ -127,3 +127,30 @@ it('ignores disabled scrubbing and releases outside the bar', () => {
   document.dispatchEvent(new Event('mousemove'));
   expect(consumeUserSeekIntent()).toBe(false);
 });
+
+it.each(['mouseup', 'touchcancel'])('clears a %s gesture that produces no seek', async (end) => {
+  const { container, video } = setup();
+  const bar = container.querySelector('.shaka-seek-bar');
+  bar.value = String(video.currentTime);
+  bar.dispatchEvent(new Event(end === 'mouseup' ? 'mousedown' : 'touchstart', { bubbles: true }));
+  bar.dispatchEvent(new Event(end, { bubbles: true }));
+  await Promise.resolve();
+  expect(consumeUserSeekIntent()).toBe(false); // A later decoder recovery is automatic.
+});
+
+it('retains intent for a cancellation that actually seeks and protects newer intent', async () => {
+  const { container, video } = setup();
+  const bar = container.querySelector('.shaka-seek-bar');
+  bar.dispatchEvent(new Event('touchstart', { bubbles: true }));
+  bar.dispatchEvent(new Event('touchcancel', { bubbles: true }));
+  video.seeking = true; // Shaka finalized a real seek during cancellation.
+  await Promise.resolve();
+  expect(consumeUserSeekIntent()).toBe(true);
+  video.seeking = false;
+  bar.value = String(video.currentTime);
+  bar.dispatchEvent(new Event('mousedown', { bubbles: true }));
+  bar.dispatchEvent(new Event('mouseup', { bubbles: true }));
+  recordSeekIntent(true); // Another control requested a seek before deferred cleanup.
+  await Promise.resolve();
+  expect(consumeUserSeekIntent()).toBe(true);
+});

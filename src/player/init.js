@@ -19,31 +19,36 @@ const initialize = async ({
   mediaElement, playerConfig, videoContainer, overlayConfig,
 }) => {
   console.debug('Shaka player initializing');
+  const cleanups = [];
+  const cleanup = () => {
+    cleanups.splice(0).reverse().forEach((stop) => {
+      try { stop(); } catch (error) { console.error('Player control cleanup failed:', error); }
+    });
+  };
   try {
-    setPlayer(new shaka.Player());
-    await getPlayer().attach(mediaElement, false);
-    getPlayer().configure(playerConfig);
+    const player = new shaka.Player();
+    setPlayer(player);
+    await player.attach(mediaElement, false);
+    player.configure(playerConfig);
 
     setControlsCleanup(null);
-    setOverlay(new shaka.ui.Overlay(getPlayer(), videoContainer, mediaElement));
+    setOverlay(new shaka.ui.Overlay(player, videoContainer, mediaElement));
     getOverlay().configure(overlayConfig);
-    const stopMouseFilter = suppressStationaryMouseMoves(videoContainer);
-    const stopSeekTracking = trackSeekControls({
+    cleanups.push(suppressStationaryMouseMoves(videoContainer));
+    cleanups.push(trackSeekControls({
       container: videoContainer, getPlayer, controls: getOverlay().getControls(),
-    });
+    }));
     const castProxy = getOverlay().getControls().getCastProxy();
     const proxyVideo = castProxy.getVideo();
     const onCastSeeked = () => {
       if (castProxy.isCasting()) store.dispatch('slplayer/HANDLE_SEEKED');
     };
+    cleanups.push(() => proxyVideo.removeEventListener('seeked', onCastSeeked));
     proxyVideo.addEventListener('seeked', onCastSeeked);
-    setControlsCleanup(() => {
-      proxyVideo.removeEventListener('seeked', onCastSeeked);
-      stopMouseFilter();
-      stopSeekTracking();
-    });
+    setControlsCleanup(cleanup);
     console.debug('Shaka player initialized, version:', shaka.Player.version);
   } catch (e) {
+    cleanup();
     console.error('Shaka player initialization failed:', e);
     throw e;
   }

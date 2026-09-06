@@ -1,4 +1,4 @@
-import { recordSeekIntent } from './seekIntent';
+import { clearSeekIntent, recordSeekIntent } from './seekIntent';
 
 // Track actual UI requests rather than native seeking/seeked events, which are
 // also emitted by decoder recovery and automatic synchronization.
@@ -20,7 +20,21 @@ export default ({
   const onScrubEnd = (event) => {
     if (event.type === 'blur' && event.target !== scrubBar) return;
     // Shaka performs a final seek even when its debounce timer already fired.
-    if (scrubBar) recordSeekIntent(true);
+    if (scrubBar) {
+      const bar = scrubBar;
+      const video = getPlayer()?.getMediaElement();
+      const beforeTime = video?.currentTime;
+      const intent = recordSeekIntent(true);
+      queueMicrotask(() => {
+        // Shaka's final setter runs synchronously in the target handler. Local
+        // media exposes seeking immediately; Cast may update its time later.
+        // An unchanged/cancelled gesture must not label a later recovery seek.
+        if (tracking && !video?.seeking && video?.currentTime === beforeTime
+          && (!controls.getCastProxy?.().isCasting() || Number(bar.value) === beforeTime)) {
+          clearSeekIntent(intent);
+        }
+      });
+    }
     scrubBar = null;
   };
   const scrubEvents = [

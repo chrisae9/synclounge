@@ -49,3 +49,22 @@ it('distinguishes the manual intro button from automatic intro skipping', async 
   await actions.SKIP_INTRO(ctx, { userInitiated: false });
   expect(consumeUserSeekIntent()).toBe(false);
 });
+
+it.each(['SOFT_SEEK', 'NORMAL_SEEK'])('preserves a pending user seek during %s', async (action) => {
+  const { default: actions } = await import('@/store/modules/slplayer/actions');
+  const video = { currentTime: 90 };
+  setup(video);
+  recordSeekIntent(true); // Shaka has accepted a user gesture; seeked is still queued.
+  const ctx = { state: {}, commit: vi.fn(), dispatch: vi.fn() };
+  await actions[action](ctx, action === 'SOFT_SEEK' ? 5000 : { seekToMs: 5000 });
+  expect(ctx.commit).not.toHaveBeenCalled();
+  setCurrentTimeMs(5000); // Also cover direct automatic setter callers.
+  expect(video.currentTime).toBe(90);
+  await actions.HANDLE_SEEKED(ctx);
+  expect(ctx.dispatch).toHaveBeenCalledWith('synclounge/PROCESS_PLAYER_STATE_UPDATE', {
+    noSync: true, userInitiatedSeek: true,
+  }, { root: true });
+  setCurrentTimeMs(5000); // Automatic correction resumes once manual intent is consumed.
+  expect(video.currentTime).toBe(5);
+  expect(consumeUserSeekIntent()).toBe(false);
+});

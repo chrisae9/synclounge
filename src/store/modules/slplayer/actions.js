@@ -1,5 +1,5 @@
 import { CAF } from 'caf';
-import { consumeUserSeekIntent, recordSeekIntent } from '@/player/seekIntent';
+import { consumeUserSeekIntent, hasPendingUserSeek, recordSeekIntent } from '@/player/seekIntent';
 import { abortable, throwIfAborted } from '@/utils/cancellation';
 
 import { getRandomPlexId } from '@/utils/random';
@@ -518,6 +518,7 @@ export default {
   },
 
   SOFT_SEEK: ({ commit }, seekToMs) => {
+    if (hasPendingUserSeek()) return;
     console.debug('SOFT_SEEK', seekToMs);
     if (!isTimeInBufferedRange(seekToMs)) {
       throw new Error('Soft seek not allowed outside of buffered range');
@@ -572,6 +573,7 @@ export default {
   },
 
   NORMAL_SEEK: async ({ rootGetters, commit }, { cancelSignal, seekToMs }) => {
+    if (hasPendingUserSeek()) return;
     console.debug('NORMAL_SEEK', seekToMs);
     commit('SET_SYNC_SEEK_TARGET', seekToMs);
     commit('SET_OFFSET_MS', seekToMs);
