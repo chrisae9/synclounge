@@ -1,4 +1,5 @@
 import { buildPlaybackDiagnostics } from '@/utils/playbackdiagnostics';
+import { hasPendingUserSeek, recordSeekIntent } from './seekIntent';
 import {
   getPlayer, getRawPlayer, setPlayer, getOverlay, setOverlay, isCasting, setControlsCleanup,
 } from './state';
@@ -127,8 +128,19 @@ export const setPlaybackRate = (rate) => {
   getPlayer().getMediaElement().playbackRate = rate;
 };
 
-export const setCurrentTimeMs = (timeMs) => {
-  getPlayer().getMediaElement().currentTime = timeMs / 1000;
+export const setCurrentTimeMs = (timeMs, { userInitiated = false } = {}) => {
+  // Let a deliberate request settle before the next periodic correction.
+  if (!userInitiated && hasPendingUserSeek()) return;
+  const video = getPlayer().getMediaElement();
+  const target = timeMs / 1000;
+  if (video.currentTime === target) return;
+  recordSeekIntent(userInitiated);
+  try {
+    video.currentTime = target;
+  } catch (error) {
+    recordSeekIntent();
+    throw error;
+  }
 };
 
 export const getSmallPlayButton = () => getOverlay()

@@ -447,12 +447,12 @@ export default {
 
         case 'ArrowLeft':
           event.preventDefault();
-          setCurrentTimeMs(Math.max(0, getCurrentTimeMs() - 10000));
+          setCurrentTimeMs(Math.max(0, getCurrentTimeMs() - 10000), { userInitiated: true });
           break;
 
         case 'ArrowRight':
           event.preventDefault();
-          setCurrentTimeMs(getCurrentTimeMs() + 10000);
+          setCurrentTimeMs(getCurrentTimeMs() + 10000, { userInitiated: true });
           break;
 
         case 'ArrowUp':
@@ -476,7 +476,7 @@ export default {
 
     async checkAutoSkipIntro() {
       if (this.isInIntro && this.GET_AUTO_SKIP_INTRO) {
-        await this.SKIP_INTRO();
+        await this.SKIP_INTRO({ userInitiated: false });
       }
     },
   },

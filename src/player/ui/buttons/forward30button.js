@@ -1,3 +1,4 @@
+import { setCurrentTimeMs } from '@/player';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 
 class Forward30Button extends shaka.ui.Element {
@@ -23,7 +24,7 @@ class Forward30Button extends shaka.ui.Element {
   }
 
   onButtonClicked() {
-    this.video.currentTime += 30;
+    setCurrentTimeMs((this.video.currentTime + 30) * 1000, { userInitiated: true });
   }
 
   // Updates whether this should be enabled or disabled depending on
