@@ -1,4 +1,5 @@
 import { CAF } from 'caf';
+import { consumeUserSeekIntent, hasPendingUserSeek, recordSeekIntent } from '@/player/seekIntent';
 import { abortable, throwIfAborted } from '@/utils/cancellation';
 
 import { getRandomPlexId } from '@/utils/random';
@@ -214,6 +215,7 @@ export default {
     };
     ensureCurrent();
     console.debug('CHANGE_PLAYER_SRC');
+    recordSeekIntent();
 
     // Abort subtitle requests now or else we get ugly errors from the server closing it.
     await dispatch('DESTROY_ASS');
@@ -382,12 +384,11 @@ export default {
       return;
     }
     console.debug('HANDLE_SEEKED');
-    const automatic = state.syncSeekTarget != null
-      && Math.abs(getCurrentTimeMs() - state.syncSeekTarget) < 1000;
+    const userInitiatedSeek = consumeUserSeekIntent();
     commit('SET_SYNC_SEEK_TARGET', null);
     await dispatch('synclounge/PROCESS_PLAYER_STATE_UPDATE', {
       noSync: true,
-      userInitiatedSeek: !automatic,
+      userInitiatedSeek,
     }, { root: true });
     await dispatch('CHANGE_SUBTITLES');
   },
@@ -517,6 +518,7 @@ export default {
   },
 
   SOFT_SEEK: ({ commit }, seekToMs) => {
+    if (hasPendingUserSeek()) return;
     console.debug('SOFT_SEEK', seekToMs);
     if (!isTimeInBufferedRange(seekToMs)) {
       throw new Error('Soft seek not allowed outside of buffered range');
@@ -571,6 +573,7 @@ export default {
   },
 
   NORMAL_SEEK: async ({ rootGetters, commit }, { cancelSignal, seekToMs }) => {
+    if (hasPendingUserSeek()) return;
     console.debug('NORMAL_SEEK', seekToMs);
     commit('SET_SYNC_SEEK_TARGET', seekToMs);
     commit('SET_OFFSET_MS', seekToMs);
@@ -783,6 +786,7 @@ export default {
   DESTROY_PLAYER_STATE: async ({ getters, commit, dispatch }) => {
     sourceRevision += 1;
     console.debug('DESTROY_PLAYER_STATE');
+    recordSeekIntent();
     bufferingStartedAt = null;
     bufferingEpisode = 0;
     lastHealthDiagnosticAt = 0;
@@ -941,7 +945,7 @@ export default {
     await dispatch('plexclients/UPDATE_ACTIVE_PLAY_QUEUE', null, { root: true });
   },
 
-  SKIP_INTRO: async ({ dispatch, commit, rootGetters }) => {
+  SKIP_INTRO: async ({ dispatch, commit, rootGetters }, { userInitiated = true } = {}) => {
     const introMarker = rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA_INTRO_MARKER'];
     if (!introMarker) {
       return;
@@ -954,7 +958,7 @@ export default {
     }, { root: true });
 
     commit('SET_OFFSET_MS', introEnd);
-    setCurrentTimeMs(introEnd);
+    setCurrentTimeMs(introEnd, { userInitiated });
   },
 
   ...subtitleActions,

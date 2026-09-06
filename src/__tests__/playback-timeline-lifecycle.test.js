@@ -5,6 +5,7 @@ import events from '@/store/modules/synclounge/eventhandlers';
 import mutations from '@/store/modules/synclounge/mutations';
 import sync from '@/store/modules/synclounge/actions';
 import player from '@/store/modules/slplayer/actions';
+import { recordSeekIntent } from '@/player/seekIntent';
 import { getCurrentTimeMs } from '@/player';
 
 vi.mock('@/socket', () => ({
@@ -19,7 +20,7 @@ vi.mock('@/socket', () => ({
 }));
 vi.mock('@/player', () => ({ getCurrentTimeMs: vi.fn(() => 90000) }));
 
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => { vi.useRealTimers(); recordSeekIntent(); });
 
 it.each([
   // Explicit markers are verified by the server, including after buffering already updated time.
@@ -58,7 +59,9 @@ it.each([
   expect(ctx.dispatch.mock.calls.some(([type]) => type === 'plexclients/SEEK_TO')).toBe(seeks);
 });
 
-it.each([null, 90000])('publishes a paused seek and identifies automatic target %s', async (target) => {
+const seekCases = [[null, true], [90000, false], [85000, false], [null, false], [90000, true]];
+it.each(seekCases)('publishes target %s with explicit user intent %s', async (target, userInitiated) => {
+  recordSeekIntent(userInitiated);
   getCurrentTimeMs.mockReturnValue(90000);
   const ctx = {
     state: { isChangingSource: false, syncSeekTarget: target },
@@ -67,7 +70,7 @@ it.each([null, 90000])('publishes a paused seek and identifies automatic target 
   };
   await player.HANDLE_SEEKED(ctx);
   expect(ctx.dispatch).toHaveBeenCalledWith('synclounge/PROCESS_PLAYER_STATE_UPDATE', {
-    noSync: true, userInitiatedSeek: target === null,
+    noSync: true, userInitiatedSeek: userInitiated,
   }, { root: true });
   expect(ctx.commit).toHaveBeenCalledWith('SET_SYNC_SEEK_TARGET', null);
 });
@@ -90,7 +93,7 @@ it.each(['ios', 'cast', 'browser'])('isolates an automatic %s recovery in a four
   };
   getCurrentTimeMs.mockReturnValue(90000);
   const recoveringPlayer = {
-    state: { syncSeekTarget: 90000 },
+    state: { syncSeekTarget: 85000 },
     commit: vi.fn(),
     dispatch: vi.fn(async (name, options) => {
       if (name === 'synclounge/PROCESS_PLAYER_STATE_UPDATE') {
@@ -111,7 +114,7 @@ it.each(['ios', 'cast', 'browser'])('isolates an automatic %s recovery in a four
   expect(users[guest].time).toBe(90000);
 
   // A subsequent deliberate seek still moves the host, preserving party controls.
-  recoveringPlayer.state.syncSeekTarget = null;
+  recordSeekIntent(true);
   await player.HANDLE_SEEKED(recoveringPlayer);
   const seek = expect.objectContaining({ offset: 90000 });
   expect(host.dispatch).toHaveBeenCalledWith('plexclients/SEEK_TO', seek, { root: true });
