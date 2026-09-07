@@ -4,6 +4,7 @@ import vuetify from './plugins/vuetify';
 import App from './App.vue';
 import router from './router';
 import store from './store';
+import { startPwa } from './pwa';
 import mapErrorMessage from './utils/errorutils';
 import {
   getSignInRoute,
@@ -97,5 +98,8 @@ router.beforeEach(async (to, from, next) => {
     next();
   }
 });
+
+const stopPwa = startPwa({ register: import.meta.env.PROD });
+if (import.meta.hot) import.meta.hot.dispose(stopPwa);
 
 app.mount('#app');

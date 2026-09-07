@@ -21,6 +21,16 @@ docker build --build-arg VERSION=dev-local -t synclounge:dev-local .
 
 Behavior changes need focused regression tests. Pull requests must list the commands actually run; a generic “tests pass” statement is not verification evidence.
 
+For responsive UI checks, run `npm run serve` and open `/test/fixtures/ui-preview.html`.
+The development-only fixture renders the room, server, media, and four-person chat views
+with local sample data. Check narrow phones (320–390px), tablets (768px), and desktops
+(1440px), including long titles, chat submission, and drawer controls. It is excluded
+from production builds. The fixture uses the same external font stylesheet as the app.
+
+Verify installation, update prompts, and offline recovery against a production build
+served by `node server.js` over HTTPS or localhost; the development server does not
+register a service worker. Existing tabs must keep playing when an update becomes available.
+
 ## Pull requests
 
 - Target `dev`; only release promotions target `main`.

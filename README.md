@@ -39,6 +39,7 @@ SyncLounge keeps multiple viewing sessions in sync using a WebSocket server as a
 - Chat with room members
 - Optional Plex user and server authorization allowlists
 - Shareable invite links with rich social previews
+- Installable desktop and mobile web app with an offline connection screen
 - Configurable sync flexibility and sync method (clean seek / skip ahead)
 
 ## Running
@@ -71,6 +72,17 @@ node server.js
 ```
 
 Listens on port 8088 by default. The documented deployment serves SyncLounge at the root of a hostname; path-prefix deployments require additional asset-base configuration and are not currently supported by the published image.
+
+## Install as an app
+
+Serve SyncLounge over HTTPS (or localhost for testing), then choose **Install SyncLounge**
+in the navigation menu. On iPhone and iPad, use the browser’s **Share → Add to Home Screen**
+option. Installation uses the root of the hostname, matching the supported deployment layout.
+
+Watching and chatting require a connection. The offline screen caches only public assets;
+room pages, credentials, posters, and video are never cached by the service worker.
+When an update is ready, choose **Update available → Reload now** between viewing sessions.
+Updates do not automatically reload an active player.
 
 ## Configuration
 

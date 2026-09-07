@@ -13,7 +13,7 @@
       <span class="text-disabled text-caption ml-1">{{ formattedTime }}</span>
     </v-list-item-title>
 
-    <v-list-item-subtitle
+    <p
       class="message-content"
       v-text="message.text"
     />
@@ -53,9 +53,12 @@ export default {
 
 <style scoped>
 .message-content {
-  white-space: normal !important;
-  font-weight: normal !important;
-  font-size: 0.75rem !important;
-  line-height: 1.3 !important;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-weight: normal;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--sl-text-muted);
+  margin-top: 4px;
 }
 </style>

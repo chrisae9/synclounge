@@ -3,19 +3,21 @@
     :model-value="isRightSidebarOpen"
     location="right"
     class="pa-0 sidebar-blur"
-    width="300"
+    :width="$vuetify.display.xs ? Math.min($vuetify.display.width, 360) : 340"
+    aria-label="Watch party"
     :temporary="$vuetify.display.mdAndDown"
     @update:model-value="SET_RIGHT_SIDEBAR_OPEN"
   >
     <template #prepend>
       <v-list-item
-        class="pa-1"
+        class="px-2 py-3"
         density="compact"
       >
         <template #prepend>
           <v-btn
             icon
-            size="x-small"
+            size="default"
+            aria-label="Close watch party"
             variant="text"
             @click="SET_RIGHT_SIDEBAR_OPEN(false)"
           >
@@ -24,6 +26,10 @@
             </v-icon>
           </v-btn>
         </template>
+
+        <v-list-item-title class="font-weight-bold mb-1">
+          Watch party
+        </v-list-item-title>
 
         <v-list-item-subtitle
           v-if="Object.keys(GET_USERS).length != 1"
@@ -42,8 +48,9 @@
         <template #append>
           <v-btn
             icon
-            size="small"
+            size="default"
             variant="text"
+            aria-label="Leave watch party"
             @click="DISCONNECT_AND_NAVIGATE_HOME"
           >
             <v-icon>exit_to_app</v-icon>
@@ -67,7 +74,7 @@
         />
 
         <v-list-item-subtitle
-          v-if="!AM_I_HOST && GET_HOST_USER.state === 'stopped'"
+          v-if="!AM_I_HOST && GET_HOST_USER && GET_HOST_USER.state === 'stopped'"
         >
           Waiting for {{ GET_HOST_USER ? GET_HOST_USER.username : 'host' }} to start
         </v-list-item-subtitle>
@@ -116,7 +123,7 @@
                 size="small"
                 variant="flat"
                 color="primary"
-                class="text-white"
+                :aria-label="GET_HOST_USER.state === 'playing' ? 'Pause party' : 'Resume party'"
                 :disabled="!IS_PARTY_PAUSING_ENABLED"
                 @click="sendPartyPause(GET_HOST_USER.state === 'playing')"
               >
@@ -215,7 +222,7 @@ export default {
 }
 
 .sidebar-switch :deep(.v-selection-control) {
-  min-height: 28px;
+  min-height: 44px;
 }
 
 .sidebar-switch :deep(.v-switch__track) {
@@ -229,7 +236,7 @@ export default {
 }
 
 .sidebar-switch :deep(.v-label) {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   opacity: 0.85;
   padding-inline-start: 8px;
 }
@@ -237,7 +244,11 @@ export default {
 .sidebar-blur {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  background: rgba(0, 0, 0, 0.85) !important;
+  background: rgba(12, 14, 18, 0.96) !important;
+  border-left: 1px solid var(--sl-border);
+  /* Override pa-0 so the party header clears the standalone status bar/notch. */
+  padding-top: env(safe-area-inset-top) !important;
+  padding-right: env(safe-area-inset-right) !important;
 }
 
 .sidebar-blur :deep(.v-navigation-drawer__content) {
