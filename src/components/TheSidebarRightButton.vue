@@ -1,10 +1,12 @@
 <template>
   <v-app-bar-nav-icon
+    :aria-label="isRightSidebarOpen ? 'Close watch party' : 'Open watch party'"
+    :aria-expanded="isRightSidebarOpen"
     @click="TOGGLE_RIGHT_SIDEBAR_OPEN"
   >
     <v-icon>
       {{
-        isRightSidebarOpen ? 'last_page' : 'first_page'
+        isRightSidebarOpen ? 'close' : 'forum'
       }}
     </v-icon>
   </v-app-bar-nav-icon>

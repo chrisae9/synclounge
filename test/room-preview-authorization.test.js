@@ -198,6 +198,12 @@ describe('room preview authorization', () => {
       assert.ok(html.includes('&lt;SCRIPT&gt;alert(1)&lt;/SCRIPT&gt;'));
       assert.ok(html.includes('&quot; onload=&quot;bad &amp; &lt;img&gt;'));
       assert.ok(!html.includes('<SCRIPT>'));
+      assert.equal((html.match(/name="theme-color"/g) || []).length, 1);
+      assert.match(html, /name="theme-color" content="#141418"/);
+      assert.equal((html.match(/property="og:title"/g) || []).length, 1);
+      assert.equal((html.match(/name="twitter:title"/g) || []).length, 1);
+      assert.match(html, /name="twitter:title" content="&lt;SCRIPT&gt;alert\(1\)&lt;\/SCRIPT&gt; - Host title"/);
+      assert.ok(!html.includes('content="/social-card.png"'));
       const otherRoom = await (await fetch(`${baseUrl}/room/other/browse/server/same-machine/ratingKey/1`)).text();
       assert.ok(!otherRoom.includes('Host title'));
       const otherMedia = await (await fetch(`${baseUrl}/room/${roomId}/browse/server/same-machine/ratingKey/2`)).text();
@@ -253,6 +259,17 @@ describe('room preview authorization', () => {
     ]);
   });
 
+  it('uses the configured origin for default shared images without trusting request Host', async () => {
+    const response = await fetch(`${baseUrl}/`, {
+      headers: { Host: 'untrusted.example', 'X-Forwarded-Host': 'untrusted.example' },
+    });
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.equal(getOgImageUrl(html), `${baseUrl}/social-card.png`);
+    assert.ok(html.includes(`name="twitter:image" content="${baseUrl}/social-card.png"`));
+    assert.ok(!html.includes('untrusted.example'));
+  });
+
   it('allows only the current socket host to bind cached media to a room', async () => {
     const roomId = `preview-${Date.now()}`;
     const hostMedia = {
@@ -303,6 +320,9 @@ describe('room preview authorization', () => {
       assert.ok(hostHtml.includes(`/share/room-poster/${roomId}`));
       const hostPosterUrl = getOgImageUrl(hostHtml);
       assert.ok(hostPosterUrl);
+      assert.equal((hostHtml.match(/property="og:image"/g) || []).length, 1);
+      assert.equal((hostHtml.match(/name="twitter:image"/g) || []).length, 1);
+      assert.ok(hostHtml.includes(`<meta name="twitter:image" content="${hostPosterUrl}"`));
       const hostPoster = await fetch(hostPosterUrl);
       assert.equal(hostPoster.status, 200);
       assert.equal(hostPoster.headers.get('cache-control'), 'public, max-age=60');
@@ -408,7 +428,8 @@ describe('room preview authorization', () => {
         roomId,
         (html) => html.includes('content="SyncLounge"') && !html.includes('Promoted Guest Movie'),
       );
-      assert.equal(getOgImageUrl(emptyHtml), null);
+      assert.equal(getOgImageUrl(emptyHtml), `${baseUrl}/social-card.png`);
+      assert.ok(emptyHtml.includes(`name="twitter:image" content="${baseUrl}/social-card.png"`));
     } finally {
       host.close();
       guest.close();

@@ -58,7 +58,7 @@
               block
               variant="flat"
               color="primary"
-              class="text-white"
+              class="media-play-button"
               size="large"
             >
               <v-icon start>
@@ -73,7 +73,7 @@
             block
             variant="flat"
             color="primary"
-            class="text-white"
+            class="media-play-button"
             size="large"
             @click="playMedia(metadata, 0, 0)"
           >
@@ -89,14 +89,14 @@
     <template #postTitle>
       <v-col
         cols="auto"
-        class="ml-auto"
+        class="media-badges"
       >
         <v-chip
           v-if="
             metadata.Media && metadata.Media[0] && metadata.Media[0].videoResolution
           "
           variant="outlined"
-          class="mr-2"
+          class="mr-2 mb-2"
         >
           {{ metadata.Media[0].videoResolution.toUpperCase() }}
         </v-chip>
@@ -106,7 +106,7 @@
           color="grey-darken-2"
           size="small"
           label
-          class="mr-2"
+          class="mr-2 mb-2"
         >
           {{ metadata.contentRating }}
         </v-chip>
@@ -123,12 +123,13 @@
 
       <v-col
         cols="auto"
-        class="ml-auto"
+        class="media-menu"
       >
         <v-menu>
           <template #activator="{ props }">
             <v-btn
               icon
+              aria-label="More media options"
               variant="text"
               v-bind="props"
             >
@@ -478,6 +479,35 @@ export default {
 </script>
 
 <style scoped>
+.media-badges {
+  min-width: 0;
+  flex: 1 1 160px;
+  white-space: normal;
+}
+
+.media-badges :deep(.v-chip) {
+  max-width: 100%;
+}
+
+.media-badges :deep(.v-chip__content) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-menu {
+  margin-left: auto;
+}
+
+.media-play-button {
+  min-height: 48px;
+}
+
+@media (min-width: 600px) {
+  .media-play-button {
+    max-width: 280px;
+  }
+}
+
 .summary-clamped {
   display: -webkit-box;
   -webkit-line-clamp: 3;

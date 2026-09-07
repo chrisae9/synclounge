@@ -72,12 +72,23 @@
           content-class="thumbnail-tooltip"
         >
           <template #activator="{ props }">
-            <v-icon
-              color="primary"
+            <v-btn
+              v-if="AM_I_HOST && id !== GET_HOST_ID"
               v-bind="props"
-              @click="AM_I_HOST && id !== GET_HOST_ID ? TRANSFER_HOST(id) : null"
+              icon="star_outline"
+              color="primary"
+              variant="text"
+              :aria-label="`Make ${user.username} the host`"
+              @click="TRANSFER_HOST(id)"
+            />
+            <v-icon
+              v-else
+              v-bind="props"
+              color="primary"
+              role="img"
+              :aria-label="`${user.username} is the host`"
             >
-              {{ getHostIconName(id === GET_HOST_ID) }}
+              star
             </v-icon>
           </template>
 
@@ -102,12 +113,13 @@
           content-class="thumbnail-tooltip"
         >
           <template #activator="{ props }">
-            <v-icon
+            <v-btn
               v-bind="props"
+              icon="clear"
+              variant="text"
+              :aria-label="`Remove ${user.username} from the room`"
               @click="KICK_USER(id)"
-            >
-              clear
-            </v-icon>
+            />
           </template>
 
           <span>Kick</span>

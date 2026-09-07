@@ -1,16 +1,15 @@
 <template>
-  <v-container class="fill-height">
+  <v-container class="welcome-layout">
     <v-row
       align="center"
       justify="center"
     >
       <v-col>
         <v-card
-          class="mx-auto"
-          max-width="550"
+          class="mx-auto welcome-card"
+          max-width="480"
           :loading="loading"
-          variant="outlined"
-          color="rgba(255, 255, 255, 0.12)"
+          variant="flat"
         >
           <v-alert
             v-if="GET_PLEX_AUTH_TOKEN && IS_USER_AUTHORIZED === false"
@@ -19,23 +18,35 @@
             You are not authorized to access this server
           </v-alert>
 
-          <v-card-title>
-            <v-img
+          <div class="welcome-heading">
+            <img
               src="@/assets/images/logos/logo-long-light.png"
-            />
-          </v-card-title>
+              alt="SyncLounge"
+              class="welcome-logo"
+            >
+            <p class="eyebrow">
+              WATCH TOGETHER
+            </p>
+            <h1 class="welcome-title">
+              Movie night, together.
+            </h1>
+            <p class="welcome-description">
+              Bring your Plex library and your favorite people. Sign in to start a watch party.
+            </p>
+          </div>
 
-          <v-card-actions class="justify-center pa-4">
+          <v-card-actions class="welcome-actions justify-center">
             <v-btn
               color="primary"
               size="x-large"
               variant="flat"
-              class="text-white"
+              class="welcome-primary"
               block
               :disabled="allowSignIn"
+              :loading="loading"
               @click="signIn"
             >
-              Sign in
+              Continue with Plex
             </v-btn>
           </v-card-actions>
         </v-card>

@@ -76,6 +76,13 @@ const distPath = path.join(__dirname, 'dist');
 let indexHtml = '';
 try {
   indexHtml = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
+  if (publicOrigin) {
+    // Use only the configured origin; request Host headers are not trusted for shared previews.
+    indexHtml = indexHtml.replace(
+      /(<meta\s+(?:property="og:image"|name="twitter:image")\s+content=")\/social-card\.png(")/g,
+      (match, prefix, suffix) => `${prefix}${escapeHtml(publicOrigin)}/social-card.png${suffix}`,
+    );
+  }
 } catch (e) {
   console.warn('Could not read dist/index.html at startup:', e.message);
 }
@@ -100,12 +107,15 @@ function injectOgTags(html, meta) {
     meta.posterProxyUrl ? `<meta property="og:image" content="${escapeHtml(meta.posterProxyUrl)}" />` : '',
     `<meta property="og:type" content="${ogType}" />`,
     '<meta property="og:site_name" content="SyncLounge" />',
-    '<meta name="theme-color" content="#E5A00D" />',
+    `<meta name="twitter:card" content="${meta.posterProxyUrl ? 'summary_large_image' : 'summary'}" />`,
+    `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
+    meta.summary ? `<meta name="twitter:description" content="${escapeHtml(meta.summary)}" />` : '',
+    meta.posterProxyUrl ? `<meta name="twitter:image" content="${escapeHtml(meta.posterProxyUrl)}" />` : '',
   ].filter(Boolean).join('\n    ');
 
   // Remove existing OG/Twitter meta tags from the static HTML so we replace rather than duplicate
   const cleaned = html.replace(
-    /<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*"|name="theme-color")[^>]*\/?\s*>\s*\n?/g,
+    /<meta\s+(?:property="og:[^"]*"|name="twitter:[^"]*")[^>]*\/?\s*>\s*\n?/g,
     '',
   );
 
@@ -243,6 +253,13 @@ async function proxyPoster(meta, req, res, cacheControl = 'public, max-age=86400
 }
 
 const preStaticInjection = (router) => {
+  // Revalidate stable PWA entry points so installed clients can discover updates.
+  router.get(['/sw.js', '/manifest.webmanifest'], (req, res, next) => {
+    res.set('Cache-Control', 'no-cache');
+    if (req.path === '/manifest.webmanifest') res.type('application/manifest+json');
+    next();
+  });
+
   // Add route for config
   router.get('/config.json', (req, res) => {
     res.json(publicAppConfig);
@@ -290,6 +307,9 @@ const preStaticInjection = (router) => {
       return res.status(500).send('index.html not available');
     }
 
+    // Navigation HTML may contain the current room's selected media preview.
+    res.set('Cache-Control', 'no-store');
+
     // A browse link may expose only this room's current host-selected media.
     const mediaMatch = req.path.match(
       /^\/room\/([^/]+)\/browse\/server\/([^/]+)\/ratingKey\/([^/]+)\/?$/,
@@ -322,17 +342,9 @@ const preStaticInjection = (router) => {
       }
     }
 
-    // Serve index.html with default OG tags for all other SPA routes
-    const defaultOg = [
-      '<meta property="og:title" content="SyncLounge" />',
-      '<meta property="og:description" content="Watch Plex together with your friends" />',
-      '<meta property="og:type" content="website" />',
-      '<meta property="og:site_name" content="SyncLounge" />',
-      '<meta name="theme-color" content="#E5A00D" />',
-    ].join('\n    ');
-    const html = indexHtml.replace('</head>', `    ${defaultOg}\n  </head>`);
+    // Default metadata belongs to the built document, shared with static hosting.
     res.set('Content-Type', 'text/html');
-    return res.send(html);
+    return res.send(indexHtml);
   });
 };
 

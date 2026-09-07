@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -40,6 +41,39 @@ export function generateConfigPlugin({
   };
 }
 
+export function generatePwaPlugin({
+  readFile = (file) => fs.readFileSync(path.join(__dirname, file)),
+} = {}) {
+  return {
+    name: 'synclounge-offline-worker',
+    generateBundle(options, bundle) {
+      const worker = readFile('src/pwa/service-worker.js').toString();
+      const hash = createHash('sha256').update(worker);
+      const hashFile = (name, source) => {
+        const bytes = Buffer.from(source);
+        hash.update(`${name.length}:${name}${bytes.length}:`).update(bytes);
+      };
+      for (const asset of [
+        'index.html', 'public/manifest.webmanifest', 'public/offline.html',
+        'public/offline.css', 'public/icons/icon-192.png', 'public/icons/icon.svg',
+      ]) {
+        hashFile(asset, readFile(asset));
+      }
+      // CSS and metadata can change without a JavaScript change. File names and
+      // stable ordering also make renames visible without depending on plugin order.
+      for (const fileName of Object.keys(bundle).sort()) {
+        const source = bundle[fileName];
+        hashFile(fileName, source.type === 'chunk' ? source.code : source.source);
+      }
+      this.emitFile({
+        type: 'asset',
+        fileName: 'sw.js',
+        source: worker.replace('__SL_CACHE_NAME__', `synclounge-offline-${hash.digest('hex').slice(0, 16)}`),
+      });
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     {
@@ -53,6 +87,7 @@ export default defineConfig({
         }
       },
     },
+    generatePwaPlugin(),
     patchLibjassPlugin(),
     generateConfigPlugin(),
     vue({
@@ -79,7 +114,7 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(
-      process.env.VERSION || '6.0.0',
+      process.env.VERSION || require('./package.json').version,
     ),
   },
   build: {
