@@ -49,7 +49,7 @@ describe('room chat composer', () => {
   it('does not submit Enter while text composition is active', () => {
     const preventDefault = vi.fn();
     MessageInput.methods.handleEnter({ isComposing: true, preventDefault });
-    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(preventDefault).not.toHaveBeenCalled();
   });
 });
 
@@ -94,13 +94,20 @@ describe('Vuetify chat input interaction', () => {
     }
   });
 
-  it('keeps the message draft when Enter confirms IME composition', async () => {
+  it.each([
+    { isComposing: true, keyCode: 13 },
+    { isComposing: false, keyCode: 229 },
+  ])('leaves composing Enter untouched: %j', async ({ isComposing, keyCode }) => {
     const send = vi.fn().mockResolvedValue(undefined);
     const wrapper = mountComposer(send);
     try {
       await wrapper.get('input').setValue('まだ入力中');
-      await wrapper.get('input').trigger('keydown', { key: 'Enter', isComposing: true });
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter', isComposing, keyCode, bubbles: true, cancelable: true,
+      });
+      wrapper.get('input').element.dispatchEvent(event);
       await flushPromises();
+      expect(event.defaultPrevented).toBe(false);
       expect(send).not.toHaveBeenCalled();
       expect(wrapper.get('input').element.value).toBe('まだ入力中');
     } finally {

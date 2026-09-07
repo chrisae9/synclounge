@@ -55,8 +55,10 @@ export default {
     ]),
 
     handleEnter(event) {
+      // Some IMEs finish composition before their final keydown event.
+      if (event.isComposing || event.keyCode === 229) return;
       event.preventDefault();
-      if (!event.isComposing) this.sendMessage();
+      this.sendMessage();
     },
 
     async sendMessage() {
