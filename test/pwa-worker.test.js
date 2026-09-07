@@ -3,7 +3,7 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-function setup({ failNetwork = false } = {}) {
+function setup({ failNetwork = false, responseStatus = 200 } = {}) {
   const handlers = {};
   const added = [];
   const removed = [];
@@ -27,7 +27,7 @@ function setup({ failNetwork = false } = {}) {
     fetch: async (request) => {
       requests.push(request.url);
       if (failNetwork) throw new Error('offline');
-      return new Response('live room');
+      return new Response('live room', { status: responseStatus });
     },
   };
   vm.runInNewContext(readFileSync('src/pwa/service-worker.js', 'utf8'), context);
@@ -69,6 +69,39 @@ test('room navigation stays live online and falls back only when unreachable', a
   assert.deepEqual(online.added, []);
   const offline = setup({ failNetwork: true });
   assert.equal(await (await offline.fetchEvent('/join/friends')).text(), 'offline screen');
+});
+
+test('navigation falls back for proxy failures but preserves auth and missing-page responses', async () => {
+  await Promise.all([500, 502, 503, 504].map(async (responseStatus) => {
+    const app = setup({ responseStatus });
+    const response = await app.fetchEvent('/join/friends');
+    assert.equal(await response.text(), 'offline screen', `HTTP ${responseStatus}`);
+    assert.deepEqual(app.requests, ['https://lounge.example/join/friends']);
+  }));
+  await Promise.all([401, 403, 404, 429].map(async (responseStatus) => {
+    const app = setup({ responseStatus });
+    const response = await app.fetchEvent('/join/friends');
+    assert.equal(response.status, responseStatus);
+    assert.equal(await response.text(), 'live room');
+  }));
+});
+
+test('proxy failures on API and media requests never substitute offline HTML', async () => {
+  const app = setup({ responseStatus: 503 });
+  const requests = [
+    ['/api/auth', {}],
+    ['/socket.io/', {}],
+    ['/share/room-poster/friends/1', {}],
+    ['/config.json', {}],
+    ['/cast-receiver.html', {}],
+    ['/video.m3u8', {}],
+    ['/stream', { headers: new Headers({ range: 'bytes=0-' }) }],
+    ['/library/metadata', { mode: 'cors' }],
+  ];
+  await Promise.all(requests.map(async ([path, options]) => {
+    assert.equal(await app.fetchEvent(path, options), undefined, path);
+  }));
+  assert.deepEqual(app.requests, []);
 });
 
 test('worker bypasses authentication, room metadata, media, config, and range requests', async () => {

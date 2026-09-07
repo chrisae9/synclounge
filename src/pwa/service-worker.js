@@ -33,8 +33,11 @@ self.addEventListener('fetch', (event) => {
   }
   if (request.mode !== 'navigate' || /^\/(api|share|socket\.io)(\/|$)/.test(url.pathname)
     || url.pathname === '/health' || /\/[^/]*\.[^/]+$/.test(url.pathname)) return;
-  event.respondWith(fetch(request).catch(async () => {
+  const offlineResponse = async () => {
     const cache = await caches.open(CACHE_NAME);
     return await cache.match('/offline.html') || Response.error();
-  }));
+  };
+  event.respondWith(fetch(request).then((response) => (
+    response.status >= 500 ? offlineResponse() : response
+  )).catch(offlineResponse));
 });
