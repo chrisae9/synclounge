@@ -6,6 +6,19 @@
     @update:model-value="SET_LEFT_SIDEBAR_OPEN"
   >
     <v-list-item
+      title="SyncLounge"
+      class="pt-3"
+    >
+      <template #append>
+        <v-btn
+          icon="close"
+          variant="text"
+          aria-label="Close navigation"
+          @click="SET_LEFT_SIDEBAR_OPEN(false)"
+        />
+      </template>
+    </v-list-item>
+    <v-list-item
       v-if="GET_PLEX_USER"
       class="py-4"
     >
@@ -27,6 +40,8 @@
       nav
       class="pt-2"
     >
+      <ThePwaInstall />
+
       <TheSettingsDialog v-slot="{ props }">
         <v-list-item
           v-bind="props"
@@ -86,6 +101,7 @@ export default {
   name: 'TheSidebarLeft',
 
   components: {
+    ThePwaInstall: defineAsyncComponent(() => import('@/components/ThePwaInstall.vue')),
     TheSettingsDialog: defineAsyncComponent(() => import('@/components/TheSettingsDialog.vue')),
   },
 
@@ -125,4 +141,8 @@ export default {
   font-size: 0.7rem;
   color: rgba(255, 255, 255, 0.3);
 }
+</style>
+
+<style scoped>
+.sidebar-version { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 </style>

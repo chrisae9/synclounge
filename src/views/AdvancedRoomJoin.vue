@@ -1,27 +1,37 @@
 <template>
-  <v-container class="fill-height">
+  <v-container class="welcome-layout">
     <v-row
       align="center"
       justify="center"
     >
       <v-col>
         <v-card
-          class="mx-auto advanced-card"
-          max-width="700"
+          class="mx-auto welcome-card advanced-card"
+          max-width="800"
           :loading="connectionPending"
-          variant="outlined"
-          color="rgba(255, 255, 255, 0.12)"
+          variant="flat"
         >
-          <v-card-title>
-            <v-img
+          <div class="welcome-heading">
+            <img
               src="@/assets/images/logos/logo-long-light.png"
-            />
-          </v-card-title>
+              alt="SyncLounge"
+              class="welcome-logo"
+            >
+            <p class="eyebrow">
+              CONNECTION OPTIONS
+            </p>
+            <h1 class="welcome-title">
+              Choose your server.
+            </h1>
+            <p class="welcome-description">
+              Select a SyncLounge server for your watch party, or connect to your own.
+            </p>
+          </div>
 
           <v-card-text class="pt-2">
-            <div class="section-header">
-              Select a server
-            </div>
+            <h2 class="section-header">
+              Available servers
+            </h2>
 
             <v-row class="mt-2">
               <v-col
@@ -72,7 +82,7 @@
                       v-else
                       class="text-center text-red"
                     >
-                      error
+                      Unavailable
                     </div>
                   </v-card-text>
 
@@ -81,7 +91,7 @@
                       block
                       variant="flat"
                       color="primary"
-                      class="text-white"
+                      class="welcome-primary"
                       :disabled="connectionPending"
                       @click="connect(server.url)"
                     >
@@ -116,6 +126,9 @@
                       hide-details
                       variant="outlined"
                       density="compact"
+                      label="Server address"
+                      type="url"
+                      autocomplete="url"
                       placeholder="https://"
                       :model-value="customServerUrl"
                       @update:model-value="SET_CUSTOM_SERVER_URL"
@@ -127,7 +140,7 @@
                       block
                       variant="flat"
                       color="primary"
-                      class="text-white"
+                      class="welcome-primary"
                       :disabled="connectionPending"
                       @click="connect(customServerUrl)"
                     >

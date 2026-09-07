@@ -5,7 +5,8 @@
     location="bottom start"
     offset="5"
     scroll-strategy="reposition"
-    min-width="300"
+    min-width="0"
+    max-width="calc(100vw - 24px)"
   >
     <template #activator="{ props }">
       <v-text-field
@@ -13,7 +14,8 @@
         v-model="query"
         density="compact"
         prepend-inner-icon="search"
-        placeholder="Search..."
+        aria-label="Search your Plex libraries"
+        placeholder="Search your libraries"
         hide-details
         variant="solo-filled"
         clearable
@@ -26,7 +28,7 @@
       v-if="query || items.length"
       density="compact"
       class="py-0"
-      style="max-height: 80vh; max-width: 500px; overflow-y: auto;"
+      style="max-height: min(60dvh, 480px); max-width: min(500px, calc(100vw - 24px)); overflow-y: auto;"
     >
       <v-list-item
         v-if="query"

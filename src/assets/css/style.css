@@ -1,3 +1,97 @@
+/* Shared app surfaces and accessible interaction states. */
+:root {
+  --sl-border: rgba(255, 255, 255, 0.1);
+  --sl-text-muted: #b7bdc8;
+  --sl-surface: #12151b;
+}
+
+:is(a, button, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #e5a00d;
+  outline-offset: 4px;
+}
+
+.welcome-layout {
+  min-height: calc(100dvh - var(--v-layout-top, 64px) - 48px);
+  display: flex;
+  align-items: center;
+  padding: 24px 12px;
+}
+
+.v-card.welcome-card {
+  width: 100%;
+  border: 1px solid var(--sl-border);
+  border-radius: 24px;
+  background: radial-gradient(ellipse at top right, rgba(229, 160, 13, 0.09), transparent 65%),
+    var(--sl-surface) !important;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
+}
+
+.welcome-heading {
+  padding: 36px 32px 20px;
+}
+
+.welcome-logo {
+  display: block;
+  width: 210px;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 36px;
+}
+
+.eyebrow {
+  color: #e5a00d;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  margin-bottom: 12px;
+}
+
+.welcome-title {
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.welcome-description {
+  margin-top: 16px;
+  color: var(--sl-text-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.v-card-actions.welcome-actions {
+  padding: 12px 32px 32px;
+}
+
+.v-btn.welcome-primary {
+  border-radius: 12px;
+  text-transform: none;
+  font-weight: 700;
+  min-height: 48px;
+  letter-spacing: 0;
+}
+
+@media (max-width: 599px) {
+  .welcome-layout {
+    padding: 12px 0;
+  }
+
+  .welcome-heading {
+    padding: 28px 24px 16px;
+  }
+
+  .v-card-actions.welcome-actions {
+    padding: 12px 24px 24px;
+  }
+
+  .welcome-logo {
+    width: 185px;
+    margin-bottom: 28px;
+  }
+}
+
 main {
   background: #000000;
 }

@@ -1,5 +1,9 @@
 <template>
   <v-app>
+    <a
+      class="skip-link"
+      href="#main-content"
+    >Skip to content</a>
     <TheSidebarLeft />
     <router-view name="rightSidebar" />
 
@@ -11,7 +15,11 @@
       style="z-index: 5;"
       :extension-height="showAppBarExtension ? 80 : 0"
     >
-      <v-app-bar-nav-icon @click="SET_LEFT_SIDEBAR_OPEN" />
+      <v-app-bar-nav-icon
+        :aria-label="isLeftSidebarOpen ? 'Close navigation' : 'Open navigation'"
+        :aria-expanded="!!isLeftSidebarOpen"
+        @click="SET_LEFT_SIDEBAR_OPEN(!isLeftSidebarOpen)"
+      />
 
       <router-link
         :to="{ name: 'RoomCreation' }"
@@ -22,6 +30,7 @@
             :media="smallLogoMedia"
           >
           <img
+            alt="SyncLounge home"
             height="42"
             src="@/assets/images/logos/logo-long-light.png"
             style="vertical-align: middle;"
@@ -36,7 +45,7 @@
           v-if="inviteUrl"
           variant="flat"
           color="primary"
-          class="text-white"
+          aria-label="Copy room invite link"
           @click="copyToClipboard(inviteUrl)"
         >
           <v-icon
@@ -67,6 +76,8 @@
     </v-app-bar>
 
     <v-main
+      id="main-content"
+      tabindex="-1"
       class="main-content"
     >
       <v-container
@@ -76,7 +87,7 @@
       >
         <v-sheet
           color="transparent"
-          class="overflow-y-auto pa-3"
+          class="app-content-scroll overflow-y-auto pa-3"
           style="height: calc(100dvh - var(--v-layout-top, 64px));"
         >
           <v-container
@@ -98,7 +109,14 @@
             </v-row>
           </v-container>
 
-          <router-view v-else />
+          <div
+            v-if="pwaState.offline"
+            role="status"
+            class="offline-status"
+          >
+            You're offline. Reconnect to watch and chat with your room.
+          </div>
+          <router-view v-if="GET_CONFIG" />
 
           <v-snackbar
             :model-value="GET_SNACKBAR_OPEN"
@@ -126,9 +144,10 @@
 
 <script>
 import './assets/css/style.css';
+import { pwaState } from '@/pwa';
 
 import {
-  mapActions, mapGetters, mapMutations,
+  mapActions, mapGetters, mapMutations, mapState,
 } from 'vuex';
 import { defineAsyncComponent } from 'vue';
 import clipboard from '@/mixins/clipboard';
@@ -150,9 +169,11 @@ export default {
 
   data: () => ({
     pendingAuthRedirect: null,
+    pwaState,
   }),
 
   computed: {
+    ...mapState(['isLeftSidebarOpen']),
     ...mapGetters([
       'GET_UP_NEXT_POST_PLAY_DATA',
       'GET_CONFIG',
@@ -366,5 +387,36 @@ export default {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+</style>
+
+<style scoped>
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: 16px;
+  z-index: 9999;
+  padding: 12px 20px;
+  background: #e5a00d;
+  color: #17120a;
+  border-radius: 8px;
+}
+.skip-link:focus { top: max(8px, env(safe-area-inset-top)); }
+.app-bar-blur { margin-top: env(safe-area-inset-top); }
+.main-content { padding-top: calc(var(--v-layout-top, 64px) + env(safe-area-inset-top)); }
+.app-content-scroll {
+  height: calc(100dvh - var(--v-layout-top, 64px) - env(safe-area-inset-top)) !important;
+  padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
+  padding-left: max(12px, env(safe-area-inset-left)) !important;
+  padding-right: max(12px, env(safe-area-inset-right)) !important;
+}
+.offline-status {
+  padding: 12px 16px;
+  margin: 0 auto 16px;
+  max-width: 960px;
+  color: #f3cc77;
+  background: #2a2318;
+  border: 1px solid #705522;
+  border-radius: 12px;
 }
 </style>

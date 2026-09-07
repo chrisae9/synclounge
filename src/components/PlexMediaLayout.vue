@@ -1,77 +1,54 @@
 <template>
-  <v-container>
-    <v-row>
-      <v-col>
-        <v-card
-          :img="artUrl"
-        >
-          <v-container
-            class="media-layout-overlay"
-            fluid
-          >
-            <v-row
-              no-gutters
-              class="flex-nowrap"
+  <v-container class="media-detail">
+    <v-card
+      :img="artUrl"
+      class="media-detail-card"
+      variant="flat"
+    >
+      <div class="media-layout-overlay">
+        <div class="media-heading-layout">
+          <div class="media-poster">
+            <v-img
+              :src="thumbUrl"
+              :aspect-ratio="2 / 3"
+              alt=""
+              cover
+              class="rounded-lg"
+            />
+            <slot name="belowImage" />
+          </div>
+          <div class="media-heading-content">
+            <h1 class="media-title">
+              {{ title }}
+            </h1>
+            <p class="media-secondary-title">
+              {{ secondaryTitle }}
+            </p>
+            <p
+              v-if="subtitle"
+              class="text-body-1 mt-2"
             >
-              <v-col
-                cols="auto"
-                class="mr-3 flex-shrink-0"
-              >
-                <v-img
-                  :src="thumbUrl"
-                  :width="$vuetify.display.smAndDown ? 100 : 200"
-                  :aspect-ratio="2 / 3"
-                />
-
-                <slot name="belowImage" />
-              </v-col>
-
-              <v-col class="min-width-0">
-                <v-container>
-                  <v-row dense>
-                    <v-col
-                      class="text-h4 font-weight-bold"
-                    >
-                      {{ title }}
-                    </v-col>
-
-                    <slot name="postTitle" />
-
-                    <v-col
-                      cols="12"
-                      class="text-subtitle-1 text-medium-emphasis"
-                    >
-                      {{ secondaryTitle }}
-                    </v-col>
-
-                    <v-col
-                      v-if="subtitle"
-                      cols="12"
-                      class="text-subtitle-2"
-                    >
-                      {{ subtitle }}
-                    </v-col>
-
-                    <v-col
-                      v-if="secondarySubtitle"
-                      cols="12"
-                      class="text-caption"
-                      style="opacity: 0.5;"
-                    >
-                      {{ secondarySubtitle }}
-                    </v-col>
-                  </v-row>
-
-                  <v-divider />
-
-                  <slot name="content" />
-                </v-container>
-              </v-col>
+              {{ subtitle }}
+            </p>
+            <p
+              v-if="secondarySubtitle"
+              class="text-body-2 text-medium-emphasis mt-2"
+            >
+              {{ secondarySubtitle }}
+            </p>
+            <v-row
+              dense
+              class="media-meta mt-3"
+            >
+              <slot name="postTitle" />
             </v-row>
-          </v-container>
-        </v-card>
-      </v-col>
-    </v-row>
+          </div>
+        </div>
+        <div class="media-summary">
+          <slot name="content" />
+        </div>
+      </div>
+    </v-card>
 
     <slot name="actions" />
 
@@ -214,13 +191,80 @@ export default {
 </script>
 
 <style scoped>
+.media-detail {
+  max-width: 1440px;
+}
+
+.media-detail-card {
+  border: 1px solid var(--sl-border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
 .media-layout-overlay {
-  background: linear-gradient(
-    to top,
-    #000000 0%,
-    rgba(0, 0, 0, 0.85) 30%,
-    rgba(0, 0, 0, 0.6) 60%,
-    rgba(0, 0, 0, 0.4) 100%
-  );
+  padding: clamp(20px, 3vw, 40px);
+  background: linear-gradient(to top, #101216 0%, rgba(8, 10, 14, 0.92) 50%, rgba(8, 10, 14, 0.74) 100%);
+}
+
+.media-heading-layout {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 32px;
+  align-items: center;
+}
+
+.media-heading-content {
+  min-width: 0;
+}
+
+.media-title {
+  font-size: clamp(1.75rem, 3vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+}
+
+.media-secondary-title {
+  margin-top: 12px;
+  color: var(--sl-text-muted);
+  font-size: 1rem;
+}
+
+.media-meta {
+  align-items: center;
+}
+
+.media-summary {
+  margin-top: 28px;
+  line-height: 1.65;
+}
+
+@media (max-width: 599px) {
+  .media-detail {
+    padding: 4px;
+  }
+
+  .media-layout-overlay {
+    padding: 16px;
+  }
+
+  .media-heading-layout {
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  .media-title {
+    font-size: 1.45rem;
+  }
+
+  .media-secondary-title {
+    margin-top: 8px;
+  }
+
+  .media-summary {
+    margin-top: 20px;
+  }
 }
 </style>

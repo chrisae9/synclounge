@@ -1,0 +1,11 @@
+:root { color-scheme: dark; font-family: system-ui, sans-serif; color: #f5f5f7; background: #141418; }
+* { box-sizing: border-box; }
+body { min-height: 100dvh; margin: 0; display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
+main { max-width: 480px; text-align: center; }
+img { border-radius: 20px; }
+h1 { font-size: clamp(28px, 6vw, 40px); letter-spacing: -.035em; line-height: 1.15; }
+p { color: #b8b8c4; font-size: 17px; line-height: 1.6; }
+.eyebrow { color: #e5a00d; font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; margin-top: 24px; }
+.detail { font-size: 14px; }
+a { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; margin-top: 20px; padding: 0 32px; color: #17120a; background: #e5a00d; border-radius: 12px; text-decoration: none; font-weight: 700; }
+a:focus-visible { outline: 3px solid white; outline-offset: 4px; }
