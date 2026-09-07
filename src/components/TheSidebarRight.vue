@@ -246,6 +246,9 @@ export default {
   -webkit-backdrop-filter: blur(16px);
   background: rgba(12, 14, 18, 0.96) !important;
   border-left: 1px solid var(--sl-border);
+  /* Override pa-0 so the party header clears the standalone status bar/notch. */
+  padding-top: env(safe-area-inset-top) !important;
+  padding-right: env(safe-area-inset-right) !important;
 }
 
 .sidebar-blur :deep(.v-navigation-drawer__content) {

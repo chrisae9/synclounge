@@ -132,17 +132,16 @@ export default {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   background: rgba(0, 0, 0, 0.85) !important;
+  /* Drawers occupy the full viewport independently of the app bar. */
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
 }
 
 .sidebar-version {
   position: absolute;
-  bottom: 12px;
-  left: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: calc(16px + env(safe-area-inset-left));
   font-size: 0.7rem;
   color: rgba(255, 255, 255, 0.3);
 }
-</style>
-
-<style scoped>
-.sidebar-version { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 </style>
