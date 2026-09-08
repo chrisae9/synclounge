@@ -129,6 +129,7 @@ export default {
     },
 
     async createRoom() {
+      this.$store.commit('SET_RIGHT_SIDEBAR_OPEN', false);
       this.error = null;
       this.loading = true;
 

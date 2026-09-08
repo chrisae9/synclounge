@@ -368,7 +368,8 @@ export default {
             episodes: state.bufferingHistory,
             now: Date.now(),
             currentLimit: rootGetters['settings/GET_SLPLAYERQUALITY'],
-            streamBitrate: snapshot.shaka?.streamBandwidth,
+            streamBitrate: snapshot.shaka?.streamBandwidth
+              || (getters.GET_STREAMS?.find((stream) => stream.streamType === 1)?.bitrate || 0) * 1000,
             bufferAhead: snapshot.bufferAhead,
           }));
         }
