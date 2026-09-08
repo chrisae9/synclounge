@@ -199,12 +199,20 @@ export default {
     ]),
 
     driftLabel(user) {
-      if (!this.GET_HOST_USER?.media || !user.media
-        || user.media.machineIdentifier !== this.GET_HOST_USER.media.machineIdentifier
-        || user.media.ratingKey !== this.GET_HOST_USER.media.ratingKey) return 'Different media';
+      const hostMedia = this.GET_HOST_USER?.media;
+      if (!hostMedia || !user.media) return 'Timing unavailable';
+      const sameSource = user.media.machineIdentifier === hostMedia.machineIdentifier
+        && user.media.ratingKey === hostMedia.ratingKey;
+      const matchingTitle = user.media.title && user.media.title === hostMedia.title
+        && user.media.type === hostMedia.type
+        && (hostMedia.type !== 'episode' || (user.media.grandparentTitle === hostMedia.grandparentTitle
+          && user.media.parentIndex === hostMedia.parentIndex && user.media.index === hostMedia.index));
+      if (!sameSource && !matchingTitle) return 'Different media';
       const drift = (this.getAdjustedTime(user) - this.GET_ADJUSTED_HOST_TIME()) / 1000;
       if (!Number.isFinite(drift)) return 'Timing unavailable';
-      return Math.abs(drift) < 0.5 ? 'In sync' : `${Math.abs(drift).toFixed(1)}s ${drift < 0 ? 'behind' : 'ahead'}`;
+      const timing = Math.abs(drift) < 0.5 ? 'In sync'
+        : `${Math.abs(drift).toFixed(1)}s ${drift < 0 ? 'behind' : 'ahead'}`;
+      return sameSource ? timing : `${timing} (estimated)`;
     },
 
     healthLabel(health) {
