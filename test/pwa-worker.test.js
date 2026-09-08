@@ -53,7 +53,9 @@ function setup({ failNetwork = false, responseStatus = 200 } = {}) {
 test('worker caches only the offline screen and leaves unrelated caches intact', async () => {
   const app = setup();
   await new Promise((resolve) => { app.handlers.install({ waitUntil: resolve }); });
-  assert.deepEqual(app.added, ['/offline.html', '/offline.css', '/icons/icon-192.png', '/icons/icon.svg']);
+  assert.deepEqual(app.added, [
+    '/offline.html', '/offline.css', '/offline-report.js', '/icons/icon-192.png', '/icons/icon.svg',
+  ]);
   assert.equal(app.activated(), 0);
   await new Promise((resolve) => { app.handlers.activate({ waitUntil: resolve }); });
   assert.deepEqual(app.removed, ['synclounge-offline-old']);

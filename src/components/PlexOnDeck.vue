@@ -1,72 +1,39 @@
 <template>
   <div v-if="onDeck.length">
     <slot name="preHeader" />
-
-    <v-row
-      no-gutters
+    <MediaShelf
+      :items="onDeck"
+      label="Continue watching"
     >
-      <v-col>
-        <v-list-subheader>
-          <slot name="header">
-            On Deck
-          </slot>
-        </v-list-subheader>
-      </v-col>
-
-      <v-col
-        cols="auto"
-        class="ml-auto"
-      >
-        <v-btn
-          icon
-          :disabled="isAtStart"
-          :aria-disabled="isAtStart"
-          @click="onDeckDown"
-        >
-          <v-icon>navigate_before</v-icon>
-        </v-btn>
-
-        <v-btn
-          icon
-          :disabled="isAtEnd"
-          :aria-disabled="isAtEnd"
-          @click="onDeckUp"
-        >
-          <v-icon>navigate_next</v-icon>
-        </v-btn>
-      </v-col>
-    </v-row>
-
-    <v-row>
-      <v-col
-        v-for="content in subsetOnDeck"
-        :key="content.key"
-        cols="6"
-        sm="4"
-        md="3"
-        xl="2"
-      >
+      <template #header>
+        <slot name="header">
+          On Deck
+        </slot>
+      </template>
+      <template #default="{ item }">
         <PlexThumbnail
-          :content="content"
+          :content="item"
           type="art"
           cols="6"
           sm="4"
           md="3"
           xl="2"
         />
-      </v-col>
-    </v-row>
+      </template>
+    </MediaShelf>
   </div>
 </template>
 
 <script>
 import { defineAsyncComponent } from 'vue';
 import { mapActions } from 'vuex';
+import MediaShelf from './MediaShelf.vue';
 
 export default {
   name: 'PlexOnDeck',
 
   components: {
+    MediaShelf,
     PlexThumbnail: defineAsyncComponent(() => import('@/components/PlexThumbnail.vue')),
   },
 
@@ -79,46 +46,13 @@ export default {
 
   data: () => ({
     onDeck: [],
-    onDeckOffset: 0,
     abortController: null,
   }),
-
-  computed: {
-    onDeckItemsPer() {
-      switch (this.$vuetify.display.name) {
-        case 'xs':
-          return 2;
-        case 'sm':
-          return 3;
-        case 'md':
-        case 'lg':
-          return 4;
-        default:
-          return 6;
-      }
-    },
-
-    isAtEnd() {
-      return this.onDeckOffset + this.onDeckItemsPer >= this.onDeck.length;
-    },
-
-    isAtStart() {
-      return this.onDeckOffset === 0;
-    },
-
-    subsetOnDeck() {
-      return this.onDeck.slice(
-        this.onDeckOffset,
-        this.onDeckOffset + this.onDeckItemsPer,
-      );
-    },
-  },
 
   watch: {
     machineIdentifier: {
       handler() {
         this.onDeck = [];
-        this.onDeckOffset = 0;
         return this.fetchOnDeck();
       },
       immediate: true,
@@ -139,22 +73,6 @@ export default {
         // Cancel outstanding request
         this.abortController.abort();
         this.abortController = null;
-      }
-    },
-
-    onDeckDown() {
-      if (this.onDeckOffset - this.onDeckItemsPer < 0) {
-        this.onDeckOffset = 0;
-      } else {
-        this.onDeckOffset -= this.onDeckItemsPer;
-      }
-    },
-
-    onDeckUp() {
-      if (this.onDeckOffset + this.onDeckItemsPer >= this.onDeck.length) {
-        // This would overflow!
-      } else {
-        this.onDeckOffset += this.onDeckItemsPer;
       }
     },
 

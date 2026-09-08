@@ -1,8 +1,8 @@
 const defaults = {
   servers: [
     {
-      name: 'Local Server',
-      location: 'Local',
+      name: 'This website’s service',
+      location: 'Recommended',
       url: '',
       image: 'synclounge-white.png',
     },

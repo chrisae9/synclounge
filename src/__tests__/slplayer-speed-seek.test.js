@@ -19,6 +19,7 @@ vi.mock('@/player', () => ({
   isPresentationPaused: vi.fn(() => false),
   isBuffering: vi.fn(() => false),
   getVolume: vi.fn(() => 1),
+  getPlaybackDiagnostics: vi.fn(() => ({ bufferAhead: 0, shaka: {} })),
   isPaused: vi.fn(() => false),
   destroy: vi.fn(),
   cancelTrickPlay: vi.fn(),
@@ -677,5 +678,27 @@ describe('Source request cancellation', () => {
     const second = slplayerActions.NAVIGATE_AND_INITIALIZE_PLAYER({ getters, commit });
     expect(first).toBe(second);
     expect(commit.mock.calls.filter(([type]) => type === 'SET_NAVIGATE_TO_PLAYER')).toHaveLength(1);
+  });
+});
+
+describe('buffering source changes', () => {
+  it('does not carry a previous source’s buffering timer into the new source', async () => {
+    const context = {
+      state: { bufferingHistory: [] },
+      getters: { GET_PLAYER_STATE: 'playing', GET_SRC_URL: 'fixture', GET_OFFSET_MS: 0 },
+      rootGetters: {},
+      commit: vi.fn(),
+      dispatch: vi.fn(),
+    };
+    await slplayerActions.HANDLE_PLAYER_BUFFERING(context, { buffering: true });
+    await slplayerActions.LOAD_PLAYER_SRC(context);
+    context.dispatch.mockClear();
+    context.commit.mockClear();
+    await slplayerActions.HANDLE_PLAYER_BUFFERING(context, { buffering: false });
+    expect(context.commit).not.toHaveBeenCalledWith('RECORD_BUFFERING_EPISODE', expect.anything());
+    expect(context.dispatch).not.toHaveBeenCalledWith(
+      'REPORT_PLAYBACK_DIAGNOSTIC',
+      expect.objectContaining({ event: 'buffering-end' }),
+    );
   });
 });

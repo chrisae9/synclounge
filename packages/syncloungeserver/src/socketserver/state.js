@@ -101,6 +101,7 @@ export const createState = () => {
     rooms.set(id, {
       isPartyPausingEnabled,
       isAutoHostEnabled,
+      syncPreset: 'balanced',
       hostId,
       users: new Map(),
     });
@@ -134,9 +135,10 @@ export const createState = () => {
 
   const getJoinData = ({ roomId, socketId }) => {
     const { username, reconnectIdentity } = getRoomUserData(socketId);
-    const { isPartyPausingEnabled, isAutoHostEnabled } = rooms.get(roomId);
+    const { isPartyPausingEnabled, isAutoHostEnabled, syncPreset } = rooms.get(roomId);
 
     return {
+      syncPreset,
       isPartyPausingEnabled,
       isAutoHostEnabled,
       hostId: getRoomHostId(roomId),
@@ -205,6 +207,10 @@ export const createState = () => {
 
   const removeSocketLatencyData = (socketId) => {
     socketLatencyData.delete(socketId);
+  };
+
+  const setRoomSyncPreset = ({ socketId, preset }) => {
+    getUserRoom(socketId).syncPreset = preset;
   };
 
   const setIsPartyPausingEnabledInSocketRoom = ({ socketId, isPartyPausingEnabled }) => {
@@ -280,6 +286,7 @@ export const createState = () => {
     removeSocketLatencyData,
     removeUser,
     setIsAutoHostEnabledInSocketRoom,
+    setRoomSyncPreset,
     setIsPartyPausingEnabledInSocketRoom,
     setSocketLatencyIntervalId,
     updateSocketLatency,

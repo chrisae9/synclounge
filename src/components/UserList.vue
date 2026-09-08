@@ -59,6 +59,15 @@
         </span>
       </v-tooltip>
 
+      <p class="text-caption text-medium-emphasis my-1">
+        {{ user.state || 'Connecting' }} · {{ driftLabel(user) }}
+      </p>
+      <p
+        v-if="user.health"
+        class="text-caption text-medium-emphasis mb-1"
+      >
+        {{ healthLabel(user.health) }}
+      </p>
       <v-progress-linear
         class="pt-content-progress"
         :height="2"
@@ -188,6 +197,35 @@ export default {
       'TRANSFER_HOST',
       'KICK_USER',
     ]),
+
+    driftLabel(user) {
+      const hostMedia = this.GET_HOST_USER?.media;
+      if (!hostMedia || !user.media) return 'Timing unavailable';
+      const sameSource = user.media.machineIdentifier != null && hostMedia.machineIdentifier != null
+        && user.media.ratingKey != null && hostMedia.ratingKey != null
+        && String(user.media.machineIdentifier) === String(hostMedia.machineIdentifier)
+        && String(user.media.ratingKey) === String(hostMedia.ratingKey);
+      const matchingTitle = user.media.title && user.media.title === hostMedia.title
+        && user.media.type === hostMedia.type
+        && (hostMedia.type !== 'episode' || (user.media.grandparentTitle === hostMedia.grandparentTitle
+          && user.media.parentIndex === hostMedia.parentIndex && user.media.index === hostMedia.index));
+      if (!sameSource && !matchingTitle) return 'Different media';
+      const drift = (this.getAdjustedTime(user) - this.GET_ADJUSTED_HOST_TIME()) / 1000;
+      if (!Number.isFinite(drift)) return 'Timing unavailable';
+      const timing = Math.abs(drift) < 0.5 ? 'In sync'
+        : `${Math.abs(drift).toFixed(1)}s ${drift < 0 ? 'behind' : 'ahead'}`;
+      return sameSource ? timing : `${timing} (estimated)`;
+    },
+
+    healthLabel(health) {
+      if (this.nowTimestamp - health.updatedAt > 90000) return 'Playback details are stale';
+      const parts = [];
+      if (health.height > 0) parts.push(`${health.height}p`);
+      if (health.bitrate > 0) parts.push(`${(health.bitrate / 1000000).toFixed(1)} Mbps`);
+      if (health.bufferAhead != null) parts.push(`${health.bufferAhead.toFixed(1)}s buffered`);
+      parts.push(`${health.bufferingCount} buffering events`);
+      return parts.join(' · ');
+    },
 
     getAdjustedTime({
       updatedAt, state, time, playbackRate,

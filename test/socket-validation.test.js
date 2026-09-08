@@ -145,6 +145,90 @@ describe('socket event validation', () => {
     await stopServer(serverProcess);
   });
 
+  it('broadcasts host sync presets, preserves them for joins, and rejects guest changes', async () => {
+    const host = connectClient();
+    const guest = connectClient();
+    const roomId = `presets-${Date.now()}`;
+    const join = async (socket) => {
+      const joined = waitForEvent(socket, 'joinResult');
+      socket.emit('join', {
+        roomId,
+        desiredUsername: 'viewer',
+        desiredPartyPausingEnabled: true,
+        desiredAutoHostEnabled: false,
+        thumb: '',
+        playerProduct: 'test',
+        state: 'stopped',
+        time: 0,
+        duration: 0,
+        playbackRate: 1,
+        media: null,
+        syncFlexibility: 3000,
+      });
+      return joined;
+    };
+    try {
+      await Promise.all([respondToPing(host), respondToPing(guest)]);
+      assert.equal((await join(host)).syncPreset, 'balanced');
+      assert.equal((await join(guest)).syncPreset, 'balanced');
+      const guestChanged = waitForEvent(guest, 'setSyncPreset');
+      const changed = waitForEvent(host, 'setSyncPreset');
+      host.emit('setSyncPreset', 'relaxed');
+      assert.equal(await changed, 'relaxed');
+      assert.equal(await guestChanged, 'relaxed');
+      assert.equal((await join(guest)).syncPreset, 'relaxed');
+      guest.emit('playbackDiagnostic', { event: { nested: 'invalid' } });
+      const healthEvent = waitForEvent(host, 'participantHealth');
+      guest.emit('playbackDiagnostic', {
+        event: 'buffering-start',
+        sessions: { plex: 'private-session' },
+        playback: { bufferAhead: 0, videoHeight: 720, accessToken: 'secret' },
+        details: { data: Array.from({ length: 9 }, () => 'x'.repeat(301)) },
+      });
+      const health = await healthEvent;
+      assert.equal(health.id, guest.id);
+      assert.equal(health.health.bufferingCount, 1);
+      assert.doesNotMatch(JSON.stringify(health), /private-session|secret/);
+      const disconnected = waitForEvent(guest, 'disconnect');
+      guest.emit('setSyncPreset', 'strict');
+      await disconnected;
+      await assertServerHealthy();
+    } finally {
+      host.close();
+      guest.close();
+    }
+  });
+
+  for (const preset of [null, 42, {}, 'unknown', 'x'.repeat(1000)]) {
+    it(`rejects an invalid preset ${JSON.stringify(preset).slice(0, 30)}`, async () => {
+      const socket = connectClient();
+      try {
+        await respondToPing(socket);
+        const disconnected = waitForEvent(socket, 'disconnect');
+        socket.emit('setSyncPreset', preset);
+        await disconnected;
+        await assertServerHealthy();
+      } finally {
+        socket.close();
+      }
+    });
+  }
+
+  for (const payload of [null, []]) {
+    it(`rejects malformed diagnostic ${JSON.stringify(payload)} without affecting health`, async () => {
+      const socket = connectClient();
+      try {
+        await respondToPing(socket);
+        const disconnected = waitForEvent(socket, 'disconnect');
+        socket.emit('playbackDiagnostic', payload);
+        await disconnected;
+        await assertServerHealthy();
+      } finally {
+        socket.close();
+      }
+    });
+  }
+
   it('disconnects a client that does not answer the application ping', async () => {
     const socket = connectClient();
     try {

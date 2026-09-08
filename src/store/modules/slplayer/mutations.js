@@ -1,6 +1,14 @@
 import stateFactory from './state';
 
 export default {
+  CLEAR_QUALITY_RECOVERY: (state) => {
+    state.bufferingHistory = [];
+    state.qualityRecommendation = null;
+  },
+  SET_QUALITY_RECOMMENDATION: (state, value) => { state.qualityRecommendation = value; },
+  RECORD_BUFFERING_EPISODE: (state, episode) => {
+    state.bufferingHistory = [...state.bufferingHistory.slice(-9), episode];
+  },
   RESET: (state) => {
     Object.assign(state, stateFactory());
   },

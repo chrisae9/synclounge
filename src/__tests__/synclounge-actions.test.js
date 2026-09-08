@@ -779,4 +779,31 @@ describe('synclounge actions', () => {
       });
     });
   });
+
+  describe('room preset join race', () => {
+    it('does not overwrite a newer host preset with the join snapshot', async () => {
+      let revision = 0;
+      const commit = vi.fn();
+      const getters = {
+        GET_USERS: {},
+        get GET_SYNC_PRESET_REVISION() { return revision; },
+      };
+      const dispatch = vi.fn(async (type) => {
+        if (type === 'JOIN_ROOM') {
+          revision = 1;
+          return {
+            user: { id: 'me', username: 'Me' }, users: {}, hostId: 'me', syncPreset: 'balanced',
+          };
+        }
+        return undefined;
+      });
+      await actions.JOIN_ROOM_AND_INIT({
+        getters,
+        commit,
+        dispatch,
+        rootGetters: { 'plex/GET_PLEX_USER': {}, 'settings/GET_SYNCFLEXIBILITY': 7000 },
+      }, { syncOnJoin: false });
+      expect(commit.mock.calls.filter(([type]) => type === 'SET_SYNC_PRESET')).toHaveLength(0);
+    });
+  });
 });

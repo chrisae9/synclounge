@@ -1,3 +1,5 @@
+import { rememberDiagnostic } from '@/utils/problemreport';
+
 let socket = null;
 
 export const open = async (url, options) => {
@@ -19,6 +21,11 @@ export const open = async (url, options) => {
       try { sessionStorage.setItem(storageKey, reconnectToken); } catch { /* Keep the in-memory proof. */ }
     });
 
+    socket.on('disconnect', (reason) => {
+      if (reason === 'io client disconnect') return;
+      rememberDiagnostic({ event: 'connection-lost', clientTimestamp: new Date().toISOString() });
+    });
+
     socket.once('connect', () => {
       console.debug('Socket: connected, id:', socket.id);
       resolve(socket);
@@ -26,6 +33,7 @@ export const open = async (url, options) => {
 
     // TODO: do I need all these events?
     socket.once('connect_error', (err) => {
+      rememberDiagnostic({ event: 'connection-error', clientTimestamp: new Date().toISOString() });
       console.error('Socket: connect_error:', url, err);
       reject(new Error('connect_error'));
     });

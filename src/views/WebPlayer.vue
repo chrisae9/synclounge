@@ -582,11 +582,15 @@ export default {
 }
 
 .shaka-play-button {
+  padding: clamp(22px, 3vw, 50px) !important;
+}
+
+:fullscreen .shaka-play-button {
   padding: 50px !important;
 }
 
 .shaka-spinner {
-  padding: 57px !important;
+  padding: clamp(16px, 4vw, 57px) !important;
 }
 
 .libjass-wrapper {

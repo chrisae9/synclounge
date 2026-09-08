@@ -1,5 +1,6 @@
 // Use stored value if not null, othewise fallback to config, then default values
 export default {
+  GET_SHOW_BUFFERING_NOTIFICATIONS: (state) => state.showBufferingNotifications !== false,
   GET_AUTOPLAY: (state, getters, rootState, rootGetters) => state.autoplay
    ?? rootGetters.GET_CONFIG?.default_slplayer_autoplay,
 
@@ -9,8 +10,11 @@ export default {
   GET_SYNCMODE: (state, getters, rootState, rootGetters) => state.syncMode
     ?? rootGetters.GET_CONFIG?.default_sync_mode,
 
-  GET_SYNCFLEXIBILITY: (state, getters, rootState, rootGetters) => state.syncFlexibility
-    ?? rootGetters.GET_CONFIG?.default_sync_flexability,
+  GET_SYNCFLEXIBILITY: (state, getters, rootState, rootGetters) => (
+    rootState.synclounge?.isInRoom
+      ? { strict: 500, balanced: 3000, relaxed: 7000 }[rootState.synclounge.syncPreset]
+      : null
+  ) ?? state.syncFlexibility ?? rootGetters.GET_CONFIG?.default_sync_flexability,
 
   GET_SLPLAYERQUALITY: (state, getters, rootState, rootGetters) => state.slPlayerQuality
     ?? rootGetters.GET_CONFIG?.default_slplayer_quality ?? null,
