@@ -21,7 +21,8 @@ export const open = async (url, options) => {
       try { sessionStorage.setItem(storageKey, reconnectToken); } catch { /* Keep the in-memory proof. */ }
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
+      if (reason === 'io client disconnect') return;
       rememberDiagnostic({ event: 'connection-lost', clientTimestamp: new Date().toISOString() });
     });
 

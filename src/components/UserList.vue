@@ -201,8 +201,10 @@ export default {
     driftLabel(user) {
       const hostMedia = this.GET_HOST_USER?.media;
       if (!hostMedia || !user.media) return 'Timing unavailable';
-      const sameSource = user.media.machineIdentifier === hostMedia.machineIdentifier
-        && user.media.ratingKey === hostMedia.ratingKey;
+      const sameSource = user.media.machineIdentifier != null && hostMedia.machineIdentifier != null
+        && user.media.ratingKey != null && hostMedia.ratingKey != null
+        && String(user.media.machineIdentifier) === String(hostMedia.machineIdentifier)
+        && String(user.media.ratingKey) === String(hostMedia.ratingKey);
       const matchingTitle = user.media.title && user.media.title === hostMedia.title
         && user.media.type === hostMedia.type
         && (hostMedia.type !== 'episode' || (user.media.grandparentTitle === hostMedia.grandparentTitle

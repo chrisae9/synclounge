@@ -699,6 +699,7 @@ export default {
     const offset = getters.GET_OFFSET_MS;
     // TODO: potentailly unload if already loaded to avoid load interrupted errors
     // However, while its loading, potentially   reporting the old time...
+    bufferingStartedAt = null;
     commit('CLEAR_QUALITY_RECOVERY');
     console.debug('LOAD_PLAYER_SRC: loading');
     await unload();
