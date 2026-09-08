@@ -58,10 +58,10 @@ const diagnosticSchema = {
     readyState: true,
     networkState: true,
     playbackRate: true,
-    videoWidth: true,
-    videoHeight: true,
+    videoWidth: 'number:32768',
+    videoHeight: 'number:32768',
     bufferedRanges: [{ start: true, end: true }],
-    bufferAhead: true,
+    bufferAhead: 'number:86400',
     mediaQuality: {
       totalVideoFrames: true,
       droppedVideoFrames: true,
@@ -70,7 +70,7 @@ const diagnosticSchema = {
     mediaError: { code: true, message: true },
     shaka: {
       currentCodecs: true,
-      streamBandwidth: true,
+      streamBandwidth: 'number:1000000000',
       estimatedBandwidth: true,
       decodedFrames: true,
       droppedFrames: true,
@@ -121,6 +121,13 @@ const sanitizeString = (value) => [...value.slice(0, MAX_STRING_LENGTH)]
   .join('');
 
 const sanitizeValue = (value, schema, depth, budget) => {
+  if (typeof schema === 'string' && schema.startsWith('number:')) {
+    if (!budget.hasRemaining() || depth > MAX_DEPTH) return undefined;
+    budget.consume();
+    const maximum = Number(schema.slice(7));
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= maximum
+      ? value : null;
+  }
   if (schema === 'boolean' || schema === 'nullable-boolean') {
     if (!budget.hasRemaining() || depth > MAX_DEPTH) return undefined;
     if (typeof value !== 'boolean' && !(value === null && schema === 'nullable-boolean')) {

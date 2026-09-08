@@ -78,3 +78,23 @@ test('accepts only boolean Cast flags and nullable buffering state', () => {
     assert.equal(playback.buffering, typeof value === 'boolean' || value === null ? value : undefined);
   });
 });
+
+test('bounds participant health measurements before broadcasting', () => {
+  for (const [field, max] of [['bufferAhead', 86400], ['videoWidth', 32768], ['videoHeight', 32768]]) {
+    for (const value of [-1, Infinity, '100', max + 1]) {
+      assert.equal(sanitizePlaybackDiagnostic({ event: 'health', playback: { [field]: value } }).playback[field], null);
+    }
+    for (const value of [0, max]) {
+      const output = sanitizePlaybackDiagnostic({ event: 'health', playback: { [field]: value } });
+      assert.equal(output.playback[field], value);
+    }
+  }
+  for (const value of [-1, Infinity, '100', 1000000001]) {
+    assert.equal(sanitizePlaybackDiagnostic({
+      event: 'health', playback: { shaka: { streamBandwidth: value } },
+    }).playback.shaka.streamBandwidth, null);
+  }
+  assert.equal(sanitizePlaybackDiagnostic({
+    event: 'health', playback: { shaka: { streamBandwidth: 1000000000 } },
+  }).playback.shaka.streamBandwidth, 1000000000);
+});
