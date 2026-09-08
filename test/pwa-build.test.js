@@ -10,6 +10,7 @@ const files = {
   'public/manifest.webmanifest': '{"name":"SyncLounge"}',
   'public/offline.html': '<h1>Offline</h1>',
   'public/offline.css': 'body{color:white}',
+  'public/offline-report.js': 'void 0;',
   'public/icons/icon-192.png': new Uint8Array([1, 2, 3]),
   'public/icons/icon.svg': '<svg/>',
 };

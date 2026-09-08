@@ -55,7 +55,7 @@ export function generatePwaPlugin({
       };
       for (const asset of [
         'index.html', 'public/manifest.webmanifest', 'public/offline.html',
-        'public/offline.css', 'public/icons/icon-192.png', 'public/icons/icon.svg',
+        'public/offline.css', 'public/offline-report.js', 'public/icons/icon-192.png', 'public/icons/icon.svg',
       ]) {
         hashFile(asset, readFile(asset));
       }

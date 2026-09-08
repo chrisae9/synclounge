@@ -2,7 +2,9 @@
 // Built with a content-addressed cache name. Only this public offline screen is
 // cached: never room HTML, configuration, authentication, posters, or streams.
 const CACHE_NAME = '__SL_CACHE_NAME__';
-const OFFLINE_ASSETS = ['/offline.html', '/offline.css', '/icons/icon-192.png', '/icons/icon.svg'];
+const OFFLINE_ASSETS = [
+  '/offline.html', '/offline.css', '/offline-report.js', '/icons/icon-192.png', '/icons/icon.svg',
+];
 const CACHE_PREFIX = 'synclounge-offline-';
 
 self.addEventListener('install', (event) => {
