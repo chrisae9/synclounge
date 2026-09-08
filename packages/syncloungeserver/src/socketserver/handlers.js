@@ -3,7 +3,7 @@ import { sanitizePlaybackDiagnostic } from './playbackdiagnostics';
 
 export const createEventHandlers = ({ state: socketState, actions }) => {
   const {
-    doesRoomExist, isUserInARoom, getRoomUserData, isUserHost, removeSocketLatencyData,
+    setRoomSyncPreset, doesRoomExist, isUserInARoom, getRoomUserData, isUserHost, removeSocketLatencyData,
     getJoinData, createRoom, addUserToRoom, clearSocketLatencyInterval,
     getUserRoomId, isUserInRoom, updateUserMedia, makeUserHost, updateUserPlayerState,
     getSocketPingSecret, updateSocketLatency, setSocketLatencyIntervalId, doesSocketHaveRtt,
@@ -139,11 +139,26 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     }
   };
 
-  const playbackDiagnostic = ({ socket, data }) => {
+  const playbackDiagnostic = ({ server, socket, data }) => {
     if (!isUserInARoom(socket.id)) return;
     const diagnostic = sanitizePlaybackDiagnostic(data);
     if (!diagnostic) return;
     diagnostic.room = getUserRoomId(socket.id);
+    const user = getRoomUserData(socket.id);
+    const playback = diagnostic.playback || {};
+    const finite = (value) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+    const health = {
+      updatedAt: Date.now(),
+      bufferAhead: finite(playback.bufferAhead),
+      width: finite(playback.videoWidth),
+      height: finite(playback.videoHeight),
+      bitrate: finite(playback.shaka?.streamBandwidth),
+      bufferingCount: (user.health?.bufferingCount || 0) + (diagnostic.event === 'buffering-start' ? 1 : 0),
+    };
+    user.health = health;
+    emitToSocketRoom({
+      server, socketId: socket.id, eventName: 'participantHealth', data: { id: socket.id, health },
+    });
     logSocket({
       socketId: socket.id,
       message: `playback-diagnostic ${JSON.stringify(diagnostic)}`,
@@ -311,6 +326,18 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     });
   };
 
+  const setSyncPreset = ({ server, socket, data: preset }) => {
+    if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
+      socket.disconnect(true);
+      return;
+    }
+    setRoomSyncPreset({ socketId: socket.id, preset });
+    logSocket({ socketId: socket.id, message: `set sync preset: ${preset}` });
+    emitToSocketRoom({
+      server, socketId: socket.id, eventName: 'setSyncPreset', data: preset,
+    });
+  };
+
   const setPartyPausingEnabled = ({ server, socket, data: isPartyPausingEnabled }) => {
     if (!isUserInARoom(socket.id) || !isUserHost(socket.id)) {
       socket.disconnect(true);
@@ -446,6 +473,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     syncFlexibilityUpdate,
     transferHost,
     sendMessage,
+    setSyncPreset,
     setPartyPausingEnabled,
     setAutoHostEnabled,
     partyPause,

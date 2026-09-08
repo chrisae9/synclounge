@@ -145,6 +145,55 @@ describe('socket event validation', () => {
     await stopServer(serverProcess);
   });
 
+  it('broadcasts host sync presets, preserves them for joins, and rejects guest changes', async () => {
+    const host = connectClient();
+    const guest = connectClient();
+    const roomId = `presets-${Date.now()}`;
+    const join = async (socket) => {
+      const joined = waitForEvent(socket, 'joinResult');
+      socket.emit('join', {
+        roomId,
+        desiredUsername: 'viewer',
+        desiredPartyPausingEnabled: true,
+        desiredAutoHostEnabled: false,
+        thumb: '',
+        playerProduct: 'test',
+        state: 'stopped',
+        time: 0,
+        duration: 0,
+        playbackRate: 1,
+        media: null,
+        syncFlexibility: 3000,
+      });
+      return joined;
+    };
+    try {
+      await Promise.all([respondToPing(host), respondToPing(guest)]);
+      assert.equal((await join(host)).syncPreset, 'balanced');
+      const changed = waitForEvent(host, 'setSyncPreset');
+      host.emit('setSyncPreset', 'relaxed');
+      assert.equal(await changed, 'relaxed');
+      assert.equal((await join(guest)).syncPreset, 'relaxed');
+      const healthEvent = waitForEvent(host, 'participantHealth');
+      guest.emit('playbackDiagnostic', {
+        event: 'buffering-start',
+        sessions: { plex: 'private-session' },
+        playback: { bufferAhead: 0, videoHeight: 720, accessToken: 'secret' },
+      });
+      const health = await healthEvent;
+      assert.equal(health.id, guest.id);
+      assert.equal(health.health.bufferingCount, 1);
+      assert.doesNotMatch(JSON.stringify(health), /private-session|secret/);
+      const disconnected = waitForEvent(guest, 'disconnect');
+      guest.emit('setSyncPreset', 'strict');
+      await disconnected;
+      await assertServerHealthy();
+    } finally {
+      host.close();
+      guest.close();
+    }
+  });
+
   it('disconnects a client that does not answer the application ping', async () => {
     const socket = connectClient();
     try {

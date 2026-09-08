@@ -22,7 +22,23 @@
           </v-btn>
         </div>
       </nav>
-      <RoomCreation v-if="page === 'room'" />
+      <v-container v-if="page === 'shelf'">
+        <MediaShelf :items="shelfItems" label="Continue watching">
+          <template #header>Continue watching</template>
+          <template #default="{ item }">
+            <div style="aspect-ratio: 16 / 9; background: #354451; border-radius: 8px;" />
+            <p>{{ item.title }}</p>
+          </template>
+        </MediaShelf>
+        <MediaShelf :items="shelfItems" label="Recently added" posters>
+          <template #header>Recently added</template>
+          <template #default="{ item }">
+            <img :src="poster" alt="Sample poster" style="width: 100%; aspect-ratio: 2 / 3;">
+            <p>{{ item.title }}</p>
+          </template>
+        </MediaShelf>
+      </v-container>
+      <RoomCreation v-else-if="page === 'room'" />
       <AdvancedRoomJoin v-else-if="page === 'server'" />
       <PlexMediaLayout
         v-else-if="page === 'media'"
@@ -83,6 +99,7 @@
 </template>
 
 <script>
+import MediaShelf from '@/components/MediaShelf.vue';
 import RoomCreation from '@/views/RoomCreation.vue';
 import AdvancedRoomJoin from '@/views/AdvancedRoomJoin.vue';
 import PlexMediaLayout from '@/components/PlexMediaLayout.vue';
@@ -92,12 +109,14 @@ import MessageList from '@/components/MessageList.vue';
 
 export default {
   components: {
-    RoomCreation, AdvancedRoomJoin, PlexMediaLayout, TheSidebarRight, MessageInput, MessageList,
+    MediaShelf, RoomCreation, AdvancedRoomJoin, PlexMediaLayout, TheSidebarRight, MessageInput, MessageList,
   },
   props: { poster: { type: String, required: true } },
   data: () => ({
     page: 'room',
+    shelfItems: Array.from({ length: 12 }, (_, i) => ({ key: String(i), title: `Sample movie ${i + 1}` })),
     views: [
+      { id: 'shelf', name: 'Media shelves' },
       { id: 'room', name: 'Create room' },
       { id: 'server', name: 'Server choice' },
       { id: 'media', name: 'Media detail' },

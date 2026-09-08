@@ -59,6 +59,15 @@
         </span>
       </v-tooltip>
 
+      <p class="text-caption text-medium-emphasis my-1">
+        {{ user.state || 'Connecting' }} · {{ driftLabel(user) }}
+      </p>
+      <p
+        v-if="user.health"
+        class="text-caption text-medium-emphasis mb-1"
+      >
+        {{ healthLabel(user.health) }}
+      </p>
       <v-progress-linear
         class="pt-content-progress"
         :height="2"
@@ -188,6 +197,25 @@ export default {
       'TRANSFER_HOST',
       'KICK_USER',
     ]),
+
+    driftLabel(user) {
+      if (!this.GET_HOST_USER?.media || !user.media
+        || user.media.machineIdentifier !== this.GET_HOST_USER.media.machineIdentifier
+        || user.media.ratingKey !== this.GET_HOST_USER.media.ratingKey) return 'Different media';
+      const drift = (this.getAdjustedTime(user) - this.GET_ADJUSTED_HOST_TIME()) / 1000;
+      if (!Number.isFinite(drift)) return 'Timing unavailable';
+      return Math.abs(drift) < 0.5 ? 'In sync' : `${Math.abs(drift).toFixed(1)}s ${drift < 0 ? 'behind' : 'ahead'}`;
+    },
+
+    healthLabel(health) {
+      if (this.nowTimestamp - health.updatedAt > 90000) return 'Playback details are stale';
+      const parts = [];
+      if (health.height > 0) parts.push(`${health.height}p`);
+      if (health.bitrate > 0) parts.push(`${(health.bitrate / 1000000).toFixed(1)} Mbps`);
+      if (health.bufferAhead != null) parts.push(`${health.bufferAhead.toFixed(1)}s buffered`);
+      parts.push(`${health.bufferingCount} buffering events`);
+      return parts.join(' · ');
+    },
 
     getAdjustedTime({
       updatedAt, state, time, playbackRate,

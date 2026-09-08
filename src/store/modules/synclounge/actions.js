@@ -162,7 +162,7 @@ export default {
     // or duplicate tasks
     const joinStartRevision = getters.GET_USER_EVENT_REVISION || 0;
     const {
-      user: { id, ...rest }, users, isPartyPausingEnabled, isAutoHostEnabled, hostId,
+      user: { id, ...rest }, users, isPartyPausingEnabled, isAutoHostEnabled, hostId, syncPreset,
     } = await dispatch('JOIN_ROOM');
     clearPendingPartyPause();
     await dispatch('CLEAR_HOST_GRACE_PERIOD');
@@ -226,9 +226,11 @@ export default {
       },
     });
 
+    commit('SET_SYNC_PRESET', syncPreset ?? null);
     commit('SET_IS_PARTY_PAUSING_ENABLED', isPartyPausingEnabled);
     commit('SET_IS_AUTO_HOST_ENABLED', isAutoHostEnabled);
     commit('SET_IS_IN_ROOM', true);
+    await dispatch('SEND_SYNC_FLEXIBILITY_UPDATE');
 
     await dispatch('DISPLAY_NOTIFICATION', {
       text: 'Joined room',
@@ -418,7 +420,7 @@ export default {
     const eventNames = [
       'userJoined', 'userLeft', 'newHost', 'newMessage', 'slPing',
       'playerStateUpdate', 'mediaUpdate', 'syncFlexibilityUpdate',
-      'setPartyPausingEnabled', 'setAutoHostEnabled', 'partyPause',
+      'participantHealth', 'setSyncPreset', 'setPartyPausingEnabled', 'setAutoHostEnabled', 'partyPause',
       'partyPauseAck', 'disconnect', 'connect', 'kicked',
     ];
     eventNames.forEach((eventName) => off({ eventName }));
@@ -455,6 +457,8 @@ export default {
       eventName: 'setAutoHostEnabled',
       action: 'HANDLE_SET_AUTO_HOST_ENABLED',
     });
+    registerListener({ eventName: 'participantHealth', action: 'HANDLE_PARTICIPANT_HEALTH' });
+    registerListener({ eventName: 'setSyncPreset', action: 'HANDLE_SYNC_PRESET' });
     registerListener({ eventName: 'partyPause', action: 'HANDLE_PARTY_PAUSE' });
     registerListener({ eventName: 'partyPauseAck', action: 'HANDLE_PARTY_PAUSE_ACK' });
     registerListener({ eventName: 'disconnect', action: 'HANDLE_DISCONNECT' });
@@ -996,7 +1000,16 @@ export default {
     }
   },
 
-  SEND_SYNC_FLEXIBILITY_UPDATE: ({ rootGetters }) => {
+  SEND_SYNC_PRESET: ({ getters }, preset) => {
+    if (getters.AM_I_HOST) emit({ eventName: 'setSyncPreset', data: preset });
+  },
+
+  SEND_SYNC_FLEXIBILITY_UPDATE: ({ getters, rootGetters, commit }) => {
+    if (getters.IS_IN_ROOM) {
+      commit('SET_USER_SYNC_FLEXIBILITY', {
+        id: getters.GET_SOCKET_ID, syncFlexibility: rootGetters['settings/GET_SYNCFLEXIBILITY'],
+      });
+    }
     emit({
       eventName: 'syncFlexibilityUpdate',
       data: rootGetters['settings/GET_SYNCFLEXIBILITY'],

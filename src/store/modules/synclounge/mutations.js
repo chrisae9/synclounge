@@ -2,6 +2,10 @@ import { markRaw } from 'vue';
 import stateFactory from './state';
 
 export default {
+  SET_PARTICIPANT_HEALTH: (state, { id, health }) => {
+    if (state.users[id]) state.users[id].health = health;
+  },
+  SET_SYNC_PRESET: (state, preset) => { state.syncPreset = preset; },
   RESET: (state) => {
     Object.assign(state, stateFactory());
   },

@@ -54,7 +54,7 @@
           >
             person_add
           </v-icon>
-          <span class="d-none d-sm-inline">Invite</span>
+          <span>Invite</span>
         </v-btn>
       </v-toolbar-items>
 

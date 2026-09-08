@@ -1,6 +1,9 @@
 import stateFactory from './state';
 
 export default {
+  SET_SHOW_BUFFERING_NOTIFICATIONS: (state, enabled) => {
+    state.showBufferingNotifications = Boolean(enabled);
+  },
   RESET: (state) => {
     Object.assign(state, stateFactory());
   },

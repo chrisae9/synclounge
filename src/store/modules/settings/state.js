@@ -1,6 +1,7 @@
 // All of these settings are stored in localStorage and are persistent across reloads
 const state = () => ({
   autoplay: null,
+  showBufferingNotifications: true,
   clientPollInterval: null,
   syncMode: null,
   syncFlexibility: null,

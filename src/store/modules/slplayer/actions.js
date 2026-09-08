@@ -1,4 +1,6 @@
 import { CAF } from 'caf';
+import recommendLowerQuality from '@/utils/qualityrecovery';
+import { rememberDiagnostic } from '@/utils/problemreport';
 import { consumeUserSeekIntent, hasPendingUserSeek, recordSeekIntent } from '@/player/seekIntent';
 import { abortable, throwIfAborted } from '@/utils/cancellation';
 
@@ -67,51 +69,50 @@ export default {
     const decisionAudio = decisionPart?.Stream?.find(({ streamType }) => streamType === 2);
     const request = getters.GET_DECISION_AND_START_PARAMS;
 
-    emit({
-      eventName: 'playbackDiagnostic',
-      data: {
-        event,
-        clientTimestamp: new Date(now).toISOString(),
-        browser: {
-          name: browser.name,
-          version: browser.version,
-          os: browser.os,
-          type: browser.type,
-          userAgent: globalThis.navigator?.userAgent,
-        },
-        sessions: {
-          plex: getters.GET_X_PLEX_SESSION_ID,
-          transcode: state.session,
-        },
-        stream: {
-          ratingKey: rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']?.ratingKey,
-          sourceVideo: summarizeStream(sourceVideo),
-          sourceAudio: summarizeStream(sourceAudio),
-          videoSupport: sourceVideo ? getVideoSupportDetails(sourceVideo) : null,
-          request: {
-            protocol: getters.GET_STREAMING_PROTOCOL,
-            directPlay: request.directPlay,
-            directStream: request.directStream,
-            directStreamAudio: request.directStreamAudio,
-            videoCodec: request.videoCodec,
-            audioCodec: request.audioCodec,
-            maxVideoBitrate: request.maxVideoBitrate,
-            forceTranscode: getters.GET_FORCE_TRANSCODE,
-            allowDirectPlay: state.allowDirectPlay,
-            canDirectStreamHevc: getters.GET_CAN_DIRECT_STREAM_HEVC_VIDEO,
-          },
-          decision: {
-            part: decisionPart?.decision,
-            video: summarizeStream(decisionVideo),
-            audio: summarizeStream(decisionAudio),
-            directPlayCode: getters.GET_PLEX_DECISION?.MediaContainer?.directPlayDecisionCode,
-            transcodeCode: getters.GET_PLEX_DECISION?.MediaContainer?.transcodeDecisionCode,
-          },
-        },
-        playback: getPlaybackDiagnostics(),
-        details,
+    const diagnostic = {
+      event,
+      clientTimestamp: new Date(now).toISOString(),
+      browser: {
+        name: browser.name,
+        version: browser.version,
+        os: browser.os,
+        type: browser.type,
+        userAgent: globalThis.navigator?.userAgent,
       },
-    });
+      sessions: {
+        plex: getters.GET_X_PLEX_SESSION_ID,
+        transcode: state.session,
+      },
+      stream: {
+        ratingKey: rootGetters['plexclients/GET_ACTIVE_MEDIA_METADATA']?.ratingKey,
+        sourceVideo: summarizeStream(sourceVideo),
+        sourceAudio: summarizeStream(sourceAudio),
+        videoSupport: sourceVideo ? getVideoSupportDetails(sourceVideo) : null,
+        request: {
+          protocol: getters.GET_STREAMING_PROTOCOL,
+          directPlay: request.directPlay,
+          directStream: request.directStream,
+          directStreamAudio: request.directStreamAudio,
+          videoCodec: request.videoCodec,
+          audioCodec: request.audioCodec,
+          maxVideoBitrate: request.maxVideoBitrate,
+          forceTranscode: getters.GET_FORCE_TRANSCODE,
+          allowDirectPlay: state.allowDirectPlay,
+          canDirectStreamHevc: getters.GET_CAN_DIRECT_STREAM_HEVC_VIDEO,
+        },
+        decision: {
+          part: decisionPart?.decision,
+          video: summarizeStream(decisionVideo),
+          audio: summarizeStream(decisionAudio),
+          directPlayCode: getters.GET_PLEX_DECISION?.MediaContainer?.directPlayDecisionCode,
+          transcodeCode: getters.GET_PLEX_DECISION?.MediaContainer?.transcodeDecisionCode,
+        },
+      },
+      playback: getPlaybackDiagnostics(),
+      details,
+    };
+    rememberDiagnostic(diagnostic);
+    emit({ eventName: 'playbackDiagnostic', data: diagnostic });
   },
 
   MAKE_TIMELINE_PARAMS: async ({ getters, rootGetters, dispatch }) => ({
@@ -149,6 +150,13 @@ export default {
     commit('SET_PLEX_DECISION', data);
     commit('SET_SUBTITLE_OFFSET', parseInt(getters.GET_SUBTITLE_STREAM?.offset || 0, 10));
     dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'stream-decision' });
+  },
+
+  ACCEPT_QUALITY_RECOMMENDATION: async ({ state, dispatch, commit }) => {
+    const recommendation = state.qualityRecommendation;
+    if (!recommendation || state.isChangingSource) return;
+    commit('SET_QUALITY_RECOMMENDATION', null);
+    await dispatch('CHANGE_MAX_VIDEO_BITRATE', recommendation.maxVideoBitrate);
   },
 
   CHANGE_MAX_VIDEO_BITRATE: async ({ commit, dispatch }, bitrate) => {
@@ -332,7 +340,9 @@ export default {
     }
   },
 
-  HANDLE_PLAYER_BUFFERING: async ({ getters, dispatch }, event) => {
+  HANDLE_PLAYER_BUFFERING: async ({
+    state, getters, rootGetters, commit, dispatch,
+  }, event) => {
     if (getters.GET_PLAYER_STATE === 'stopped') {
       return;
     }
@@ -351,6 +361,17 @@ export default {
       const startedAt = bufferingStartedAt;
       bufferingStartedAt = null;
       if (startedAt != null) {
+        const snapshot = getPlaybackDiagnostics();
+        if (!state.isChangingSource && !state.syncSeekTarget && !snapshot.seeking && !snapshot.isCasting) {
+          commit('RECORD_BUFFERING_EPISODE', { at: Date.now(), durationMs: Date.now() - startedAt });
+          commit('SET_QUALITY_RECOMMENDATION', recommendLowerQuality({
+            episodes: state.bufferingHistory,
+            now: Date.now(),
+            currentLimit: rootGetters['settings/GET_SLPLAYERQUALITY'],
+            streamBitrate: snapshot.shaka?.streamBandwidth,
+            bufferAhead: snapshot.bufferAhead,
+          }));
+        }
         dispatch('REPORT_PLAYBACK_DIAGNOSTIC', {
           event: 'buffering-end',
           details: { episode: bufferingEpisode, durationMs: Date.now() - startedAt },
@@ -677,6 +698,7 @@ export default {
     const offset = getters.GET_OFFSET_MS;
     // TODO: potentailly unload if already loaded to avoid load interrupted errors
     // However, while its loading, potentially   reporting the old time...
+    commit('CLEAR_QUALITY_RECOVERY');
     console.debug('LOAD_PLAYER_SRC: loading');
     await unload();
     throwIfAborted(signal);

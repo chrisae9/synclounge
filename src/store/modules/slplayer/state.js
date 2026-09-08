@@ -3,6 +3,8 @@ import { subtitlePositions, subtitleSizes, subtitleColors } from '@/utils/subtit
 
 const state = () => ({
   session: null,
+  bufferingHistory: [],
+  qualityRecommendation: null,
   xplexsessionId: getRandomPlexId(),
   plexDecision: null,
   mediaIndex: 0,

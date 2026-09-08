@@ -143,6 +143,24 @@
         </div>
       </v-list-item>
 
+      <div
+        v-if="syncPreset"
+        class="px-3 py-2"
+      >
+        <v-select
+          :model-value="syncPreset"
+          :items="syncPresets"
+          label="Room synchronization"
+          density="compact"
+          :disabled="!AM_I_HOST"
+          hide-details
+          @update:model-value="SEND_SYNC_PRESET"
+        />
+        <p class="text-caption mt-2">
+          Relaxed allows up to 7 seconds of drift to reduce corrective seeks.
+          It cannot fix a slow stream.
+        </p>
+      </div>
       <v-divider />
     </template>
 
@@ -177,7 +195,17 @@ export default {
     UserList: defineAsyncComponent(() => import('@/components/UserList.vue')),
   },
 
+  data: () => ({
+    syncPresets: [
+      { title: 'Strict · 0.5 seconds', value: 'strict' },
+      { title: 'Balanced · 3 seconds', value: 'balanced' },
+      { title: 'Relaxed · 7 seconds', value: 'relaxed' },
+      { title: 'Use each viewer’s setting', value: 'personal' },
+    ],
+  }),
+
   computed: {
+    ...mapState('synclounge', ['syncPreset']),
     ...mapState(['isRightSidebarOpen']),
 
     ...mapGetters('synclounge', [
@@ -191,6 +219,7 @@ export default {
 
   methods: {
     ...mapActions('synclounge', [
+      'SEND_SYNC_PRESET',
       'SEND_SET_PARTY_PAUSING_ENABLED',
       'SEND_SET_AUTO_HOST_ENABLED',
       'sendPartyPause',

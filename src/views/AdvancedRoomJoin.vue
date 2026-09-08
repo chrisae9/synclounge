@@ -21,16 +21,17 @@
               CONNECTION OPTIONS
             </p>
             <h1 class="welcome-title">
-              Choose your server.
+              Watch-party connection.
             </h1>
             <p class="welcome-description">
-              Select a SyncLounge server for your watch party, or connect to your own.
+              This service keeps your group in sync. It does not choose your Plex media library.
+              Normally, use the service provided by this website.
             </p>
           </div>
 
           <v-card-text class="pt-2">
             <h2 class="section-header">
-              Available servers
+              Available watch-party services
             </h2>
 
             <v-row class="mt-2">
@@ -117,7 +118,7 @@
                     cover
                   >
                     <v-card-title>
-                      Custom Server
+                      Another SyncLounge service
                     </v-card-title>
                   </v-img>
 
@@ -126,7 +127,7 @@
                       hide-details
                       variant="outlined"
                       density="compact"
-                      label="Server address"
+                      label="SyncLounge service address"
                       type="url"
                       autocomplete="url"
                       placeholder="https://"

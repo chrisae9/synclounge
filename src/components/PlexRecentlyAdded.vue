@@ -1,71 +1,39 @@
 <template>
   <div v-if="recentlyAdded.length">
     <slot name="preHeader" />
-
-    <v-row
-      no-gutters
+    <MediaShelf
+      :items="recentlyAdded"
+      posters
+      label="Recently Added"
     >
-      <v-col>
-        <v-list-subheader>
-          Recently Added
-        </v-list-subheader>
-      </v-col>
-
-      <v-col
-        cols="auto"
-        class="ml-auto"
-      >
-        <v-btn
-          icon
-          :disabled="isAtStart"
-          :aria-disabled="isAtStart"
-          @click="recentlyAddedDown"
-        >
-          <v-icon>navigate_before</v-icon>
-        </v-btn>
-
-        <v-btn
-          icon
-          :disabled="isAtEnd"
-          :aria-disabled="isAtEnd"
-          @click="recentlyAddedUp"
-        >
-          <v-icon>navigate_next</v-icon>
-        </v-btn>
-      </v-col>
-    </v-row>
-
-    <v-row>
-      <v-col
-        v-for="content in subsetRecentlyAdded"
-        :key="content.key"
-        cols="4"
-        sm="3"
-        md="2"
-        xl="1"
-      >
+      <template #header>
+        Recently Added
+      </template>
+      <template #default="{ item }">
         <PlexThumbnail
-          :content="content"
-          full-title
+          :content="item"
           type="thumb"
+          full-title
           cols="4"
           sm="3"
           md="2"
           xl="1"
         />
-      </v-col>
-    </v-row>
+      </template>
+    </MediaShelf>
   </div>
 </template>
 
 <script>
 import { defineAsyncComponent } from 'vue';
 import { mapActions } from 'vuex';
+import MediaShelf from './MediaShelf.vue';
 
 export default {
-  name: 'PlexOnDeck',
+  name: 'PlexRecentlyAdded',
 
   components: {
+    MediaShelf,
     PlexThumbnail: defineAsyncComponent(() => import('@/components/PlexThumbnail.vue')),
   },
 
@@ -78,43 +46,13 @@ export default {
 
   data: () => ({
     recentlyAdded: [],
-    recentlyAddedOffset: 0,
     abortController: null,
   }),
-
-  computed: {
-    recentItemsPer() {
-      switch (this.$vuetify.display.name) {
-        case 'xs': return 3;
-        case 'sm': return 4;
-        case 'md':
-        case 'lg': return 6;
-        default: return 12;
-      }
-    },
-
-    isAtStart() {
-      return this.recentlyAddedOffset === 0;
-    },
-
-    isAtEnd() {
-      return this.recentlyAddedOffset + this.recentItemsPer
-        >= this.recentlyAdded.length;
-    },
-
-    subsetRecentlyAdded() {
-      return this.recentlyAdded.slice(
-        this.recentlyAddedOffset,
-        this.recentlyAddedOffset + this.recentItemsPer,
-      );
-    },
-  },
 
   watch: {
     machineIdentifier: {
       handler() {
         this.recentlyAdded = [];
-        this.recentlyAddedOffset = 0;
         return this.fetchRecentlyAdded();
       },
       immediate: true,
@@ -135,23 +73,6 @@ export default {
         // Cancel outstanding request
         this.abortController.abort();
         this.abortController = null;
-      }
-    },
-
-    recentlyAddedUp() {
-      if (this.recentlyAddedOffset + this.recentItemsPer
-        >= this.recentlyAdded.length) {
-        // This would overflow!
-      } else {
-        this.recentlyAddedOffset += this.recentItemsPer;
-      }
-    },
-
-    recentlyAddedDown() {
-      if (this.recentlyAddedOffset - this.recentItemsPer < 0) {
-        this.recentlyAddedOffset = 0;
-      } else {
-        this.recentlyAddedOffset -= this.recentItemsPer;
       }
     },
 
