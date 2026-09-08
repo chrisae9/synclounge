@@ -161,6 +161,7 @@ export default {
     // Note: this is also called on rejoining, so be careful not to register handlers twice
     // or duplicate tasks
     const joinStartRevision = getters.GET_USER_EVENT_REVISION || 0;
+    const presetRevision = getters.GET_SYNC_PRESET_REVISION || 0;
     const {
       user: { id, ...rest }, users, isPartyPausingEnabled, isAutoHostEnabled, hostId, syncPreset,
     } = await dispatch('JOIN_ROOM');
@@ -226,7 +227,9 @@ export default {
       },
     });
 
-    commit('SET_SYNC_PRESET', syncPreset ?? null);
+    if ((getters.GET_SYNC_PRESET_REVISION || 0) === presetRevision) {
+      commit('SET_SYNC_PRESET', syncPreset ?? null);
+    }
     commit('SET_IS_PARTY_PAUSING_ENABLED', isPartyPausingEnabled);
     commit('SET_IS_AUTO_HOST_ENABLED', isAutoHostEnabled);
     commit('SET_IS_IN_ROOM', true);

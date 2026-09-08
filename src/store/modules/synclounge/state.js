@@ -1,5 +1,6 @@
 const state = () => ({
   syncPreset: null,
+  syncPresetRevision: 0,
   socketId: null,
   server: null,
   room: null,
