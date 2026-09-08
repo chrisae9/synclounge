@@ -60,10 +60,10 @@
       </v-tooltip>
 
       <p class="text-caption text-medium-emphasis my-1">
-        {{ user.state || 'Connecting' }} · {{ driftLabel(user) }}
+        {{ user.state || 'Connecting' }}<span v-if="GET_ADVANCED_PARTY_MODE"> · {{ driftLabel(user) }}</span>
       </p>
       <p
-        v-if="user.health"
+        v-if="user.health && GET_ADVANCED_PARTY_MODE"
         class="text-caption text-medium-emphasis mb-1"
       >
         {{ healthLabel(user.health) }}
@@ -163,6 +163,7 @@ export default {
   }),
 
   computed: {
+    ...mapGetters('settings', ['GET_ADVANCED_PARTY_MODE']),
     ...mapGetters([
       'GET_CONFIG',
     ]),

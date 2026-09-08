@@ -1,5 +1,6 @@
 // Use stored value if not null, othewise fallback to config, then default values
 export default {
+  GET_ADVANCED_PARTY_MODE: (state) => state.advancedPartyMode === true,
   GET_SHOW_BUFFERING_NOTIFICATIONS: (state) => state.showBufferingNotifications !== false,
   GET_AUTOPLAY: (state, getters, rootState, rootGetters) => state.autoplay
    ?? rootGetters.GET_CONFIG?.default_slplayer_autoplay,

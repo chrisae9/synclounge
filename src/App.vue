@@ -116,6 +116,13 @@
           >
             You're offline. Reconnect to watch and chat with your room.
           </div>
+          <div
+            v-if="connectionStatus.recovering"
+            role="status"
+            class="pa-2 text-center text-body-2"
+          >
+            Reconnecting to your watch party…
+          </div>
           <router-view v-if="GET_CONFIG" />
 
           <v-snackbar
@@ -152,6 +159,7 @@ import {
 import { defineAsyncComponent } from 'vue';
 import clipboard from '@/mixins/clipboard';
 import linkWithRoom from '@/mixins/linkwithroom';
+import { connectionStatus } from '@/utils/connectionstatus';
 import { getSignInRoute } from '@/router/guardutils';
 import { PlexAuthError } from '@/utils/fetchutils';
 
@@ -170,6 +178,7 @@ export default {
   data: () => ({
     pendingAuthRedirect: null,
     pwaState,
+    connectionStatus,
   }),
 
   computed: {

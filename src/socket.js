@@ -1,3 +1,4 @@
+import { finishRecovery } from '@/utils/connectionstatus';
 import { rememberDiagnostic } from '@/utils/problemreport';
 
 let socket = null;
@@ -26,6 +27,9 @@ export const open = async (url, options) => {
       rememberDiagnostic({ event: 'connection-lost', clientTimestamp: new Date().toISOString() });
     });
 
+    socket.on('connect', () => {
+      rememberDiagnostic({ event: 'connection-established', clientTimestamp: new Date().toISOString() });
+    });
     socket.once('connect', () => {
       console.debug('Socket: connected, id:', socket.id);
       resolve(socket);
@@ -46,6 +50,7 @@ export const open = async (url, options) => {
 };
 
 export const close = () => {
+  finishRecovery();
   if (!socket) {
     return;
   }
