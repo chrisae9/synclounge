@@ -69,14 +69,6 @@
             >
               Create a room
             </v-btn>
-
-            <v-btn
-              variant="outlined"
-              color="primary"
-              :to="{ name: 'AdvancedRoomJoin' }"
-            >
-              Choose a server
-            </v-btn>
           </v-card-actions>
         </v-card>
       </v-col>
@@ -137,6 +129,7 @@ export default {
     },
 
     async createRoom() {
+      this.$store.commit('SET_RIGHT_SIDEBAR_OPEN', false);
       this.error = null;
       this.loading = true;
 

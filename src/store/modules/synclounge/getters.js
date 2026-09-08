@@ -18,6 +18,7 @@ const loadToNumber = (load) => {
 const healthScore = (health) => health.latency + loadToNumber(health.load) * 10;
 
 export default {
+  GET_SYNC_PRESET_REVISION: (state) => state.syncPresetRevision,
   GET_MESSAGES_USER_CACHE_USER: (state) => (id) => state.messagesUserCache[id],
   GET_USER: (state, getters) => (id) => getters.GET_USERS[id],
   GET_SOCKET_ID: (state) => state.socketId,

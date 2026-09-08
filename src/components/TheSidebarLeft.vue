@@ -40,7 +40,15 @@
       nav
       class="pt-2"
     >
+      <v-list-item
+        v-if="IS_IN_ROOM"
+        :to="linkWithRoom({ name: 'PlexHome' })"
+        prepend-icon="video_library"
+        title="Browse libraries"
+        @click="SET_LEFT_SIDEBAR_OPEN(false)"
+      />
       <ThePwaInstall />
+      <ReportProblem />
 
       <TheSettingsDialog v-slot="{ props }">
         <v-list-item
@@ -95,17 +103,22 @@
 
 <script>
 import { defineAsyncComponent } from 'vue';
+import linkWithRoom from '@/mixins/linkwithroom';
 import { mapGetters, mapMutations, mapState } from 'vuex';
 
 export default {
   name: 'TheSidebarLeft',
 
   components: {
+    ReportProblem: defineAsyncComponent(() => import('@/components/ReportProblem.vue')),
     ThePwaInstall: defineAsyncComponent(() => import('@/components/ThePwaInstall.vue')),
     TheSettingsDialog: defineAsyncComponent(() => import('@/components/TheSettingsDialog.vue')),
   },
 
+  mixins: [linkWithRoom],
+
   computed: {
+    ...mapGetters('synclounge', ['IS_IN_ROOM']),
     ...mapState([
       'isLeftSidebarOpen',
     ]),

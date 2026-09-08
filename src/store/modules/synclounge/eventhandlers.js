@@ -452,7 +452,8 @@ export default {
       return;
     }
 
-    if (data.state === 'buffering' && previousState !== 'buffering'
+    if (rootGetters['settings/GET_SHOW_BUFFERING_NOTIFICATIONS'] !== false
+      && data.state === 'buffering' && previousState !== 'buffering'
       && data.id !== getters.GET_SOCKET_ID) {
       const user = getters.GET_USER(data.id);
       if (user) {
@@ -553,6 +554,16 @@ export default {
       await dispatch('CANCEL_IN_PROGRESS_SYNC');
       await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
     }
+  },
+
+  HANDLE_PARTICIPANT_HEALTH: ({ commit }, data) => {
+    commit('SET_PARTICIPANT_HEALTH', data);
+  },
+
+  HANDLE_SYNC_PRESET: async ({ commit, dispatch }, preset) => {
+    if (!['strict', 'balanced', 'relaxed', 'personal'].includes(preset)) return;
+    commit('SET_SYNC_PRESET', preset);
+    await dispatch('SEND_SYNC_FLEXIBILITY_UPDATE');
   },
 
   HANDLE_SYNC_FLEXIBILITY_UPDATE: ({ commit }, data) => {

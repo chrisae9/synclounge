@@ -1,4 +1,5 @@
 import { createApp } from 'vue';
+import { rememberDiagnostic } from './utils/problemreport';
 
 import vuetify from './plugins/vuetify';
 import App from './App.vue';
@@ -32,6 +33,12 @@ const vChatScroll = {
   },
 };
 
+const recordAppError = () => rememberDiagnostic({
+  event: 'application-error', clientTimestamp: new Date().toISOString(),
+});
+window.addEventListener('error', recordAppError);
+window.addEventListener('unhandledrejection', recordAppError);
+
 const app = createApp(App);
 app.use(router).use(store).use(vuetify);
 app.directive('chat-scroll', vChatScroll);
@@ -43,6 +50,7 @@ app.config.errorHandler = (err) => {
     return;
   }
 
+  recordAppError();
   console.error(err);
 
   store.dispatch('DISPLAY_NOTIFICATION', {

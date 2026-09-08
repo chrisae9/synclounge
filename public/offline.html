@@ -17,6 +17,14 @@
     <p>You’re offline, or your SyncLounge server is unavailable. Reconnect to join your room and watch with friends.</p>
     <p class="detail">Watching and chatting need an internet connection.</p>
     <a href="">Try again</a>
+    <details>
+      <summary>Report a connection problem</summary>
+      <p>This report contains basic device and connection information. Send it to your host.</p>
+      <textarea id="connection-report" aria-label="Connection problem report" readonly rows="8"></textarea>
+      <button id="copy-report" type="button">Copy bug report</button>
+      <p id="copy-status" role="status"></p>
+    </details>
   </main>
+  <script src="/offline-report.js" defer></script>
 </body>
 </html>

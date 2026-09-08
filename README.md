@@ -42,6 +42,16 @@ SyncLounge keeps multiple viewing sessions in sync using a WebSocket server as a
 - Installable desktop and mobile web app with an offline connection screen
 - Configurable sync flexibility and sync method (clean seek / skip ahead)
 
+## Watch-party controls and troubleshooting
+
+New rooms open on library browsing. Media rows support touch scrolling; desktop users can also use the arrows. Invite copies the room link. Settings → Advanced contains the optional watch-party service selector, separate from Plex library selection.
+
+The host can choose Strict (0.5 seconds), Balanced (3 seconds), or Relaxed (7 seconds) room synchronization, or use each viewer’s personal tolerance. Relaxed synchronization reduces corrective seeks; it cannot repair a slow stream. Participant details show playback state, drift, and recent buffer/quality measurements. After repeated substantial buffering, Settings can offer a lower-quality option for that viewer; applying it may require Plex transcoding.
+
+Settings → Notifications can hide buffering popups without disabling playback diagnostics. Menu → Report a problem copies a bounded report for sharing with the host, without requiring GitHub. Include what happened and the report’s timestamp; Plex/transcode session identifiers connect it to server logs. Raw error messages, credentials, and chat are excluded. GitHub issue creation is optional and requires pasting the report into the issue.
+
+Picture-in-picture remains available when the browser supports it. Installed iOS web apps may have platform limitations; SyncLounge does not force picture-in-picture when leaving the app.
+
 ## Running
 
 ### Docker

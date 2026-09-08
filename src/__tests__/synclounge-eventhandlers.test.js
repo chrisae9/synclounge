@@ -1475,3 +1475,15 @@ describe('host recovery identity boundary', () => {
     expect(ctx.dispatch).not.toHaveBeenCalledWith('CLEAR_HOST_GRACE_PERIOD');
   });
 });
+
+describe('buffering popup preference', () => {
+  it.each([true, false])('keeps state updates while popups are %s', async (enabled) => {
+    const ctx = createMockContext();
+    ctx.rootGetters['settings/GET_SHOW_BUFFERING_NOTIFICATIONS'] = enabled;
+    const update = { id: 'friend-1', state: 'buffering', time: 2000 };
+    await eventhandlers.HANDLE_PLAYER_STATE_UPDATE(ctx, update);
+    expect(ctx.commit).toHaveBeenCalledWith('SET_USER_PLAYER_STATE', update);
+    const popups = ctx.dispatch.mock.calls.filter(([action]) => action === 'DISPLAY_NOTIFICATION');
+    expect(popups).toHaveLength(enabled ? 1 : 0);
+  });
+});

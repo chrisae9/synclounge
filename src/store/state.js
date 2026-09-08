@@ -7,7 +7,7 @@ const state = () => ({
   configuration: null,
 
   isLeftSidebarOpen: false,
-  isRightSidebarOpen: true,
+  isRightSidebarOpen: false,
 
   // This stores the postplay data and controls whether the upnext component is visible
   upNextPostPlayData: null,
