@@ -1,6 +1,13 @@
 <template>
   <v-app>
     <TheSidebarRight v-if="page === 'party'" />
+    <TheAppHeader v-if="page === 'header'" invite-url="https://fixture.invalid/room"
+      show-extension @toggle-navigation="selectPage('room')" @copy-invite="inviteCopied = true">
+      <template #search><v-text-field density="compact" prepend-inner-icon="search"
+        placeholder="Search your libraries" variant="solo-filled" hide-details /></template>
+      <template #navigation><TheAppBarCrumbs /></template>
+      <template #party-button><v-btn icon="chat" aria-label="Open watch party" @click="selectPage('party')" /></template>
+    </TheAppHeader>
     <v-main>
       <nav
         aria-label="Visual fixture views"
@@ -22,7 +29,19 @@
           </v-btn>
         </div>
       </nav>
-      <v-container v-if="page === 'shelf'">
+      <v-container v-if="page === 'header'">
+        <v-alert v-if="inviteCopied" type="success">Invite action activated</v-alert>
+        <v-btn @click="$store.commit('SET_PREVIEW_METADATA', null)">Library home</v-btn>
+        <v-btn @click="$store.commit('SET_PREVIEW_METADATA', {
+          machineIdentifier: 'sample', ratingKey: '1', type: 'movie',
+          title: 'A very long movie title to check compact navigation',
+        })">Media navigation</v-btn>
+        <MediaShelf :items="shelfItems" label="Continue watching">
+          <template #header>Continue watching</template>
+          <template #default="{ item }"><img :src="poster" alt="Sample poster" style="width: 100%; aspect-ratio: 16 / 9; object-fit: cover;"><p>{{ item.title }}</p></template>
+        </MediaShelf>
+      </v-container>
+      <v-container v-else-if="page === 'shelf'">
         <MediaShelf :items="shelfItems" label="Continue watching">
           <template #header>Continue watching</template>
           <template #default="{ item }">
@@ -99,6 +118,8 @@
 </template>
 
 <script>
+import TheAppHeader from '@/components/TheAppHeader.vue';
+import TheAppBarCrumbs from '@/components/TheAppBarCrumbs.vue';
 import MediaShelf from '@/components/MediaShelf.vue';
 import RoomCreation from '@/views/RoomCreation.vue';
 import AdvancedRoomJoin from '@/views/AdvancedRoomJoin.vue';
@@ -109,13 +130,15 @@ import MessageList from '@/components/MessageList.vue';
 
 export default {
   components: {
-    MediaShelf, RoomCreation, AdvancedRoomJoin, PlexMediaLayout, TheSidebarRight, MessageInput, MessageList,
+    TheAppHeader, TheAppBarCrumbs, MediaShelf, RoomCreation, AdvancedRoomJoin, PlexMediaLayout, TheSidebarRight, MessageInput, MessageList,
   },
   props: { poster: { type: String, required: true } },
   data: () => ({
     page: 'room',
+    inviteCopied: false,
     shelfItems: Array.from({ length: 12 }, (_, i) => ({ key: String(i), title: `Sample movie ${i + 1}` })),
     views: [
+      { id: 'header', name: 'Library navigation' },
       { id: 'shelf', name: 'Media shelves' },
       { id: 'room', name: 'Create room' },
       { id: 'server', name: 'Server choice' },

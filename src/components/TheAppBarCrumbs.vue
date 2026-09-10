@@ -1,5 +1,40 @@
 <template>
+  <nav
+    v-if="$vuetify.display.smAndDown"
+    aria-label="Library navigation"
+    class="mobile-navigation"
+  >
+    <div
+      v-if="crumbs.length === 1"
+      class="library-home"
+      aria-current="page"
+    >
+      <v-icon size="20">
+        home
+      </v-icon><span>Library home</span>
+    </div>
+    <template v-else>
+      <v-btn
+        :to="crumbs[crumbs.length - 2].to"
+        variant="text"
+        height="44"
+        prepend-icon="chevron_left"
+        class="library-back"
+        :aria-label="`Back to ${crumbs[crumbs.length - 2].title}`"
+      >
+        {{ crumbs[crumbs.length - 2].title }}
+      </v-btn>
+      <span
+        class="current-location"
+        aria-current="page"
+        :title="crumbs[crumbs.length - 1].title"
+      >
+        {{ crumbs[crumbs.length - 1].title }}
+      </span>
+    </template>
+  </nav>
   <v-breadcrumbs
+    v-else
     :items="displayCrumbs"
     class="text-left breadcrumbs-truncate"
   >
@@ -64,7 +99,7 @@ export default {
 
         if (this.GET_ACTIVE_METADATA.machineIdentifier) {
           data.push({
-            title: this.GET_PLEX_SERVER(this.GET_ACTIVE_METADATA.machineIdentifier).name,
+            title: this.GET_PLEX_SERVER(this.GET_ACTIVE_METADATA.machineIdentifier)?.name || 'Library',
             to: this.linkWithRoom({
               name: 'PlexServer',
               params: {
@@ -133,6 +168,32 @@ export default {
 </script>
 
 <style scoped>
+.mobile-navigation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  min-width: 0;
+}
+.library-home {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #d5d8df;
+}
+.library-back { max-width: 48%; min-width: 44px; text-transform: none; letter-spacing: 0; padding-inline: 4px 8px; }
+.library-back :deep(.v-btn__content) { display: block; overflow: hidden; text-overflow: ellipsis; }
+.current-location {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 600;
+}
+
 .breadcrumbs-truncate {
   flex: 1 1 0;
   min-width: 0;
