@@ -39,8 +39,9 @@ describe('compact library navigation', () => {
     wrapper.unmount();
   });
   it('links back to the parent while retaining the room and coordination server', () => {
+    const title = 'The Last Light Beyond the Horizon: An Unexpected Journey Home — Extended Edition';
     const wrapper = crumbs({
-      machineIdentifier: 'plex-1', ratingKey: '7', title: 'A long movie title', type: 'movie',
+      machineIdentifier: 'plex-1', ratingKey: '7', title, type: 'movie',
     });
     const back = wrapper.get('button');
     expect(back.attributes('aria-label')).toBe('Back to Friends library');
@@ -50,7 +51,10 @@ describe('compact library navigation', () => {
         machineIdentifier: 'plex-1', room: 'movie-night', server: 'https://coordination.invalid',
       },
     });
-    expect(wrapper.get('[aria-current="page"]').text()).toBe('A long movie title');
+    const current = wrapper.get('[aria-current="page"]');
+    expect(current.text()).toBe(title);
+    expect(current.attributes('title')).toBe(title);
+    expect(current.classes()).toContain('current-location');
     wrapper.unmount();
   });
   it('keeps header navigation and invite actions operable', async () => {
