@@ -148,13 +148,13 @@ main {
   --sl-safe-left: env(safe-area-inset-left, 0px);
   --sl-safe-right: env(safe-area-inset-right, 0px);
 }
-.v-dialog > .v-overlay__content {
+.v-overlay.v-dialog > .v-overlay__content {
   margin: calc(16px + var(--sl-safe-top)) calc(16px + var(--sl-safe-right))
     calc(16px + var(--sl-safe-bottom)) calc(16px + var(--sl-safe-left));
   max-height: calc(100dvh - var(--sl-safe-top) - var(--sl-safe-bottom) - 32px);
   max-width: calc(100% - var(--sl-safe-left) - var(--sl-safe-right) - 32px);
 }
-.v-dialog--fullscreen > .v-overlay__content {
+.v-overlay.v-dialog--fullscreen > .v-overlay__content {
   top: var(--sl-safe-top);
   left: var(--sl-safe-left);
   margin: 0;
@@ -163,7 +163,7 @@ main {
   max-height: calc(100dvh - var(--sl-safe-top) - var(--sl-safe-bottom));
   max-width: calc(100% - var(--sl-safe-left) - var(--sl-safe-right));
 }
-.v-snackbar {
+.v-overlay.v-snackbar {
   padding-top: var(--sl-safe-top);
   padding-bottom: var(--sl-safe-bottom);
   padding-left: var(--sl-safe-left);
