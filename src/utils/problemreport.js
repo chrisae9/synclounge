@@ -25,10 +25,41 @@ export const rememberDiagnostic = (data) => {
   if (recent.length > 30) recent.shift();
 };
 
+export const captureMobileEnvironment = () => {
+  const viewport = globalThis.visualViewport;
+  const root = globalThis.document?.documentElement;
+  const style = root && globalThis.getComputedStyle?.(root);
+  return {
+    visibility: globalThis.document?.visibilityState,
+    viewport: {
+      width: globalThis.innerWidth,
+      height: globalThis.innerHeight,
+      visualWidth: viewport?.width,
+      visualHeight: viewport?.height,
+      offsetTop: viewport?.offsetTop,
+      offsetLeft: viewport?.offsetLeft,
+      scale: viewport?.scale,
+      devicePixelRatio: globalThis.devicePixelRatio,
+    },
+    screen: {
+      width: globalThis.screen?.width,
+      height: globalThis.screen?.height,
+      orientation: globalThis.screen?.orientation?.type,
+    },
+    safeArea: Object.fromEntries(['top', 'bottom', 'left', 'right'].map((edge) => [
+      edge, style?.getPropertyValue(`--sl-safe-${edge}`).trim() || '0px',
+    ])),
+    capabilities: {
+      pictureInPicture: Boolean(globalThis.document?.pictureInPictureEnabled),
+      visualViewport: Boolean(viewport),
+    },
+  };
+};
+
 export const buildProblemReport = ({
   version, browser, connection, playback, sessions, view,
 }) => ({
-  reportVersion: 1,
+  reportVersion: 2,
   capturedAt: new Date().toISOString(),
   appVersion: version || 'unknown',
   view,
@@ -40,6 +71,7 @@ export const buildProblemReport = ({
   online: globalThis.navigator?.onLine,
   standalone: Boolean(globalThis.navigator?.standalone
     || globalThis.matchMedia?.('(display-mode: standalone)').matches),
+  environment: captureMobileEnvironment(),
   connection,
   current: safeDiagnostic({ event: 'problem-report', playback, sessions }),
   recent: recent.map((entry) => structuredClone(entry)),

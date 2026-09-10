@@ -58,6 +58,14 @@
         </template>
       </v-list-item>
 
+      <v-switch
+        class="px-3"
+        label="Advanced controls"
+        hide-details
+        density="compact"
+        :model-value="GET_ADVANCED_PARTY_MODE"
+        @update:model-value="SET_ADVANCED_PARTY_MODE"
+      />
       <v-list-item
         density="compact"
         class="px-3 py-0 switch-item"
@@ -81,7 +89,7 @@
       </v-list-item>
 
       <v-tooltip
-        v-if="AM_I_HOST"
+        v-if="AM_I_HOST && GET_ADVANCED_PARTY_MODE"
         location="bottom"
         content-class="thumbnail-tooltip"
       >
@@ -144,7 +152,7 @@
       </v-list-item>
 
       <div
-        v-if="syncPreset"
+        v-if="syncPreset && GET_ADVANCED_PARTY_MODE"
         class="px-3 py-2"
       >
         <v-select
@@ -205,6 +213,7 @@ export default {
   }),
 
   computed: {
+    ...mapGetters('settings', ['GET_ADVANCED_PARTY_MODE']),
     ...mapState('synclounge', ['syncPreset']),
     ...mapState(['isRightSidebarOpen']),
 
@@ -218,6 +227,7 @@ export default {
   },
 
   methods: {
+    ...mapMutations('settings', ['SET_ADVANCED_PARTY_MODE']),
     ...mapActions('synclounge', [
       'SEND_SYNC_PRESET',
       'SEND_SET_PARTY_PAUSING_ENABLED',

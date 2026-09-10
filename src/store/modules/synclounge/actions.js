@@ -157,7 +157,7 @@ export default {
 
   JOIN_ROOM_AND_INIT: async ({
     getters, rootGetters, dispatch, commit,
-  }, { syncOnJoin = true } = {}) => {
+  }, { syncOnJoin = true, reconnecting = false } = {}) => {
     // Note: this is also called on rejoining, so be careful not to register handlers twice
     // or duplicate tasks
     const joinStartRevision = getters.GET_USER_EVENT_REVISION || 0;
@@ -235,10 +235,12 @@ export default {
     commit('SET_IS_IN_ROOM', true);
     await dispatch('SEND_SYNC_FLEXIBILITY_UPDATE');
 
-    await dispatch('DISPLAY_NOTIFICATION', {
-      text: 'Joined room',
-      color: 'success',
-    }, { root: true });
+    if (!reconnecting) {
+      await dispatch('DISPLAY_NOTIFICATION', {
+        text: 'Joined room',
+        color: 'success',
+      }, { root: true });
+    }
 
     if (syncOnJoin) {
       commit('SET_JOIN_SYNC_IN_PROGRESS', true);

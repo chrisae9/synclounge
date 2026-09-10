@@ -116,6 +116,7 @@
           >
             You're offline. Reconnect to watch and chat with your room.
           </div>
+          <ConnectionStatus />
           <router-view v-if="GET_CONFIG" />
 
           <v-snackbar
@@ -152,11 +153,13 @@ import {
 import { defineAsyncComponent } from 'vue';
 import clipboard from '@/mixins/clipboard';
 import linkWithRoom from '@/mixins/linkwithroom';
+import ConnectionStatus from '@/components/ConnectionStatus.vue';
 import { getSignInRoute } from '@/router/guardutils';
 import { PlexAuthError } from '@/utils/fetchutils';
 
 export default {
   components: {
+    ConnectionStatus,
     TheSidebarLeft: defineAsyncComponent(() => import('@/components/TheSidebarLeft.vue')),
     TheUpnextDialog: defineAsyncComponent(() => import('@/components/TheUpnextDialog.vue')),
     TheAppBarCrumbs: defineAsyncComponent(() => import('@/components/TheAppBarCrumbs.vue')),

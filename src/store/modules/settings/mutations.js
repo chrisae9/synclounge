@@ -1,6 +1,7 @@
 import stateFactory from './state';
 
 export default {
+  SET_ADVANCED_PARTY_MODE: (state, enabled) => { state.advancedPartyMode = Boolean(enabled); },
   SET_SHOW_BUFFERING_NOTIFICATIONS: (state, enabled) => {
     state.showBufferingNotifications = Boolean(enabled);
   },
