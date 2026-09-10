@@ -1,3 +1,4 @@
+import { beginRecovery, finishRecovery } from '@/utils/connectionstatus';
 import { CAF } from 'caf';
 import { emit, waitForEvent, getId } from '@/socket';
 
@@ -387,13 +388,10 @@ export default {
     startHostGraceTimeout({ getters, commit, dispatch }, timeoutMs);
   },
 
-  HANDLE_DISCONNECT: async ({ dispatch }) => {
+  HANDLE_DISCONNECT: async () => {
     invalidatePartyPauseCommands();
     console.warn('HANDLE_DISCONNECT: lost connection to SyncLounge server');
-    await dispatch('DISPLAY_NOTIFICATION', {
-      text: 'Disconnected from the SyncLounge server',
-      color: 'info',
-    }, { root: true });
+    beginRecovery();
   },
 
   HANDLE_RECONNECT: async ({ dispatch, commit }) => {
@@ -402,8 +400,10 @@ export default {
     try {
       await waitForEvent('slPing', 15000);
       commit('SET_SOCKET_ID', getId());
-      await dispatch('JOIN_ROOM_AND_INIT');
+      await dispatch('JOIN_ROOM_AND_INIT', { reconnecting: true });
+      finishRecovery();
     } catch (e) {
+      finishRecovery();
       const text = `Error reconnecting: ${e.message}`;
       console.error(text);
       await dispatch('DISPLAY_NOTIFICATION', {

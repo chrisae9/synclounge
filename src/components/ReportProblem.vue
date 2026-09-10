@@ -12,7 +12,7 @@
         @click="capture"
       />
     </template>
-    <v-card>
+    <v-card class="problem-report-card">
       <v-toolbar
         title="Report a problem"
         density="compact"
@@ -47,7 +47,7 @@
           Review the report before sharing. Tokens, passwords and chat are excluded.
         </p>
       </v-card-text>
-      <v-card-actions class="flex-wrap">
+      <v-card-actions class="flex-wrap problem-report-actions">
         <v-btn
           color="primary"
           variant="flat"
@@ -99,7 +99,7 @@ export default {
       try {
         await navigator.clipboard.writeText(this.report);
         this.copyFailed = false;
-        this.copyStatus = 'Copied. Paste it into a message to your host, or into a GitHub issue.';
+        this.copyStatus = 'Copied. Send it to your host.';
       } catch {
         this.copyFailed = true;
         this.copyStatus = 'Clipboard unavailable. Select the report above and copy it manually.';
@@ -108,3 +108,13 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.problem-report-card > .v-toolbar,
+.problem-report-actions { flex-shrink: 0; }
+.problem-report-card > .v-card-text { min-height: 0; overscroll-behavior: contain; }
+@media (max-width: 599px) {
+  .problem-report-actions { flex-direction: column; align-items: stretch; padding: 12px; }
+  .problem-report-actions > .v-btn { margin: 0; min-height: 44px; }
+}
+</style>

@@ -36,6 +36,16 @@ const vChatScroll = {
 const recordAppError = () => rememberDiagnostic({
   event: 'application-error', clientTimestamp: new Date().toISOString(),
 });
+document.addEventListener('visibilitychange', () => rememberDiagnostic({
+  event: document.hidden ? 'app-backgrounded' : 'app-resumed',
+  clientTimestamp: new Date().toISOString(),
+}));
+window.addEventListener('online', () => rememberDiagnostic({
+  event: 'network-online', clientTimestamp: new Date().toISOString(),
+}));
+window.addEventListener('offline', () => rememberDiagnostic({
+  event: 'network-offline', clientTimestamp: new Date().toISOString(),
+}));
 window.addEventListener('error', recordAppError);
 window.addEventListener('unhandledrejection', recordAppError);
 
