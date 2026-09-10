@@ -7,73 +7,26 @@
     <TheSidebarLeft />
     <router-view name="rightSidebar" />
 
-    <v-app-bar
-      color="transparent"
-      elevation="0"
-      class="app-bar-blur"
-      scroll-behavior="hide"
-      style="z-index: 5;"
-      :extension-height="showAppBarExtension ? 80 : 0"
+    <TheAppHeader
+      :navigation-open="isLeftSidebarOpen"
+      :invite-url="inviteUrl"
+      :show-extension="showAppBarExtension"
+      @toggle-navigation="SET_LEFT_SIDEBAR_OPEN(!isLeftSidebarOpen)"
+      @copy-invite="copyToClipboard(inviteUrl)"
     >
-      <v-app-bar-nav-icon
-        :aria-label="isLeftSidebarOpen ? 'Close navigation' : 'Open navigation'"
-        :aria-expanded="!!isLeftSidebarOpen"
-        @click="SET_LEFT_SIDEBAR_OPEN(!isLeftSidebarOpen)"
-      />
-
-      <router-link
-        :to="{ name: 'RoomCreation' }"
-      >
-        <picture>
-          <source
-            srcset="@/assets/images/logos/logo-small-light.png"
-            :media="smallLogoMedia"
-          >
-          <img
-            alt="SyncLounge home"
-            height="42"
-            src="@/assets/images/logos/logo-long-light.png"
-            style="vertical-align: middle;"
-          >
-        </picture>
-      </router-link>
-
-      <v-spacer />
-
-      <v-toolbar-items>
-        <v-btn
-          v-if="inviteUrl"
-          variant="flat"
-          color="primary"
-          aria-label="Copy room invite link"
-          @click="copyToClipboard(inviteUrl)"
-        >
-          <v-icon
-            start
-            class="d-sm-none"
-          >
-            person_add
-          </v-icon>
-          <span>Invite</span>
-        </v-btn>
-      </v-toolbar-items>
-
-      <router-view name="rightSidebarButton" />
-
-      <template
-        v-if="showAppBarExtension"
-        #extension
-      >
-        <div class="extension-wrapper">
-          <div class="app-bar-search">
-            <router-view name="searchBar" />
-          </div>
-          <TheAppBarCrumbs />
-        </div>
-
+      <template #party-button>
+        <router-view name="rightSidebarButton" />
+      </template>
+      <template #search>
+        <router-view name="searchBar" />
+      </template>
+      <template #navigation>
+        <TheAppBarCrumbs />
+      </template>
+      <template #extra>
         <router-view name="appBarView" />
       </template>
-    </v-app-bar>
+    </TheAppHeader>
 
     <v-main
       id="main-content"
@@ -154,12 +107,14 @@ import { defineAsyncComponent } from 'vue';
 import clipboard from '@/mixins/clipboard';
 import linkWithRoom from '@/mixins/linkwithroom';
 import ConnectionStatus from '@/components/ConnectionStatus.vue';
+import TheAppHeader from '@/components/TheAppHeader.vue';
 import { getSignInRoute } from '@/router/guardutils';
 import { PlexAuthError } from '@/utils/fetchutils';
 
 export default {
   components: {
     ConnectionStatus,
+    TheAppHeader,
     TheSidebarLeft: defineAsyncComponent(() => import('@/components/TheSidebarLeft.vue')),
     TheUpnextDialog: defineAsyncComponent(() => import('@/components/TheUpnextDialog.vue')),
     TheAppBarCrumbs: defineAsyncComponent(() => import('@/components/TheAppBarCrumbs.vue')),
@@ -202,10 +157,6 @@ export default {
 
     showAppBarExtension() {
       return this.$route.meta.showAppBarExtension;
-    },
-
-    smallLogoMedia() {
-      return `(max-width: ${this.$vuetify.display.thresholds.sm}px)`;
     },
 
     inviteUrl() {
@@ -360,29 +311,6 @@ export default {
 </script>
 
 <style scoped>
-.app-bar-blur {
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  background: rgba(0, 0, 0, 0.6) !important;
-}
-
-.extension-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  flex: 1;
-  width: 100%;
-  gap: 2px;
-  min-width: 0;
-}
-
-.app-bar-search {
-  max-width: 600px;
-  min-width: 120px;
-  width: 100%;
-  margin: 0 auto;
-}
-
 .snackbar-icon-spin {
   animation: spin 1.5s linear infinite;
 }
@@ -405,7 +333,6 @@ export default {
   border-radius: 8px;
 }
 .skip-link:focus { top: max(8px, env(safe-area-inset-top)); }
-.app-bar-blur { margin-top: env(safe-area-inset-top); }
 .main-content { padding-top: calc(var(--v-layout-top, 64px) + env(safe-area-inset-top)); }
 .app-content-scroll {
   height: calc(100dvh - var(--v-layout-top, 64px) - env(safe-area-inset-top)) !important;

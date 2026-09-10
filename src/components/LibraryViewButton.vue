@@ -1,6 +1,7 @@
 <template>
   <v-btn
     icon
+    :aria-label="IS_LIBRARY_LIST_VIEW ? 'Switch to grid view' : 'Switch to list view'"
     @click="TOGGLE_LIBRARY_LIST_VIEW"
   >
     <v-icon>{{ icon }}</v-icon>
