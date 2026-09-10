@@ -44,7 +44,9 @@ SyncLounge keeps multiple viewing sessions in sync using a WebSocket server as a
 
 ## Watch-party controls and troubleshooting
 
-New rooms open on library browsing. Media rows support touch scrolling; desktop users can also use the arrows. Invite copies the room link. Settings → Advanced contains the optional watch-party service selector, separate from Plex library selection.
+New rooms open on library browsing. On phones, library navigation shows a back action and the current location. Media rows support touch scrolling; desktop users can also use the arrows. Invite copies the room link. Settings → Advanced contains the optional watch-party service selector, separate from Plex library selection.
+
+The watch-party drawer starts in Basic mode. Advanced controls reveal synchronization settings and participant diagnostics; the message composer stays available in landscape and while typing.
 
 The host can choose Strict (0.5 seconds), Balanced (3 seconds), or Relaxed (7 seconds) room synchronization, or use each viewer’s personal tolerance. Relaxed synchronization reduces corrective seeks; it cannot repair a slow stream. Participant details show playback state, drift, and recent buffer/quality measurements. After repeated substantial buffering, Settings can offer a lower-quality option for that viewer; applying it may require Plex transcoding.
 

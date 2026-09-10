@@ -31,6 +31,8 @@ export const captureMobileEnvironment = () => {
   const style = root && globalThis.getComputedStyle?.(root);
   return {
     visibility: globalThis.document?.visibilityState,
+    documentStatusBarStyle: globalThis.document
+      ?.querySelector?.('meta[name="apple-mobile-web-app-status-bar-style"]')?.content,
     viewport: {
       width: globalThis.innerWidth,
       height: globalThis.innerHeight,

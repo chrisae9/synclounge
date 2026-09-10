@@ -4,6 +4,7 @@ import { createStore } from 'vuex';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import vuetify from '@/plugins/vuetify';
 import '@/assets/css/style.css';
+import settings from '@/store/modules/settings';
 import Preview from './ui-preview.vue';
 
 if (!import.meta.env.DEV) throw new Error('UI preview is available only in development');
@@ -22,6 +23,9 @@ const users = Object.fromEntries(['Alex', 'Morgan', 'Sam', 'Taylor with a long n
     duration: 7200000,
     updatedAt: Date.now(),
     playbackRate: 1,
+    health: {
+      updatedAt: Date.now(), height: 1080, bitrate: 8000000, bufferAhead: 20, bufferingCount: 2,
+    },
     syncFlexibility: 3000,
     playerProduct: 'Fixture browser',
     media: { type: 'movie', title: 'The Last Light Beyond the Horizon', machineIdentifier: 'sample' },
@@ -34,20 +38,18 @@ const sampleServer = {
   image: image('SAMPLE SERVER'),
 };
 const store = createStore({
-  state: () => ({ isRightSidebarOpen: true }),
+  state: () => ({ isRightSidebarOpen: true, previewMetadata: null }),
   getters: {
+    GET_ACTIVE_METADATA: (state) => state.previewMetadata,
     GET_CONFIG: () => ({ servers: [sampleServer], sidebar_time_update_interval: 1000 }),
   },
   mutations: {
+    SET_PREVIEW_METADATA(state, value) { state.previewMetadata = value; },
     SET_RIGHT_SIDEBAR_OPEN(state, value) { state.isRightSidebarOpen = value; },
     TOGGLE_RIGHT_SIDEBAR_OPEN(state) { state.isRightSidebarOpen = !state.isRightSidebarOpen; },
   },
   modules: {
-    settings: {
-      namespaced: true,
-      state: () => ({ customServerUrl: '' }),
-      mutations: { SET_CUSTOM_SERVER_URL(state, value) { state.customServerUrl = value; } },
-    },
+    settings,
     plexservers: {
       namespaced: true,
       getters: {
@@ -58,6 +60,7 @@ const store = createStore({
     synclounge: {
       namespaced: true,
       state: () => ({
+        syncPreset: 'balanced',
         pausing: true,
         autoHost: false,
         hostId: 'user-0',
@@ -91,6 +94,7 @@ const store = createStore({
       },
       mutations: {
         ADD_MESSAGE(state, text) { state.messages.push({ senderId: 'user-0', time: Date.now(), text }); },
+        SET_SYNC_PRESET(state, value) { state.syncPreset = value; },
         SET_PAUSING(state, value) { state.pausing = value; },
         SET_AUTO_HOST(state, value) { state.autoHost = value; },
         SET_HOST(state, id) { state.hostId = id; },
@@ -100,6 +104,7 @@ const store = createStore({
         FETCH_SERVERS_HEALTH() {},
         DISCONNECT_IF_CONNECTED() {},
         SET_AND_CONNECT_AND_JOIN_ROOM() {},
+        SEND_SYNC_PRESET({ commit }, value) { commit('SET_SYNC_PRESET', value); },
         SEND_MESSAGE({ commit }, text) { commit('ADD_MESSAGE', text); },
         SEND_SET_PARTY_PAUSING_ENABLED({ commit }, value) { commit('SET_PAUSING', value); },
         SEND_SET_AUTO_HOST_ENABLED({ commit }, value) { commit('SET_AUTO_HOST', value); },
@@ -113,7 +118,9 @@ const store = createStore({
 });
 const router = createRouter({
   history: createMemoryHistory(),
-  routes: ['RoomCreation', 'AdvancedRoomJoin', 'PlexHome'].map((name, i) => ({
+  routes: [
+    'RoomCreation', 'AdvancedRoomJoin', 'PlexHome', 'PlexServer', 'PlexLibrary', 'PlexMedia', 'PlexSearch',
+  ].map((name, i) => ({
     path: i ? `/${name}` : '/', name, component: { render: () => null },
   })),
 });
