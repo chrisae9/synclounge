@@ -29,6 +29,7 @@ const metadata = {
 
 describe('desktop playback choices', () => {
   it.each([true, false])('plays the selected version with resume=%s', async (resume) => {
+    vi.useFakeTimers();
     const play = vi.fn();
     const store = createStore({
       modules: { plexclients: { namespaced: true, actions: { PLAY_MEDIA: (_, payload) => play(payload) } } },
@@ -44,6 +45,7 @@ describe('desktop playback choices', () => {
     try {
       await wrapper.setData({ dialog: true });
       await flushPromises();
+      await vi.advanceTimersByTimeAsync(300);
       const dialog = new DOMWrapper(document.body);
       await dialog.get('input[type="checkbox"]').setValue(resume);
       const buttons = dialog.findAll('.playback-option-action');
@@ -59,6 +61,7 @@ describe('desktop playback choices', () => {
       });
     } finally {
       wrapper.unmount();
+      vi.useRealTimers();
     }
   });
 });
