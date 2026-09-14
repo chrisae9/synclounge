@@ -6,16 +6,19 @@
     <v-list-item
       v-for="(user, id) in GET_USERS"
       :key="id"
-      class="py-0"
+      class="user-row px-3 py-2"
     >
-      <template #prepend>
-        <v-avatar size="28">
+      <div class="user-heading">
+        <v-avatar
+          size="28"
+          class="user-avatar"
+        >
           <img
             :src="user.thumb"
+            alt=""
             class="avatar-img"
             :class="getSyncBorderClass(user)"
           >
-
           <v-icon
             v-if="user.state !== 'playing'"
             class="avatar-icon"
@@ -23,117 +26,104 @@
             {{ stateIcons[user.state] }}
           </v-icon>
         </v-avatar>
-      </template>
-
-      <v-tooltip
-        location="bottom"
-        content-class="thumbnail-tooltip"
-      >
-        <template #activator="{ props }">
-          <div
-            v-bind="props"
-          >
-            <v-list-item-title class="user-title">
-              <span class="user-name">
+        <v-tooltip
+          location="bottom"
+          content-class="thumbnail-tooltip"
+        >
+          <template #activator="{ props }">
+            <div
+              v-bind="props"
+              class="user-identity"
+            >
+              <div
+                class="user-name"
+                :title="user.username"
+              >
                 {{ user.username }}
                 <span
                   v-if="id === GET_SOCKET_ID"
                   class="text-medium-emphasis"
-                >
-                  (you)
-                </span>
-              </span>
-              <span class="user-time">
-                {{ getTimeFromMs(getAdjustedTime(user)) }}
-              </span>
-            </v-list-item-title>
-          </div>
-        </template>
-
-        {{ getTitle(user.media) }}
-        <br>
-        Watching on {{ user.playerProduct || `Unknown Plex Client` }}
-        <span v-if="user.media && GET_PLEX_SERVER(user.media.machineIdentifier)">
+                >(you)</span>
+              </div>
+              <span class="user-time">{{ getTimeFromMs(getAdjustedTime(user)) }}</span>
+            </div>
+          </template>
+          {{ getTitle(user.media) }}
           <br>
-          via {{ GET_PLEX_SERVER(user.media.machineIdentifier).name }}
-        </span>
-      </v-tooltip>
-
-      <p class="text-caption text-medium-emphasis my-1">
-        {{ user.state || 'Connecting' }}<span v-if="GET_ADVANCED_PARTY_MODE"> · {{ driftLabel(user) }}</span>
-      </p>
-      <p
+          Watching on {{ user.playerProduct || 'Unknown Plex Client' }}
+          <span v-if="user.media && GET_PLEX_SERVER(user.media.machineIdentifier)">
+            <br>
+            via {{ GET_PLEX_SERVER(user.media.machineIdentifier).name }}
+          </span>
+        </v-tooltip>
+        <div class="user-actions">
+          <v-tooltip
+            v-if="id === GET_HOST_ID || AM_I_HOST"
+            location="bottom"
+            content-class="thumbnail-tooltip"
+          >
+            <template #activator="{ props }">
+              <v-btn
+                v-if="AM_I_HOST && id !== GET_HOST_ID"
+                v-bind="props"
+                icon="star_outline"
+                size="small"
+                color="primary"
+                variant="text"
+                :aria-label="`Make ${user.username} the host`"
+                @click="TRANSFER_HOST(id)"
+              />
+              <v-icon
+                v-else
+                v-bind="props"
+                color="primary"
+                role="img"
+                :aria-label="`${user.username} is the host`"
+              >
+                star
+              </v-icon>
+            </template>
+            <span>{{ getHostActionText(id === GET_HOST_ID) }}</span>
+          </v-tooltip>
+          <v-tooltip
+            v-if="id !== GET_HOST_ID && AM_I_HOST"
+            location="bottom"
+            content-class="thumbnail-tooltip"
+          >
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                icon="clear"
+                size="small"
+                variant="text"
+                :aria-label="`Remove ${user.username} from the room`"
+                @click="KICK_USER(id)"
+              />
+            </template>
+            <span>Remove from room</span>
+          </v-tooltip>
+        </div>
+      </div>
+      <div class="user-status text-caption text-medium-emphasis">
+        <span>{{ user.state || 'Connecting' }}</span>
+        <span v-if="GET_ADVANCED_PARTY_MODE">{{ driftLabel(user) }}</span>
+      </div>
+      <ul
         v-if="user.health && GET_ADVANCED_PARTY_MODE"
-        class="text-caption text-medium-emphasis mb-1"
+        class="user-health text-caption text-medium-emphasis"
       >
-        {{ healthLabel(user.health) }}
-      </p>
+        <li
+          v-for="detail in healthDetails(user.health)"
+          :key="detail"
+        >
+          {{ detail }}
+        </li>
+      </ul>
       <v-progress-linear
-        class="pt-content-progress"
+        class="pt-content-progress mt-2"
         :height="2"
         :model-value="percent(user)"
       />
-
-      <template #append>
-        <v-tooltip
-          v-if="id === GET_HOST_ID || AM_I_HOST"
-          location="bottom"
-          content-class="thumbnail-tooltip"
-        >
-          <template #activator="{ props }">
-            <v-btn
-              v-if="AM_I_HOST && id !== GET_HOST_ID"
-              v-bind="props"
-              icon="star_outline"
-              color="primary"
-              variant="text"
-              :aria-label="`Make ${user.username} the host`"
-              @click="TRANSFER_HOST(id)"
-            />
-            <v-icon
-              v-else
-              v-bind="props"
-              color="primary"
-              role="img"
-              :aria-label="`${user.username} is the host`"
-            >
-              star
-            </v-icon>
-          </template>
-
-          <span>{{ getHostActionText(id === GET_HOST_ID) }}</span>
-        </v-tooltip>
-        <v-icon
-          v-else
-          style="visibility: hidden"
-        >
-          star
-        </v-icon>
-
-        <v-icon
-          v-if="id === GET_HOST_ID && AM_I_HOST"
-          style="visibility: hidden"
-        >
-          clear
-        </v-icon>
-        <v-tooltip
-          v-else-if="id !== GET_HOST_ID && AM_I_HOST"
-          location="bottom"
-          content-class="thumbnail-tooltip"
-        >
-          <template #activator="{ props }">
-            <v-btn
-              v-bind="props"
-              icon="clear"
-              variant="text"
-              :aria-label="`Remove ${user.username} from the room`"
-              @click="KICK_USER(id)"
-            />
-          </template>
-
-          <span>Kick</span>
-        </v-tooltip>
-      </template>
     </v-list-item>
   </v-list>
 </template>
@@ -218,14 +208,14 @@ export default {
       return sameSource ? timing : `${timing} (estimated)`;
     },
 
-    healthLabel(health) {
-      if (this.nowTimestamp - health.updatedAt > 90000) return 'Playback details are stale';
+    healthDetails(health) {
+      if (this.nowTimestamp - health.updatedAt > 90000) return ['Playback details are stale'];
       const parts = [];
       if (health.height > 0) parts.push(`${health.height}p`);
       if (health.bitrate > 0) parts.push(`${(health.bitrate / 1000000).toFixed(1)} Mbps`);
       if (health.bufferAhead != null) parts.push(`${health.bufferAhead.toFixed(1)}s buffered`);
       parts.push(`${health.bufferingCount} buffering events`);
-      return parts.join(' · ');
+      return parts;
     },
 
     getAdjustedTime({
@@ -336,12 +326,14 @@ export default {
   border-color: #0de47499;
 }
 
-.user-title {
-  display: flex !important;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 4px;
-}
+.user-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.user-avatar, .user-actions { flex-shrink: 0; }
+.user-identity { flex: 1 1 auto; min-width: 0; }
+.user-actions { display: flex; align-items: center; gap: 2px; }
+.user-status, .user-health { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; }
+.user-health { list-style: none; padding: 0; }
+.user-health li { overflow-wrap: anywhere; }
+.user-row + .user-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
 
 .user-name {
   overflow: hidden;

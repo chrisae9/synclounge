@@ -22,7 +22,7 @@
             @click="SET_RIGHT_SIDEBAR_OPEN(false)"
           >
             <v-icon size="small">
-              chevron_right
+              close
             </v-icon>
           </v-btn>
         </template>

@@ -388,13 +388,18 @@ export default {
     startHostGraceTimeout({ getters, commit, dispatch }, timeoutMs);
   },
 
-  HANDLE_DISCONNECT: async () => {
+  HANDLE_DISCONNECT: async (context, reason) => {
     invalidatePartyPauseCommands();
+    if (reason === 'io client disconnect') {
+      finishRecovery();
+      return;
+    }
     console.warn('HANDLE_DISCONNECT: lost connection to SyncLounge server');
     beginRecovery();
   },
 
-  HANDLE_RECONNECT: async ({ dispatch, commit }) => {
+  HANDLE_RECONNECT: async ({ dispatch, commit, getters }) => {
+    const wasHost = getters?.AM_I_HOST;
     console.debug('HANDLE_RECONNECT: attempting to rejoin room');
 
     try {
@@ -402,6 +407,12 @@ export default {
       commit('SET_SOCKET_ID', getId());
       await dispatch('JOIN_ROOM_AND_INIT', { reconnecting: true });
       finishRecovery();
+      if (wasHost && !getters.AM_I_HOST && getters.GET_HOST_USER?.username) {
+        await dispatch('DISPLAY_NOTIFICATION', {
+          text: `Host changed after reconnecting. ${getters.GET_HOST_USER.username} is now the host.`,
+          color: 'info',
+        }, { root: true });
+      }
     } catch (e) {
       finishRecovery();
       const text = `Error reconnecting: ${e.message}`;

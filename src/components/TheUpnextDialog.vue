@@ -3,9 +3,11 @@
     :model-value="true"
     persistent
     :scrim="false"
+    width="100%"
+    max-width="960"
   >
     <v-card
-      style="max-width: 100%; margin-left: auto; margin-right: auto;"
+      style="width: 100%;"
       class="text-white pa-0"
       :img="background"
     >
@@ -37,7 +39,11 @@
               <v-row
                 no-gutters
               >
-                <v-col>
+                <v-col
+                  cols="12"
+                  sm="7"
+                  class="upnext-description"
+                >
                   <h2>
                     Coming up next
                   </h2>
@@ -48,29 +54,17 @@
 
                   <div>{{ getSecondaryTitle(GET_UP_NEXT_POST_PLAY_DATA) }}</div>
 
-                  <v-col
-                    cols="12"
-                    md="6"
-                    class="text-left text-subtitle-2 text-primary"
-                  >
+                  <p class="mt-2 text-subtitle-2 text-primary">
                     From {{ server.name }}
-                  </v-col>
+                  </p>
                 </v-col>
 
                 <v-col
-                  cols="auto"
-                  class="ml-auto d-flex flex-column justify-space-between"
+                  cols="12"
+                  sm="5"
+                  class="d-flex align-center justify-end"
                 >
-                  <v-btn
-                    icon
-                    variant="text"
-                    class="align-self-end"
-                    @click="cancelPressed"
-                  >
-                    <v-icon>close</v-icon>
-                  </v-btn>
-
-                  <div class="text-right">
+                  <div class="upnext-actions">
                     <v-btn
                       variant="flat"
                       color="primary"
@@ -95,7 +89,7 @@
         </v-row>
 
         <div class="c-timer">
-          <div clas="c-timebar">
+          <div class="c-timebar">
             <div class="c-timebar__background" />
 
             <div
@@ -224,6 +218,17 @@ export default {
 </script>
 
 <style scoped>
+.upnext-description {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.upnext-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .c-timer {
   height: 3px;
   position: relative;

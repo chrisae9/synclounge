@@ -55,8 +55,13 @@ export const close = () => {
     return;
   }
   console.debug('Socket: closing');
-  socket.close();
-  socket = null;
+  try {
+    socket.close();
+  } finally {
+    socket = null;
+    // Closing synchronously emits disconnect; clear any recovery started by listeners.
+    finishRecovery();
+  }
 };
 
 export const emit = ({ eventName, data }) => {
