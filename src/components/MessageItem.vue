@@ -1,5 +1,5 @@
 <template>
-  <v-list-item>
+  <v-list-item class="message-item">
     <template #prepend>
       <v-avatar size="32">
         <v-img
@@ -8,10 +8,10 @@
       </v-avatar>
     </template>
 
-    <v-list-item-title>
-      {{ sender.username }}
-      <span class="text-disabled text-caption ml-1">{{ formattedTime }}</span>
-    </v-list-item-title>
+    <div class="message-heading">
+      <span class="message-sender">{{ sender.username }}</span>
+      <span class="message-time text-disabled text-caption">{{ formattedTime }}</span>
+    </div>
 
     <p
       class="message-content"
@@ -52,6 +52,28 @@ export default {
 </script>
 
 <style scoped>
+.message-item :deep(.v-list-item__prepend) {
+  align-self: start;
+  padding-top: 4px;
+}
+
+.message-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.message-sender {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.message-time {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .message-content {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

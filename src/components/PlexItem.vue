@@ -55,7 +55,6 @@
           >
             <v-btn
               v-bind="props"
-              block
               variant="flat"
               color="primary"
               class="media-play-button"
@@ -70,7 +69,6 @@
 
           <v-btn
             v-else
-            block
             variant="flat"
             color="primary"
             class="media-play-button"
@@ -499,6 +497,7 @@ export default {
 }
 
 .media-play-button {
+  width: 100%;
   min-height: 48px;
 }
 

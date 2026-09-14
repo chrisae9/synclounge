@@ -36,6 +36,59 @@ describe('mobile recovery and diagnostics', () => {
     expect(wrapper.find('[role="status"]').exists()).toBe(false);
     wrapper.unmount();
   });
+  it('does not show recovery after intentionally leaving an already recovering room', async () => {
+    vi.useFakeTimers();
+    const wrapper = mount(ConnectionStatus);
+    await eventhandlers.HANDLE_DISCONNECT({}, 'transport close');
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(wrapper.find('[role="status"]').exists()).toBe(true);
+
+    await eventhandlers.HANDLE_DISCONNECT({}, 'io client disconnect');
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(wrapper.find('[role="status"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('does not arm recovery when leaving a healthy room for a new room', async () => {
+    vi.useFakeTimers();
+    const wrapper = mount(ConnectionStatus);
+    await eventhandlers.HANDLE_DISCONNECT({}, 'io client disconnect');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(wrapper.find('[role="status"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it.each([true, false])('reports a lost host role only after a successful rejoin (host=%s)', async (wasHost) => {
+    const getters = { AM_I_HOST: wasHost, GET_HOST_USER: { username: 'original' } };
+    const dispatch = vi.fn(async (action) => {
+      if (action === 'JOIN_ROOM_AND_INIT') {
+        getters.AM_I_HOST = false;
+        getters.GET_HOST_USER = { username: 'returning-viewer' };
+      }
+    });
+    await eventhandlers.HANDLE_RECONNECT({ getters, dispatch, commit: vi.fn() });
+
+    if (wasHost) {
+      expect(dispatch).toHaveBeenCalledWith('DISPLAY_NOTIFICATION', {
+        text: 'Host changed after reconnecting. returning-viewer is now the host.',
+        color: 'info',
+      }, { root: true });
+    } else {
+      expect(dispatch).not.toHaveBeenCalledWith('DISPLAY_NOTIFICATION', expect.anything(), expect.anything());
+    }
+  });
+
+  it('keeps a recovered host quiet when their role is unchanged', async () => {
+    const dispatch = vi.fn();
+    await eventhandlers.HANDLE_RECONNECT({
+      getters: { AM_I_HOST: true, GET_HOST_USER: { username: 'original' } },
+      dispatch,
+      commit: vi.fn(),
+    });
+    expect(dispatch).not.toHaveBeenCalledWith('DISPLAY_NOTIFICATION', expect.anything(), expect.anything());
+  });
+
   it('captures a report when optional mobile APIs and safe-area values are missing', () => {
     vi.stubGlobal('visualViewport', undefined);
     vi.stubGlobal('getComputedStyle', () => ({ getPropertyValue: () => '' }));
