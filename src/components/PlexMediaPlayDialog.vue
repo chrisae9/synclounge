@@ -17,59 +17,47 @@
         Playback Settings
       </v-card-title>
 
-      <v-card-subtitle>
+      <v-card-text class="playback-options">
         <v-checkbox
           v-if="metadata.viewOffset"
           v-model="resumeFrom"
+          class="resume-option"
           hide-details
           color="primary"
           :label="'Resume from ' + getDuration(metadata.viewOffset)"
         />
-      </v-card-subtitle>
-
-      <v-card-text class="pt-0">
-        <v-list
-          bg-color="transparent"
-          class="pa-0"
+        <div
+          v-for="(media, index) in metadata.Media"
+          :key="media.Part[0].key"
+          class="playback-option"
         >
-          <v-list-item
-            v-for="(media, index) in metadata.Media"
-            :key="media.Part[0].key"
-            class="px-0"
-          >
-            <v-list-item-title>
-              {{ media.videoResolution }}p -
-              <span class="text-medium-emphasis">{{ getDuration(media.duration) }}</span>
-            </v-list-item-title>
-
-            <v-list-item-subtitle class="wrap">
-              <span class="text-high-emphasis">Video Codec:</span>
-              {{ media.videoCodec }} ({{ media.bitrate }}kbps)
-            </v-list-item-subtitle>
-
-            <v-list-item-subtitle class="wrap">
-              <span class="text-high-emphasis">Audio Streams:</span>
-              {{ audioStreams(media.Part[0].Stream) }}
-            </v-list-item-subtitle>
-
-            <v-list-item-subtitle class="wrap">
+          <div class="playback-details">
+            <p class="text-subtitle-1 font-weight-medium">
+              {{ media.videoResolution }}p · {{ getDuration(media.duration) }}
+            </p>
+            <p class="text-body-2 text-medium-emphasis">
+              <span class="text-high-emphasis">Video:</span>
+              {{ media.videoCodec }} · {{ media.bitrate }} kbps
+            </p>
+            <p class="text-body-2 text-medium-emphasis">
+              <span class="text-high-emphasis">Audio:</span>
+              {{ audioStreams(media.Part[0].Stream) || 'None' }}
+            </p>
+            <p class="text-body-2 text-medium-emphasis">
               <span class="text-high-emphasis">Subtitles:</span>
-              {{ subtitleStreams(media.Part[0].Stream) }}
-            </v-list-item-subtitle>
-
-            <template #append>
-              <v-btn
-                :ref="index === 0 ? 'playBtn' : undefined"
-                variant="flat"
-                color="primary"
-                class="text-white align-self-center"
-                @click="playClicked(index)"
-              >
-                Play
-              </v-btn>
-            </template>
-          </v-list-item>
-        </v-list>
+              {{ subtitleStreams(media.Part[0].Stream) || 'None' }}
+            </p>
+          </div>
+          <v-btn
+            :ref="index === 0 ? 'playBtn' : undefined"
+            variant="flat"
+            color="primary"
+            class="playback-option-action"
+            @click="playClicked(index)"
+          >
+            {{ metadata.viewOffset && resumeFrom ? 'Resume' : 'Play' }}
+          </v-btn>
+        </div>
       </v-card-text>
     </v-card>
   </v-dialog>
@@ -112,7 +100,9 @@ export default {
       if (open) {
         this.$nextTick(() => {
           setTimeout(() => {
-            this.$refs.playBtn?.$el?.focus();
+            const button = Array.isArray(this.$refs.playBtn)
+              ? this.$refs.playBtn[0] : this.$refs.playBtn;
+            button?.$el?.focus();
           }, 300);
         });
       }
@@ -152,9 +142,19 @@ export default {
 </script>
 
 <style scoped>
-.wrap {
-  white-space: normal !important;
+.playback-options { padding-top: 8px !important; }
+.resume-option { margin-bottom: 12px; }
+.playback-option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
 }
+.playback-option + .playback-option { border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.playback-details { flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; }
+.playback-details p + p { margin-top: 6px; }
+.playback-option-action { flex: 0 0 auto; min-width: 96px; min-height: 44px; }
 
 .playback-card {
   border: 1px solid rgba(255, 255, 255, 0.1);
