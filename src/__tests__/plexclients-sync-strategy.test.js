@@ -22,7 +22,6 @@ const makeRootGetters = (overrides = {}) => ({
   'settings/GET_SYNCMODE': 'cleanseek',
   GET_CONFIG: {
     paused_sync_flexibility: 10,
-    slplayer_soft_seek_threshold: 200,
   },
   GET_BROWSER: {
     name: 'chrome',
@@ -168,81 +167,75 @@ describe('plexclients SYNC drift strategy', () => {
     expect(dispatch).not.toHaveBeenCalledWith('SEEK_TO', expect.anything());
   });
 
-  it('soft-seeks small desktop drift above the soft threshold', async () => {
-    const dispatch = vi.fn((action) => {
-      if (action === 'FETCH_TIMELINE_POLL_DATA_CACHE') {
-        return Promise.resolve({
-          state: 'playing',
-          time: 10000,
-          duration: 100000,
-          playbackRate: 1,
-        });
-      }
-      return Promise.resolve('soft-seek-result');
-    });
-    const rootGetters = makeRootGetters();
+  const toleranceCases = [500, 3000, 7000].flatMap((tolerance) => [-1, 1]
+    .flatMap((direction) => [350, tolerance - 1, tolerance, tolerance + 1]
+      .map((magnitude) => [tolerance, direction * magnitude])));
 
-    const result = await plexclientActions.SYNC(
-      { dispatch, rootGetters },
-      new AbortController().signal,
-    );
+  it.each(toleranceCases)('honors %ims tolerance for %ims drift', async (tolerance, drift) => {
+    const cancelSignal = new AbortController().signal;
+    const dispatch = vi.fn((action) => Promise.resolve(
+      action === 'FETCH_TIMELINE_POLL_DATA_CACHE'
+        ? { state: 'playing', time: 10300 - drift, playbackRate: 1 }
+        : 'normal-seek-result',
+    ));
+    const rootGetters = makeRootGetters({ 'settings/GET_SYNCFLEXIBILITY': tolerance });
 
-    expect(result).toBe('soft-seek-result');
-    expect(dispatch).toHaveBeenCalledWith('slplayer/SOFT_SEEK', 10300, { root: true });
-    expect(dispatch).not.toHaveBeenCalledWith('SEEK_TO', expect.anything());
-    expect(dispatch).not.toHaveBeenCalledWith('slplayer/SPEED_SEEK', expect.anything(), expect.anything());
+    const result = await plexclientActions.SYNC({ dispatch, rootGetters }, cancelSignal);
+
+    if (Math.abs(drift) > tolerance) {
+      expect(result).toBe('normal-seek-result');
+      expect(dispatch.mock.calls).toEqual([
+        ['FETCH_TIMELINE_POLL_DATA_CACHE'],
+        ['SEEK_TO', { cancelSignal, offset: 10300 }],
+      ]);
+    } else {
+      expect(result).toBe('No sync needed');
+      expect(dispatch.mock.calls).toEqual([['FETCH_TIMELINE_POLL_DATA_CACHE']]);
+    }
   });
 
-  it('does not soft-seek tiny drift below the soft threshold', async () => {
-    const dispatch = vi.fn((action) => {
-      if (action === 'FETCH_TIMELINE_POLL_DATA_CACHE') {
-        return Promise.resolve({
-          state: 'playing',
-          time: 10150,
-          duration: 100000,
-          playbackRate: 1,
-        });
-      }
-      return Promise.resolve();
-    });
-
-    const result = await plexclientActions.SYNC(
-      { dispatch, rootGetters: makeRootGetters() },
-      new AbortController().signal,
-    );
-
-    expect(result).toBe('No sync needed');
-    expect(dispatch).not.toHaveBeenCalledWith('slplayer/SOFT_SEEK', expect.anything(), expect.anything());
-  });
-
-  it.each(['iOS', 'iPadOS'])('does not soft-seek small drift on %s browsers', async (os) => {
-    const dispatch = vi.fn((action) => {
-      if (action === 'FETCH_TIMELINE_POLL_DATA_CACHE') {
-        return Promise.resolve({
-          state: 'playing',
-          time: 10000,
-          duration: 100000,
-          playbackRate: 1,
-        });
-      }
-      return Promise.resolve();
-    });
-
+  it.each(['Linux', 'macOS', 'iOS', 'iPadOS'])('leaves repeated small drift undisturbed on %s', async (os) => {
+    let hostTime = 10300;
+    const dispatch = vi.fn((action) => Promise.resolve(
+      action === 'FETCH_TIMELINE_POLL_DATA_CACHE'
+        ? { state: 'playing', time: hostTime - 350, playbackRate: 1 }
+        : undefined,
+    ));
     const rootGetters = makeRootGetters({
-      GET_BROWSER: {
-        name: os.toLowerCase(),
-        os,
-      },
+      'synclounge/GET_ADJUSTED_HOST_TIME': () => hostTime,
+      GET_BROWSER: { os },
+    });
+    const cancelSignal = new AbortController().signal;
+
+    // Twelve successive five-second polls model a minute of persistent small drift.
+    for (let poll = 0; poll < 12; poll += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await expect(plexclientActions.SYNC({ dispatch, rootGetters }, cancelSignal))
+        .resolves.toBe('No sync needed');
+      hostTime += 5000;
+    }
+
+    expect(dispatch.mock.calls).toEqual(Array.from({ length: 12 }, () => ['FETCH_TIMELINE_POLL_DATA_CACHE']));
+  });
+
+  it.each([-11, -10, -9, 9, 10, 11])('preserves paused-host precision for %ims drift', async (drift) => {
+    const cancelSignal = new AbortController().signal;
+    const dispatch = vi.fn((action) => Promise.resolve(
+      action === 'FETCH_TIMELINE_POLL_DATA_CACHE'
+        ? { state: 'paused', time: 10300 - drift, playbackRate: 1 }
+        : 'normal-seek-result',
+    ));
+    const rootGetters = makeRootGetters({
+      'synclounge/GET_HOST_USER': { ...baseHostUser, state: 'paused' },
+      'settings/GET_SYNCMODE': 'skipahead',
     });
 
-    const result = await plexclientActions.SYNC(
-      { dispatch, rootGetters },
-      new AbortController().signal,
-    );
+    await plexclientActions.SYNC({ dispatch, rootGetters }, cancelSignal);
 
-    expect(result).toBe('No sync needed');
-    expect(dispatch).not.toHaveBeenCalledWith('slplayer/SOFT_SEEK', expect.anything(), expect.anything());
-    expect(dispatch).not.toHaveBeenCalledWith('SEEK_TO', expect.anything());
+    expect(dispatch.mock.calls).toEqual(Math.abs(drift) > 10 ? [
+      ['FETCH_TIMELINE_POLL_DATA_CACHE'],
+      ['SEEK_TO', { cancelSignal, offset: 10300 }],
+    ] : [['FETCH_TIMELINE_POLL_DATA_CACHE']]);
   });
 
   it('routes larger drift to a seek instead of playback-rate speed sync', async () => {

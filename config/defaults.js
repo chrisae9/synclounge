@@ -38,7 +38,6 @@ const defaults = {
 
   // Buffering goal in seconds
   slplayer_buffering_goal: 120,
-  slplayer_soft_seek_threshold: 200,
   sidebar_time_update_interval: 500,
 
   // If the plex client's time changes by this much from the expected time, trigger a state change

@@ -99,20 +99,8 @@ export default {
       return dispatch('SKIP_AHEAD', { cancelSignal, offset });
     }
 
-    const browserOs = rootGetters.GET_BROWSER?.os;
-    const canSoftSeek = browserOs !== 'iOS' && browserOs !== 'iPadOS';
-    const softSeekThreshold = rootGetters.GET_CONFIG.slplayer_soft_seek_threshold ?? 200;
-    if (canSoftSeek
-      && hostUser.state === 'playing'
-      && playerPollData.state === 'playing'
-      && absDifference > softSeekThreshold) {
-      try {
-        return await dispatch('slplayer/SOFT_SEEK', adjustedHostTime, { root: true });
-      } catch (e) {
-        console.debug('SYNC soft seek skipped:', e.message);
-      }
-    }
-
+    // Even buffered seeks can interrupt decoding. Honor the selected tolerance
+    // instead of repeatedly seeking to correct imperceptible drift.
     return 'No sync needed';
   },
 
