@@ -91,7 +91,7 @@ export const createActions = (socketState) => {
     if (getRoomHostId(roomId) === socketId) {
       // Make someone else host
       const desiredHostId = getAnySocketIdInRoom(roomId);
-      makeUserHost(desiredHostId);
+      makeUserHost(desiredHostId, { preserveRecovery: true });
 
       logSocket({
         socketId,
