@@ -4,8 +4,7 @@ import {
 
 // Each server instance verifies its own reconnect proofs. Public room identities
 // contain no credential and cannot be used to mint a reconnect token.
-export const createReconnectIdentity = () => {
-  const secret = randomBytes(32);
+export const createReconnectIdentity = (secret = randomBytes(32)) => {
   const sign = (identity) => createHmac('sha256', secret).update(identity).digest('hex');
   return (token) => {
     if (typeof token === 'string' && /^[a-f0-9-]{36}\.[a-f0-9]{64}$/.test(token)) {

@@ -83,6 +83,14 @@ syncloungeserver --static_path /apps/synclounge/dist
 STATIC_PATH='/apps/synclounge/dist' syncloungeserver
 ```
 
+#### Room state path
+
+`ROOM_STATE_PATH` (or `--room_state_path`) enables durable reconnect identity and room-host
+recovery. Point it to a private JSON file on a persistent volume writable by the server.
+The parent directory must be owned by the server user and must not be group- or world-writable.
+The file contains signing material and must not be inside `STATIC_PATH`. Use one active
+server per state file. Omit the option to retain in-memory behavior.
+
 #### Base URL
 
 Default is '/'

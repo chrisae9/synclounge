@@ -112,8 +112,18 @@ socket endpoint from the same origin: the browser sends its Plex credential only
 own origin. Unrestricted deployments keep `mechanism: "none"`.
 
 Host recovery uses a server-issued reconnect proof stored per browser tab. Reloading that
-tab preserves its identity; clearing session storage or restarting the server starts a new
-identity and lets the usual host election proceed.
+tab preserves its identity; clearing session storage starts a new identity.
+
+Set the server option `ROOM_STATE_PATH=/data/private/room-state.json` on a persistent volume to
+preserve reconnect proofs and room ownership across server restarts. The process must be
+able to create or own that private directory; it must not be group- or world-writable. The file contains private signing material; do not serve it
+as static content or share it between concurrently running servers. Without this option,
+restarting the server resets reconnect identities and room ownership.
+
+After a restart, a remembered host has 60 seconds to rejoin with its existing tab proof;
+a host that was playing must restore media before reclaiming control. Explicit host
+transfers override recovery. Inactive ownership records expire after 24 hours. Enabling
+persistence for the first time cannot recover proofs from an earlier server instance.
 
 Only documented browser configuration is returned from `/config.json`; arbitrary keys in a
 configuration file remain server-side. `TRUST_PROXY` controls which reverse proxies may supply

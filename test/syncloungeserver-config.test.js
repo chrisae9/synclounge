@@ -27,6 +27,7 @@ describe('embedded socket server configuration', () => {
       assert.equal(config.ping_interval, 10000);
       assert.equal(config.ping_timeout, 10000);
       assert.equal(config.trust_proxy, 'loopback');
+      assert.equal(config.room_state_path, null);
     } finally {
       nconf.reset();
     }
@@ -61,6 +62,18 @@ describe('embedded socket server configuration', () => {
     } finally {
       if (originalPingTimeout === undefined) delete process.env.PING_TIMEOUT;
       else process.env.PING_TIMEOUT = originalPingTimeout;
+    }
+  });
+
+  it('reads the server-only room state path from the environment', () => {
+    const original = process.env.ROOM_STATE_PATH;
+    process.env.ROOM_STATE_PATH = '/data/room-state.json';
+    try {
+      assert.equal(getConfig().room_state_path, '/data/room-state.json');
+      assert.equal(defaultConfig.room_state_path, null);
+    } finally {
+      if (original === undefined) delete process.env.ROOM_STATE_PATH;
+      else process.env.ROOM_STATE_PATH = original;
     }
   });
 
