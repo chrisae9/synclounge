@@ -10,13 +10,23 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     setIsPartyPausingEnabledInSocketRoom, updateUserSyncFlexibility,
     setIsAutoHostEnabledInSocketRoom, isPartyPausingEnabledInSocketRoom,
     isAutoHostEnabledInSocketRoom, initSocketLatencyData, getRoomHostId,
-    updateUserRoomPreview, getUserRoomPreview,
+    updateUserRoomPreview, getUserRoomPreview, restoreReturningHost,
   } = socketState;
   const {
     removeUserAndUpdateRoom, emitToSocket, logSocket, emitAdjustedUserDataToRoom,
     announceNewHost, emitPlayerStateUpdateToRoom, emitMediaUpdateToRoom, sendPing,
     emitToSocketRoom, logRoomStats, emitToUserRoomExcept, logSocketStats, logRoomsStats, log,
   } = actions;
+
+  const restoreHost = ({ server, socket, onRoomMediaUpdate }) => {
+    if (!restoreReturningHost(socket.id)) return;
+    const roomId = getUserRoomId(socket.id);
+    logSocket({ socketId: socket.id, message: 'Restored host after server restart' });
+    announceNewHost({ server, roomId, hostId: socket.id });
+    if (onRoomMediaUpdate) {
+      onRoomMediaUpdate({ roomId, roomPreview: getUserRoomPreview(socket.id) });
+    }
+  };
 
   let partyPauseRequestId = 0;
   const recentSeeks = new Map();
@@ -107,6 +117,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       userData: getRoomUserData(socket.id),
     });
 
+    restoreHost({ server, socket, onRoomMediaUpdate });
     emitToSocket({
       server,
       socketId: socket.id,
@@ -201,7 +212,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
   };
 
   const playerStateUpdate = ({
-    server, socket, data: {
+    server, socket, onRoomMediaUpdate, data: {
       state, time, duration, playbackRate, userInitiatedSeek,
     },
   }) => {
@@ -232,6 +243,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     const marker = userInitiatedSeek === undefined && !verifiedSeek ? undefined : verifiedSeek;
 
     emitPlayerStateUpdateToRoom({ server, socketId: socket.id, userInitiatedSeek: marker });
+    restoreHost({ server, socket, onRoomMediaUpdate });
   };
 
   const mediaUpdate = ({
@@ -282,6 +294,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     }
 
     emitMediaUpdateToRoom({ server, socketId: socket.id, makeHost });
+    restoreHost({ server, socket, onRoomMediaUpdate });
   };
 
   const slPong = ({

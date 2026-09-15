@@ -6,6 +6,7 @@ import { createStore } from 'vuex';
 import { createVuetify } from 'vuetify';
 import * as components from 'vuetify/components';
 import * as directives from 'vuetify/directives';
+import PlexItem from '@/components/PlexItem.vue';
 import PlexMediaPlayDialog from '@/components/PlexMediaPlayDialog.vue';
 import TheSidebarRightButton from '@/components/TheSidebarRightButton.vue';
 import TheUpnextDialog from '@/components/TheUpnextDialog.vue';
@@ -28,6 +29,58 @@ const metadata = {
 };
 
 describe('desktop playback choices', () => {
+  it.each([undefined, 0])('starts an unwatched item without a resume dialog (offset=%s)', async (viewOffset) => {
+    const play = vi.fn();
+    const item = {
+      ...metadata,
+      viewOffset,
+      ratingKey: 'movie-1',
+      type: 'movie',
+      title: 'Unwatched movie',
+      year: 2026,
+      duration: 600000,
+      Media: [metadata.Media[0]],
+    };
+    const store = createStore({
+      modules: {
+        plexclients: {
+          namespaced: true,
+          getters: { GET_ACTIVE_MEDIA_METADATA: () => null },
+          actions: { PLAY_MEDIA: (_, payload) => play(payload) },
+        },
+        plexservers: {
+          namespaced: true,
+          actions: { FETCH_RELATED: () => [] },
+        },
+      },
+    });
+    const wrapper = mount(PlexItem, {
+      props: { metadata: item },
+      global: {
+        plugins: [store, vuetify()],
+        stubs: { PlexMediaLayout: { template: '<section><slot name="actions" /></section>' } },
+      },
+    });
+    try {
+      await flushPromises();
+      const button = wrapper.get('button');
+      expect(button.text()).toContain('Play');
+      expect(wrapper.text()).not.toContain('Resume');
+      expect(wrapper.findComponent(PlexMediaPlayDialog).exists()).toBe(false);
+      await button.trigger('click');
+      await flushPromises();
+      expect(play).toHaveBeenCalledExactlyOnceWith({
+        metadata: item,
+        machineIdentifier: 'server-1',
+        mediaIndex: 0,
+        offset: 0,
+        userInitiated: true,
+      });
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
   it.each([true, false])('plays the selected version with resume=%s', async (resume) => {
     vi.useFakeTimers();
     const play = vi.fn();

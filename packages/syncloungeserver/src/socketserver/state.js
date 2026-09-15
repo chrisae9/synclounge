@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 
-export const createState = () => {
+export const createState = ({ hostPersistence } = {}) => {
   const rooms = new Map();
   // Map from socket id to room name
   const socketRoomId = new Map();
@@ -18,6 +18,33 @@ export const createState = () => {
 
   const getRoomUserData = (socketId) => getUserRoom(socketId)
     .users.get(socketId);
+
+  const rememberHost = (roomId, options = {}) => {
+    const room = rooms.get(roomId);
+    const host = room?.users.get(room.hostId);
+    if (!host?.reconnectIdentity || (hostPersistence?.getRecovery(roomId)
+      && !options.revokeRecovery)) return;
+    hostPersistence?.remember(roomId, {
+      identity: host.reconnectIdentity,
+      expectsPlayback: host.state !== 'stopped' && Boolean(host.media),
+      isPartyPausingEnabled: room.isPartyPausingEnabled,
+      isAutoHostEnabled: room.isAutoHostEnabled,
+      syncPreset: room.syncPreset,
+    }, options);
+  };
+
+  const restoreReturningHost = (socketId) => {
+    const roomId = getUserRoomId(socketId);
+    const claim = hostPersistence?.getRecovery(roomId);
+    const user = getRoomUserData(socketId);
+    if (!claim || claim.identity !== user.reconnectIdentity
+      || (claim.expectsPlayback && (!user.media || !['playing', 'paused'].includes(user.state)))) return false;
+    const room = rooms.get(roomId);
+    const changed = room.hostId !== socketId;
+    room.hostId = socketId;
+    rememberHost(roomId, { force: true, revokeRecovery: true });
+    return changed;
+  };
 
   const getUniqueUsername = ({ usernames, desiredUsername }) => {
     if (!usernames.includes(desiredUsername)) {
@@ -45,6 +72,7 @@ export const createState = () => {
     socketId, state, time, duration, playbackRate,
   }) => {
     const userRoomData = getRoomUserData(socketId);
+    const changedStoppedness = (userRoomData.state === 'stopped') !== (state === 'stopped');
     userRoomData.state = state;
     // Adjust time by sender's latency
     userRoomData.time = state === 'playing'
@@ -53,13 +81,16 @@ export const createState = () => {
     userRoomData.duration = duration;
     userRoomData.playbackRate = playbackRate;
     userRoomData.updatedAt = Date.now();
+    rememberHost(getUserRoomId(socketId), { force: changedStoppedness });
   };
 
   const updateUserMedia = ({
     socketId, media,
   }) => {
     const userRoomData = getRoomUserData(socketId);
+    const changedMedia = Boolean(userRoomData.media) !== Boolean(media);
     userRoomData.media = media;
+    rememberHost(getUserRoomId(socketId), { force: changedMedia });
   };
 
   const updateUserRoomPreview = ({ socketId, roomPreview }) => {
@@ -98,10 +129,12 @@ export const createState = () => {
   const createRoom = ({
     id, isPartyPausingEnabled, isAutoHostEnabled, hostId,
   }) => {
+    const claim = hostPersistence?.getRecovery(id);
     rooms.set(id, {
-      isPartyPausingEnabled,
-      isAutoHostEnabled,
-      syncPreset: 'balanced',
+      isPartyPausingEnabled: claim?.isPartyPausingEnabled ?? isPartyPausingEnabled,
+      isAutoHostEnabled: claim?.isAutoHostEnabled ?? isAutoHostEnabled,
+      syncPreset: ['strict', 'balanced', 'relaxed'].includes(claim?.syncPreset)
+        ? claim.syncPreset : 'balanced',
       hostId,
       users: new Map(),
     });
@@ -159,6 +192,7 @@ export const createState = () => {
 
   const removeRoom = (roomId) => {
     rooms.delete(roomId);
+    hostPersistence?.remove(roomId);
   };
 
   const isUserHost = (socketId) => getUserRoom(socketId).hostId === socketId;
@@ -169,8 +203,9 @@ export const createState = () => {
 
   const getAnySocketIdInRoom = (roomId) => rooms.get(roomId).users.keys().next().value;
 
-  const makeUserHost = (socketId) => {
+  const makeUserHost = (socketId, { preserveRecovery = false } = {}) => {
     getUserRoom(socketId).hostId = socketId;
+    rememberHost(getUserRoomId(socketId), { force: true, revokeRecovery: !preserveRecovery });
   };
 
   const isUserInRoom = ({ roomId, socketId }) => rooms.get(roomId).users.has(socketId);
@@ -211,14 +246,17 @@ export const createState = () => {
 
   const setRoomSyncPreset = ({ socketId, preset }) => {
     getUserRoom(socketId).syncPreset = preset;
+    rememberHost(getUserRoomId(socketId), { force: true });
   };
 
   const setIsPartyPausingEnabledInSocketRoom = ({ socketId, isPartyPausingEnabled }) => {
     getUserRoom(socketId).isPartyPausingEnabled = isPartyPausingEnabled;
+    rememberHost(getUserRoomId(socketId), { force: true });
   };
 
   const setIsAutoHostEnabledInSocketRoom = ({ socketId, isAutoHostEnabled }) => {
     getUserRoom(socketId).isAutoHostEnabled = isAutoHostEnabled;
+    rememberHost(getUserRoomId(socketId), { force: true });
   };
 
   const isPartyPausingEnabledInSocketRoom = (socketId) => getUserRoom(socketId)
@@ -282,6 +320,7 @@ export const createState = () => {
     isUserInARoom,
     isUserInRoom,
     makeUserHost,
+    restoreReturningHost,
     removeRoom,
     removeSocketLatencyData,
     removeUser,

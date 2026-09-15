@@ -3,6 +3,8 @@
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
+import path from 'node:path';
+import { existsSync, realpathSync } from 'node:fs';
 import proxyaddr from 'proxy-addr';
 
 import { Server } from 'socket.io';
@@ -11,11 +13,12 @@ import { createActions } from './actions';
 import { createEventHandlers } from './handlers';
 import { createSocketAuthentication, createReconnectIdentity } from './authentication';
 import createAdmission from './admission';
+import { createHostPersistence } from './hostpersistence';
 
 const socketServer = ({
   base_url: baseUrl, static_path: staticPath, port, ping_interval: pingInterval = 10000,
   ping_timeout: pingTimeout = 10000, preStaticInjection, trust_proxy: trustProxy,
-  onRoomMediaUpdate, authentication,
+  onRoomMediaUpdate, authentication, room_state_path: roomStatePath,
   socket_max_connections: maxConnections = 512,
   socket_max_per_ip: maxPerIp = 32,
   socket_max_pending_auth: maxPending = 32,
@@ -31,8 +34,33 @@ const socketServer = ({
     throw new TypeError('onRoomMediaUpdate must be a function');
   }
 
+  if (roomStatePath && staticPath) {
+    const canonicalPath = (value) => {
+      let ancestor = path.resolve(value);
+      const missing = [];
+      while (!existsSync(ancestor)) {
+        missing.unshift(path.basename(ancestor));
+        ancestor = path.dirname(ancestor);
+      }
+      return path.join(realpathSync(ancestor), ...missing);
+    };
+    const isInside = (root, destination) => {
+      const relative = path.relative(root, destination);
+      return !relative.startsWith(`..${path.sep}`)
+        && relative !== '..' && !path.isAbsolute(relative);
+    };
+    // Atomic rename follows parent symlinks but replaces a final-component symlink.
+    const canonicalParent = canonicalPath(path.dirname(path.resolve(roomStatePath)));
+    const canonicalDestination = path.join(canonicalParent, path.basename(roomStatePath));
+    if (isInside(path.resolve(staticPath), path.resolve(roomStatePath))
+      || isInside(canonicalPath(staticPath), canonicalDestination)
+      || isInside(canonicalPath(staticPath), canonicalPath(roomStatePath))) {
+      throw new Error('room_state_path must be outside static_path');
+    }
+  }
   const authenticate = createSocketAuthentication(authentication);
-  const reconnectIdentity = createReconnectIdentity();
+  const hostPersistence = createHostPersistence(roomStatePath);
+  const reconnectIdentity = createReconnectIdentity(hostPersistence?.secret);
   const app = express();
   app.disable('x-powered-by');
   app.use((req, res, next) => {
@@ -110,7 +138,7 @@ const socketServer = ({
     delete data.reconnectToken;
   });
 
-  const state = createState();
+  const state = createState({ hostPersistence });
   const actions = createActions(state);
   const attachEventHandlers = createEventHandlers({ state, actions });
   attachEventHandlers({
@@ -154,6 +182,7 @@ const socketServer = ({
   });
 
   router.close = () => new Promise((resolve, reject) => {
+    hostPersistence?.close();
     socketio.close(() => {
       if (!server.listening) {
         resolve();
