@@ -114,9 +114,9 @@ own origin. Unrestricted deployments keep `mechanism: "none"`.
 Host recovery uses a server-issued reconnect proof stored per browser tab. Reloading that
 tab preserves its identity; clearing session storage starts a new identity.
 
-Set the server option `ROOM_STATE_PATH=/data/room-state.json` on a persistent volume to
+Set the server option `ROOM_STATE_PATH=/data/private/room-state.json` on a persistent volume to
 preserve reconnect proofs and room ownership across server restarts. The process must be
-able to write that directory. The file contains private signing material; do not serve it
+able to create or own that private directory; it must not be group- or world-writable. The file contains private signing material; do not serve it
 as static content or share it between concurrently running servers. Without this option,
 restarting the server resets reconnect identities and room ownership.
 
