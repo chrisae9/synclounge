@@ -137,7 +137,9 @@ export const createActions = (socketState) => {
         const socket = server.sockets.sockets.get(socketId);
         if (socket?.connected) {
           logSocket({ socketId, message: 'Disconnecting after slPing response timeout' });
-          socket.disconnect(true);
+          // A namespace disconnect disables Socket.IO's automatic reconnection.
+          // Heartbeat expiry is transient; close the transport so clients retry.
+          socket.conn.close();
         }
       }, pingTimeout),
     });

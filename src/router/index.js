@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import RoomCreation from '@/views/RoomCreation.vue';
 
 const searchBar = () => import('@/components/SearchBar.vue');
 const rightSidebar = () => import('@/components/TheSidebarRight.vue');
@@ -10,7 +11,8 @@ export default createRouter({
     {
       path: '/',
       name: 'RoomCreation',
-      component: () => import('@/views/RoomCreation.vue'),
+      // Leaving a room must not need another network request during an outage.
+      component: RoomCreation,
       meta: {
         requiresAuth: true,
       },

@@ -1,5 +1,15 @@
 <template>
   <v-container fluid>
+    <v-alert
+      v-if="$route?.query?.playback === 'unavailable'"
+      type="info"
+      variant="tonal"
+      class="mb-4"
+      title="No movie is playing in this room"
+    >
+      You’re in the room, but there’s no playback to restore. Rooms clear when everyone leaves.
+      Pick a movie below, or wait for your host to start one.
+    </v-alert>
     <PlexOnDeck :machine-identifier="GET_LAST_SERVER_ID">
       <template #header>
         Continue watching from {{ GET_LAST_SERVER.name }}

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   getSignInRoute,
+  getEmptyPlayerRedirect,
   shouldApplyAutojoin,
   shouldRedirectProtectedRoute,
 } from '@/router/guardutils';
@@ -75,5 +76,22 @@ describe('router guard helpers', () => {
     };
 
     expect(shouldRedirectProtectedRoute(to, state, false)).toBe(true);
+  });
+});
+
+describe('empty player recovery', () => {
+  it('returns a stale player URL to the same room with an explanation', () => {
+    expect(getEmptyPlayerRedirect({ name: 'WebPlayer', params: { room: 'party', server: 'remote' } }, null))
+      .toEqual({
+        name: 'PlexHome',
+        params: { room: 'party', server: 'remote' },
+        query: { playback: 'unavailable' },
+        replace: true,
+      });
+  });
+
+  it('allows initialized playback and ordinary browsing', () => {
+    expect(getEmptyPlayerRedirect({ name: 'WebPlayer' }, { ratingKey: 'movie' })).toBeNull();
+    expect(getEmptyPlayerRedirect({ name: 'PlexHome' }, null)).toBeNull();
   });
 });

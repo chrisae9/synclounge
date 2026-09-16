@@ -98,6 +98,30 @@ describe('synclounge actions', () => {
   });
 
   describe('socket event deadlines', () => {
+    it('does not register handlers after leaving during the initial heartbeat response', async () => {
+      let finishPing;
+      const ping = new Promise((resolve) => { finishPing = resolve; });
+      socketMocks.open.mockResolvedValue({ id: 'socket-1' });
+      socketMocks.waitForEvent.mockResolvedValue('secret');
+      const dispatch = vi.fn((type) => (type === 'HANDLE_SLPING' ? ping : Promise.resolve()));
+      const commit = vi.fn();
+      const connecting = actions.ESTABLISH_SOCKET_CONNECTION({
+        getters: { GET_SERVER: '' }, rootGetters: {}, commit, dispatch,
+      });
+      await vi.waitFor(() => expect(dispatch).toHaveBeenCalledWith('HANDLE_SLPING', 'secret'));
+      actions.INVALIDATE_ROOM_JOIN({ commit });
+      finishPing();
+      await expect(connecting).rejects.toMatchObject({ name: 'AbortError' });
+      expect(dispatch).not.toHaveBeenCalledWith('ADD_EVENT_HANDLERS');
+    });
+
+    it('does not disconnect a replacement connection when an old attempt is cancelled', async () => {
+      const error = new DOMException('Room join was superseded', 'AbortError');
+      const dispatch = vi.fn().mockRejectedValueOnce(error);
+      await expect(actions.CONNECT_AND_JOIN_ROOM({ dispatch })).rejects.toBe(error);
+      expect(dispatch).not.toHaveBeenCalledWith('DISCONNECT');
+    });
+
     it.each([
       ['slPing', 'ESTABLISH_SOCKET_CONNECTION'],
       ['joinResult', 'JOIN_ROOM_AND_INIT'],
@@ -296,6 +320,42 @@ describe('synclounge actions', () => {
   });
 
   describe('JOIN_ROOM_AND_INIT', () => {
+    it.each([
+      ['JOIN_ROOM', 'DISCONNECT'],
+      ['plexclients/FETCH_TIMELINE_POLL_DATA_CACHE', 'DISCONNECT'],
+      ['SYNC_MEDIA_AND_PLAYER_STATE', 'DISCONNECT'],
+      ['JOIN_ROOM', 'INVALIDATE_ROOM_JOIN'],
+    ])('cancels pending %s when %s runs', async (pendingAction, cancelAction) => {
+      let resolvePending;
+      const pending = new Promise((resolve) => { resolvePending = resolve; });
+      const joined = {
+        user: { id: 'me', username: 'viewer' }, users: {}, hostId: 'me',
+      };
+      const context = {
+        getters: { GET_USERS: {}, GET_ROOM: 'old-room', IS_IN_ROOM: false },
+        rootGetters: { 'plex/GET_PLEX_USER': { thumb: '' } },
+        commit: vi.fn(),
+        dispatch: vi.fn((type) => {
+          if (type === pendingAction) return pending;
+          if (type === 'JOIN_ROOM') return joined;
+          return undefined;
+        }),
+      };
+      const joining = actions.JOIN_ROOM_AND_INIT(context, {
+        syncOnJoin: pendingAction === 'SYNC_MEDIA_AND_PLAYER_STATE',
+      });
+      const result = expect(joining).rejects.toMatchObject({ name: 'AbortError' });
+      await vi.waitFor(() => expect(context.dispatch.mock.calls.some(
+        ([type]) => type === pendingAction,
+      )).toBe(true));
+      await actions[cancelAction]({ commit: context.commit, dispatch: vi.fn() });
+      context.commit.mockClear();
+      resolvePending(pendingAction === 'JOIN_ROOM' ? joined : { state: 'stopped' });
+      await result;
+      expect(context.commit).not.toHaveBeenCalledWith('SET_IS_IN_ROOM', true);
+      expect(context.dispatch).not.toHaveBeenCalledWith('START_SYNC_POLL_INTERVAL');
+    });
+
     it('uses the fresh join snapshot instead of stale cached host state on reconnect', async () => {
       const staleHost = {
         state: 'paused',

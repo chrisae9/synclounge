@@ -1,12 +1,14 @@
 import {
   describe, it, expect, vi, beforeEach, afterEach,
 } from 'vitest';
+import { getId, isConnected, waitForEvent } from '@/socket';
 import eventhandlers from '@/store/modules/synclounge/eventhandlers';
 
 vi.mock('@/socket', () => ({
   emit: vi.fn(),
   waitForEvent: vi.fn(),
   getId: vi.fn(),
+  isConnected: vi.fn(),
 }));
 
 function createMockContext(getterOverrides = {}) {
@@ -1485,5 +1487,44 @@ describe('buffering popup preference', () => {
     expect(ctx.commit).toHaveBeenCalledWith('SET_USER_PLAYER_STATE', update);
     const popups = ctx.dispatch.mock.calls.filter(([action]) => action === 'DISPLAY_NOTIFICATION');
     expect(popups).toHaveLength(enabled ? 1 : 0);
+  });
+});
+
+describe('repeated connection loss', () => {
+  afterEach(() => vi.resetAllMocks());
+
+  it('keeps recovery alive when the connection drops again during handshake', async () => {
+    getId.mockReturnValue('attempt-1');
+    isConnected.mockReturnValue(false);
+    waitForEvent.mockRejectedValueOnce(new Error('Disconnected while waiting for slPing'));
+    const ctx = createMockContext();
+    await eventhandlers.HANDLE_RECONNECT(ctx);
+    expect(ctx.dispatch).not.toHaveBeenCalledWith('DISCONNECT_AND_NAVIGATE_HOME');
+    expect(ctx.dispatch).not.toHaveBeenCalledWith('JOIN_ROOM_AND_INIT', expect.anything());
+  });
+
+  it('does not tear down a newer connection when an older join fails', async () => {
+    getId.mockReturnValue('attempt-1');
+    isConnected.mockReturnValue(true);
+    waitForEvent.mockResolvedValueOnce('ping');
+    const ctx = createMockContext();
+    ctx.dispatch.mockImplementation(async (action) => {
+      if (action === 'JOIN_ROOM_AND_INIT') {
+        getId.mockReturnValue('attempt-2');
+        throw new Error('old join interrupted');
+      }
+    });
+    await eventhandlers.HANDLE_RECONNECT(ctx);
+    expect(ctx.dispatch).not.toHaveBeenCalledWith('DISCONNECT_AND_NAVIGATE_HOME');
+  });
+
+  it('still reports a join failure on the current live connection', async () => {
+    getId.mockReturnValue('attempt-1');
+    isConnected.mockReturnValue(true);
+    waitForEvent.mockResolvedValueOnce('ping');
+    const ctx = createMockContext();
+    ctx.dispatch.mockRejectedValueOnce(new Error('join rejected'));
+    await eventhandlers.HANDLE_RECONNECT(ctx);
+    expect(ctx.dispatch).toHaveBeenCalledWith('DISCONNECT_AND_NAVIGATE_HOME');
   });
 });

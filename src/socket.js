@@ -2,54 +2,12 @@ import { finishRecovery } from '@/utils/connectionstatus';
 import { rememberDiagnostic } from '@/utils/problemreport';
 
 let socket = null;
-
-export const open = async (url, options) => {
-  // Dynamically import socket.io
-  const io = await import('socket.io-client');
-  console.debug('Socket: connecting to', url);
-
-  return new Promise(((resolve, reject) => {
-    const storageKey = `synclounge:reconnect:${url}:${options.path}`;
-    let reconnectToken;
-    try { reconnectToken = sessionStorage.getItem(storageKey); } catch { /* Storage may be disabled. */ }
-    socket = io.connect(url, {
-      ...options,
-      auth: (callback) => callback({ ...options.auth, reconnectToken }),
-    });
-    socket.on('session', (data) => {
-      if (typeof data?.reconnectToken !== 'string' || data.reconnectToken.length > 256) return;
-      reconnectToken = data.reconnectToken;
-      try { sessionStorage.setItem(storageKey, reconnectToken); } catch { /* Keep the in-memory proof. */ }
-    });
-
-    socket.on('disconnect', (reason) => {
-      if (reason === 'io client disconnect') return;
-      rememberDiagnostic({ event: 'connection-lost', clientTimestamp: new Date().toISOString() });
-    });
-
-    socket.on('connect', () => {
-      rememberDiagnostic({ event: 'connection-established', clientTimestamp: new Date().toISOString() });
-    });
-    socket.once('connect', () => {
-      console.debug('Socket: connected, id:', socket.id);
-      resolve(socket);
-    });
-
-    // TODO: do I need all these events?
-    socket.once('connect_error', (err) => {
-      rememberDiagnostic({ event: 'connection-error', clientTimestamp: new Date().toISOString() });
-      console.error('Socket: connect_error:', url, err);
-      reject(new Error('connect_error'));
-    });
-
-    socket.once('connect_timeout', () => {
-      console.error('Socket: connect_timeout:', url);
-      reject(new Error('connect_timeout'));
-    });
-  }));
-};
+let socketRevision = 0;
+let cancelOpening = null;
 
 export const close = () => {
+  socketRevision += 1;
+  cancelOpening?.();
   finishRecovery();
   if (!socket) {
     return;
@@ -62,6 +20,68 @@ export const close = () => {
     // Closing synchronously emits disconnect; clear any recovery started by listeners.
     finishRecovery();
   }
+};
+
+export const open = async (url, options) => {
+  close();
+  const revision = socketRevision;
+  // Dynamically import socket.io
+  const io = await import('socket.io-client');
+  if (revision !== socketRevision) {
+    throw new DOMException('Socket connection was cancelled', 'AbortError');
+  }
+  console.debug('Socket: connecting to', url);
+
+  return new Promise(((resolve, reject) => {
+    const storageKey = `synclounge:reconnect:${url}:${options.path}`;
+    let reconnectToken;
+    try { reconnectToken = sessionStorage.getItem(storageKey); } catch { /* Storage may be disabled. */ }
+    const client = io.connect(url, {
+      ...options,
+      auth: (callback) => callback({ ...options.auth, reconnectToken }),
+    });
+    socket = client;
+    let cancel;
+    const settle = (error) => {
+      if (cancelOpening === cancel) cancelOpening = null;
+      if (error) reject(error);
+      else resolve(client);
+    };
+    cancel = () => settle(new DOMException('Socket connection was cancelled', 'AbortError'));
+    cancelOpening = cancel;
+    client.on('session', (data) => {
+      if (socket !== client) return;
+      if (typeof data?.reconnectToken !== 'string' || data.reconnectToken.length > 256) return;
+      reconnectToken = data.reconnectToken;
+      try { sessionStorage.setItem(storageKey, reconnectToken); } catch { /* Keep the in-memory proof. */ }
+    });
+
+    client.on('disconnect', (reason) => {
+      if (reason === 'io client disconnect') return;
+      rememberDiagnostic({ event: 'connection-lost', clientTimestamp: new Date().toISOString() });
+    });
+
+    client.on('connect', () => {
+      rememberDiagnostic({ event: 'connection-established', clientTimestamp: new Date().toISOString() });
+    });
+    client.once('connect', () => {
+      if (socket !== client) return;
+      console.debug('Socket: connected, id:', client.id);
+      settle();
+    });
+
+    // TODO: do I need all these events?
+    client.once('connect_error', (err) => {
+      rememberDiagnostic({ event: 'connection-error', clientTimestamp: new Date().toISOString() });
+      console.error('Socket: connect_error:', url, err);
+      settle(new Error('connect_error'));
+    });
+
+    client.once('connect_timeout', () => {
+      console.error('Socket: connect_timeout:', url);
+      settle(new Error('connect_timeout'));
+    });
+  }));
 };
 
 export const emit = ({ eventName, data }) => {
@@ -95,7 +115,8 @@ export const off = ({ eventName, handler }) => {
 };
 
 export const waitForEvent = (eventName, timeoutMs) => new Promise((resolve, reject) => {
-  if (!socket) {
+  const pendingSocket = socket;
+  if (!pendingSocket) {
     reject(new Error('Socket is not initialized'));
     return;
   }
@@ -106,8 +127,8 @@ export const waitForEvent = (eventName, timeoutMs) => new Promise((resolve, reje
 
   const cleanup = () => {
     if (timer) clearTimeout(timer);
-    socket.off(eventName, onEvent);
-    socket.off('disconnect', onDisconnect);
+    pendingSocket.off(eventName, onEvent);
+    pendingSocket.off('disconnect', onDisconnect);
   };
 
   onEvent = (data) => {
@@ -115,14 +136,17 @@ export const waitForEvent = (eventName, timeoutMs) => new Promise((resolve, reje
     resolve(data);
   };
 
-  onDisconnect = () => {
+  onDisconnect = (reason) => {
     cleanup();
     console.warn('Socket: disconnected while waiting for:', eventName);
-    reject(new Error(`Disconnected while waiting for ${eventName}`));
+    const message = `Disconnected while waiting for ${eventName}`;
+    reject(reason === 'io client disconnect'
+      ? new DOMException(message, 'AbortError')
+      : new Error(message));
   };
 
-  socket.once(eventName, onEvent);
-  socket.once('disconnect', onDisconnect);
+  pendingSocket.once(eventName, onEvent);
+  pendingSocket.once('disconnect', onDisconnect);
 
   if (timeoutMs != null) {
     timer = setTimeout(() => {

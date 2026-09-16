@@ -240,6 +240,22 @@ describe('socket event validation', () => {
     }
   });
 
+  it('automatically reconnects after an application heartbeat timeout', async () => {
+    const socket = connectClient();
+    try {
+      await waitForEvent(socket, 'slPing');
+      const reason = await waitForEvent(socket, 'disconnect');
+      assert.notEqual(reason, 'io server disconnect');
+      assert.equal(socket.active, true);
+      socket.on('slPing', (secret) => socket.emit('slPong', secret));
+      await waitForEvent(socket, 'connect');
+      assert.equal(socket.connected, true);
+      await assertServerHealthy();
+    } finally {
+      socket.close();
+    }
+  });
+
   it('disconnects a malformed join without crashing the server', async () => {
     const socket = connectClient();
     try {

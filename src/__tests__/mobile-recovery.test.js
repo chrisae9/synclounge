@@ -11,7 +11,9 @@ import settingsState from '@/store/modules/settings/state';
 import settingsGetters from '@/store/modules/settings/getters';
 import settingsMutations from '@/store/modules/settings/mutations';
 
-vi.mock('@/socket', () => ({ emit: vi.fn(), waitForEvent: vi.fn(), getId: () => 'reconnected' }));
+vi.mock('@/socket', () => ({
+  emit: vi.fn(), waitForEvent: vi.fn(), getId: () => 'reconnected', isConnected: () => true,
+}));
 
 afterEach(() => { finishRecovery(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -39,7 +41,7 @@ describe('mobile recovery and diagnostics', () => {
   it('does not show recovery after intentionally leaving an already recovering room', async () => {
     vi.useFakeTimers();
     const wrapper = mount(ConnectionStatus);
-    await eventhandlers.HANDLE_DISCONNECT({}, 'transport close');
+    await eventhandlers.HANDLE_DISCONNECT({ dispatch: vi.fn() }, 'transport close');
     await vi.advanceTimersByTimeAsync(1500);
     expect(wrapper.find('[role="status"]').exists()).toBe(true);
 
