@@ -1,6 +1,8 @@
 import { beginRecovery, finishRecovery } from '@/utils/connectionstatus';
 import { CAF } from 'caf';
-import { emit, waitForEvent, getId } from '@/socket';
+import {
+  emit, waitForEvent, getId, isConnected,
+} from '@/socket';
 
 const matchesPreviousHost = (getters, user) => Boolean(user?.reconnectIdentity
   && user.reconnectIdentity === getters.GET_HOST_GRACE_PREVIOUS_HOST_IDENTITY);
@@ -388,24 +390,28 @@ export default {
     startHostGraceTimeout({ getters, commit, dispatch }, timeoutMs);
   },
 
-  HANDLE_DISCONNECT: async (context, reason) => {
+  HANDLE_DISCONNECT: async ({ dispatch }, reason) => {
     invalidatePartyPauseCommands();
     if (reason === 'io client disconnect') {
       finishRecovery();
       return;
     }
+    dispatch('INVALIDATE_ROOM_JOIN');
     console.warn('HANDLE_DISCONNECT: lost connection to SyncLounge server');
     beginRecovery();
   },
 
   HANDLE_RECONNECT: async ({ dispatch, commit, getters }) => {
     const wasHost = getters?.AM_I_HOST;
+    const reconnectSocketId = getId();
     console.debug('HANDLE_RECONNECT: attempting to rejoin room');
 
     try {
       await waitForEvent('slPing', 15000);
-      commit('SET_SOCKET_ID', getId());
+      if (!isConnected() || getId() !== reconnectSocketId) return;
+      commit('SET_SOCKET_ID', reconnectSocketId);
       await dispatch('JOIN_ROOM_AND_INIT', { reconnecting: true });
+      if (!isConnected() || getId() !== reconnectSocketId) return;
       finishRecovery();
       if (wasHost && !getters.AM_I_HOST && getters.GET_HOST_USER?.username) {
         await dispatch('DISPLAY_NOTIFICATION', {
@@ -414,6 +420,8 @@ export default {
         }, { root: true });
       }
     } catch (e) {
+      // A second outage must not let the abandoned attempt tear down the next connection.
+      if (e.name === 'AbortError' || !isConnected() || getId() !== reconnectSocketId) return;
       finishRecovery();
       const text = `Error reconnecting: ${e.message}`;
       console.error(text);
