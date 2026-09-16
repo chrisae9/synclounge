@@ -2,6 +2,8 @@ import {
   describe, it, expect, vi,
 } from 'vitest';
 import RoomJoin from '@/views/RoomJoin.vue';
+import RoomCreation from '@/views/RoomCreation.vue';
+import AdvancedRoomJoin from '@/views/AdvancedRoomJoin.vue';
 
 const resolveRedirect = (redirect) => {
   if (redirect.startsWith('/room/stale123/player')) {
@@ -72,6 +74,22 @@ const makeJoinContext = (query, options = {}) => {
 };
 
 describe('RoomJoin stale/deep URL recovery', () => {
+  it('silently abandons a cancelled join without disconnecting the next room', async () => {
+    const { ctx, push } = makeJoinContext({});
+    ctx.SET_AND_CONNECT_AND_JOIN_ROOM.mockRejectedValueOnce(new DOMException('Cancelled', 'AbortError'));
+    await RoomJoin.methods.joinInvite.call(ctx);
+    expect(ctx.DISCONNECT_IF_CONNECTED).not.toHaveBeenCalled();
+    expect(ctx.error).toBeNull();
+    expect(ctx.loading).toBe(false);
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('clears loading after following a saved redirect', async () => {
+    const { ctx } = makeJoinContext({ redirect: '/room/stale123/browse' });
+    await RoomJoin.methods.joinInvite.call(ctx);
+    expect(ctx.loading).toBe(false);
+  });
+
   it('returns to the original protected route after joining from a stale URL', async () => {
     const redirect = '/room/stale123/browse/server/server-1/ratingKey/episode-1';
     const { ctx, push } = makeJoinContext({ redirect });
@@ -131,5 +149,26 @@ describe('RoomJoin stale/deep URL recovery', () => {
     await RoomJoin.methods.joinInvite.call(ctx);
 
     expect(push).not.toHaveBeenCalled();
+  });
+});
+
+describe('cancelled room creation', () => {
+  it.each([
+    ['quick creation', RoomCreation.methods.createRoom],
+    ['advanced creation', AdvancedRoomJoin.methods.connect],
+  ])('%s does not tear down a replacement join', async (label, action) => {
+    const ctx = {
+      $store: { commit: vi.fn() },
+      SET_AND_CONNECT_AND_JOIN_ROOM: vi.fn().mockRejectedValue(new DOMException('Cancelled', 'AbortError')),
+      DISCONNECT_IF_CONNECTED: vi.fn(),
+      fetchServersHealth: vi.fn(),
+      error: null,
+      serverError: null,
+    };
+    await action.call(ctx, 'https://server.invalid');
+    expect(ctx.DISCONNECT_IF_CONNECTED).not.toHaveBeenCalled();
+    expect(ctx.fetchServersHealth).not.toHaveBeenCalled();
+    expect(ctx.error).toBeNull();
+    expect(ctx.serverError).toBeNull();
   });
 });

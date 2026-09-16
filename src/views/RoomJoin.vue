@@ -150,12 +150,14 @@ export default {
           this.$router.push(this.linkWithRoom(destination));
         }
       } catch (e) {
-        this.DISCONNECT_IF_CONNECTED();
-        console.error(e);
-        this.error = mapErrorMessage(e);
+        if (e.name !== 'AbortError') {
+          await this.DISCONNECT_IF_CONNECTED();
+          console.error(e);
+          this.error = mapErrorMessage(e);
+        }
+      } finally {
+        this.loading = false;
       }
-
-      this.loading = false;
     },
   },
 };

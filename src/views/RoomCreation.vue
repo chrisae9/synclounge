@@ -143,11 +143,12 @@ export default {
           this.$router.push(this.linkWithRoom({ name: 'PlexHome' }));
         }
       } catch (e) {
-        this.DISCONNECT_IF_CONNECTED();
-        console.error(e);
-
-        this.error = mapErrorMessage(e);
-        await this.fetchServersHealth();
+        if (e.name !== 'AbortError') {
+          await this.DISCONNECT_IF_CONNECTED();
+          console.error(e);
+          this.error = mapErrorMessage(e);
+          await this.fetchServersHealth();
+        }
       }
 
       this.loading = false;

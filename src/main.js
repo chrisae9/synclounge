@@ -9,6 +9,7 @@ import { startPwa } from './pwa';
 import mapErrorMessage from './utils/errorutils';
 import {
   getSignInRoute,
+  getEmptyPlayerRedirect,
   shouldApplyAutojoin,
   shouldRedirectProtectedRoute,
 } from './router/guardutils';
@@ -113,7 +114,8 @@ router.beforeEach(async (to, from, next) => {
       next({ name: 'RoomCreation' });
     }
   } else {
-    next();
+    next(getEmptyPlayerRedirect(to, store.getters['plexclients/GET_ACTIVE_MEDIA_METADATA'])
+      || undefined);
   }
 });
 

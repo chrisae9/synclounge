@@ -561,8 +561,9 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
 
       // Cleanup must never pass through event validation or rate limiting. A rate-limit
       // rejection disconnects synchronously, so limiting this event would skip cleanup.
-      socket.on('disconnect', () => {
+      socket.on('disconnect', (reason) => {
         try {
+          logSocket({ socketId: socket.id, message: `disconnect reason: ${reason}` });
           disconnect({ server, socket, onRoomMediaUpdate });
         } catch (error) {
           log('Unhandled socket disconnect error:', error);

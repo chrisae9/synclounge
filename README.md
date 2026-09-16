@@ -112,7 +112,13 @@ socket endpoint from the same origin: the browser sends its Plex credential only
 own origin. Unrestricted deployments keep `mechanism: "none"`.
 
 Host recovery uses a server-issued reconnect proof stored per browser tab. Reloading that
-tab preserves its identity; clearing session storage starts a new identity.
+tab preserves its identity; clearing session storage starts a new identity. Temporary
+connection loss, including a heartbeat timeout, automatically reconnects the tab and
+rejoins its room. Leaving a room cancels pending recovery.
+
+Rooms clear when their last participant leaves; playback is not saved for an empty
+room. Reopening an old movie invite without active playback returns to the library
+with an explanation so you can choose a movie again.
 
 Set the server option `ROOM_STATE_PATH=/data/private/room-state.json` on a persistent volume to
 preserve reconnect proofs and room ownership across server restarts. The process must be
