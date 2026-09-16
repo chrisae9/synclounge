@@ -43,11 +43,78 @@ describe('synclounge actions', () => {
 
       await actions.DISCONNECT_IF_CONNECTED({ dispatch });
 
-      expect(dispatch).toHaveBeenCalledWith('DISCONNECT');
+      expect(dispatch).toHaveBeenCalledWith('DISCONNECT', undefined);
     });
   });
 
   describe('SET_AND_CONNECT_AND_JOIN_ROOM', () => {
+    it('keeps the newer room when an older disconnect finishes last', async () => {
+      let finishOldCleanup;
+      const oldCleanup = new Promise((resolve) => { finishOldCleanup = resolve; });
+      let cleanupCount = 0;
+      const context = { commit: vi.fn(), rootGetters: {} };
+      context.dispatch = vi.fn((type, payload) => {
+        if (type === 'plexclients/CANCEL_PLAY_MEDIA') {
+          cleanupCount += 1;
+          return cleanupCount === 1 ? oldCleanup : Promise.resolve();
+        }
+        if (['DISCONNECT_IF_CONNECTED', 'DISCONNECT'].includes(type)) return actions[type](context, payload);
+        return Promise.resolve();
+      });
+      socketMocks.hasSocket.mockReturnValue(true);
+      const older = actions.SET_AND_CONNECT_AND_JOIN_ROOM(context, { server: '', room: 'older' });
+      const cancelled = expect(older).rejects.toMatchObject({ name: 'AbortError' });
+      await actions.SET_AND_CONNECT_AND_JOIN_ROOM(context, { server: '', room: 'newer' });
+      context.commit.mockClear();
+      socketMocks.close.mockClear();
+      finishOldCleanup();
+      await cancelled;
+      expect(context.commit).not.toHaveBeenCalled();
+      expect(socketMocks.close).not.toHaveBeenCalled();
+      expect(context.dispatch.mock.calls.filter(([type]) => type === 'CONNECT_AND_JOIN_ROOM')).toHaveLength(1);
+    });
+
+    it('turns an obsolete Plex lookup failure into cancellation without affecting its replacement', async () => {
+      let failLookup;
+      const lookup = new Promise((resolve, reject) => { failLookup = reject; });
+      const context = {
+        commit: vi.fn(),
+        rootGetters: { 'plex/GET_PLEX_AUTH_TOKEN': 'token' },
+        dispatch: vi.fn((type) => (type === 'plex/FETCH_PLEX_USER' ? lookup : Promise.resolve())),
+      };
+      const older = actions.SET_AND_CONNECT_AND_JOIN_ROOM(context, { server: '', room: 'older' });
+      const cancelled = expect(older).rejects.toMatchObject({ name: 'AbortError' });
+      await vi.waitFor(() => expect(context.dispatch).toHaveBeenCalledWith('plex/FETCH_PLEX_USER', null, { root: true }));
+      await actions.SET_AND_CONNECT_AND_JOIN_ROOM({ ...context, rootGetters: {} }, { server: '', room: 'newer' });
+      failLookup(new Error('Plex unavailable'));
+      await cancelled;
+    });
+
+    it('carries one revision through real cleanup, handshake, join, and initialization', async () => {
+      socketMocks.hasSocket.mockReturnValue(true);
+      socketMocks.open.mockResolvedValue({ id: 'me' });
+      socketMocks.waitForEvent.mockImplementation(async (event) => (event === 'slPing' ? 'secret' : {
+        success: true, user: { id: 'me' }, users: {}, hostId: 'me',
+      }));
+      const context = {
+        commit: vi.fn(),
+        getters: { GET_SERVER: '', GET_ROOM: 'newer', GET_USERS: {} },
+        rootGetters: { 'plex/GET_PLEX_USER': { thumb: '' } },
+      };
+      const pipeline = ['DISCONNECT_IF_CONNECTED', 'DISCONNECT', 'CONNECT_AND_JOIN_ROOM',
+        'ESTABLISH_SOCKET_CONNECTION', 'JOIN_ROOM_AND_INIT', 'JOIN_ROOM'];
+      context.dispatch = vi.fn((type, payload) => (pipeline.includes(type)
+        ? actions[type](context, payload) : Promise.resolve()));
+      await actions.SET_AND_CONNECT_AND_JOIN_ROOM(context, { server: '', room: 'newer', syncOnJoin: false });
+      const revisions = context.dispatch.mock.calls
+        .filter(([type]) => pipeline.includes(type)).map(([, options]) => options?.revision);
+      expect(revisions[0]).toEqual(expect.any(Number));
+      expect(new Set(revisions).size).toBe(1);
+      expect(context.commit).toHaveBeenCalledWith('SET_IS_IN_ROOM', true);
+      expect(context.dispatch).toHaveBeenCalledWith('START_SYNC_POLL_INTERVAL');
+      await actions.DISCONNECT(context);
+    });
+
     it('refreshes Plex user and devices before opening the room socket', async () => {
       const calls = [];
       const commit = vi.fn((type, value) => calls.push(['commit', type, value]));
@@ -68,12 +135,12 @@ describe('synclounge actions', () => {
       });
 
       expect(calls).toEqual([
-        ['dispatch', 'DISCONNECT_IF_CONNECTED', undefined, undefined],
+        ['dispatch', 'DISCONNECT_IF_CONNECTED', { revision: expect.any(Number) }, undefined],
         ['commit', 'SET_SERVER', ''],
         ['commit', 'SET_ROOM', 'stale123'],
         ['dispatch', 'plex/FETCH_PLEX_USER', null, { root: true }],
         ['dispatch', 'plex/FETCH_PLEX_DEVICES', null, { root: true }],
-        ['dispatch', 'CONNECT_AND_JOIN_ROOM', { syncOnJoin: true }, undefined],
+        ['dispatch', 'CONNECT_AND_JOIN_ROOM', { syncOnJoin: true, revision: expect.any(Number) }, undefined],
       ]);
     });
 
@@ -93,7 +160,7 @@ describe('synclounge actions', () => {
         syncOnJoin: false,
       });
 
-      expect(dispatch).toHaveBeenLastCalledWith('CONNECT_AND_JOIN_ROOM', { syncOnJoin: false });
+      expect(dispatch).toHaveBeenLastCalledWith('CONNECT_AND_JOIN_ROOM', { syncOnJoin: false, revision: expect.any(Number) });
     });
   });
 
@@ -134,8 +201,8 @@ describe('synclounge actions', () => {
       await expect(actions.CONNECT_AND_JOIN_ROOM({ dispatch }, { syncOnJoin: true }))
         .rejects.toBe(timeoutError);
 
-      expect(dispatch).toHaveBeenCalledWith('DISCONNECT');
-      expect(dispatch).toHaveBeenLastCalledWith('DISCONNECT');
+      expect(dispatch).toHaveBeenCalledWith('DISCONNECT', expect.anything());
+      expect(dispatch).toHaveBeenLastCalledWith('DISCONNECT', { revision: expect.any(Number) });
     });
 
     it.each(['', 'https://remote.example'])('limits Plex credentials to the app origin (%s)', async (server) => {

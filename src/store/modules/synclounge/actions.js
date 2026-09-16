@@ -59,25 +59,35 @@ const isRecoveringFromBuffering = (state) => {
 // Visibility change handler reference for cleanup in DISCONNECT
 let visibilityChangeHandler = null;
 let roomJoinRevision = 0;
+const beginRoomJoin = () => {
+  roomJoinRevision += 1;
+  return roomJoinRevision;
+};
 const ensureRoomJoinCurrent = (revision) => {
   if (revision !== roomJoinRevision) {
     throw new DOMException('Room join was superseded', 'AbortError');
   }
 };
 const invalidateRoomJoin = ({ commit }) => {
-  roomJoinRevision += 1;
+  const revision = beginRoomJoin();
   commit('SET_JOIN_SYNC_IN_PROGRESS', false);
+  return revision;
 };
 
 export default {
   INVALIDATE_ROOM_JOIN: invalidateRoomJoin,
 
-  CONNECT_AND_JOIN_ROOM: async ({ dispatch }, options) => {
+  CONNECT_AND_JOIN_ROOM: async ({ dispatch }, { revision = beginRoomJoin(), ...options } = {}) => {
     try {
-      await dispatch('ESTABLISH_SOCKET_CONNECTION');
-      await dispatch('JOIN_ROOM_AND_INIT', options);
+      ensureRoomJoinCurrent(revision);
+      await dispatch('ESTABLISH_SOCKET_CONNECTION', { revision });
+      ensureRoomJoinCurrent(revision);
+      await dispatch('JOIN_ROOM_AND_INIT', { ...options, revision });
+      ensureRoomJoinCurrent(revision);
     } catch (error) {
-      if (error.name !== 'AbortError') await dispatch('DISCONNECT');
+      ensureRoomJoinCurrent(revision);
+      if (error.name !== 'AbortError') await dispatch('DISCONNECT', { revision });
+      ensureRoomJoinCurrent(revision);
       throw error;
     }
   },
@@ -86,36 +96,41 @@ export default {
     { commit, dispatch, rootGetters = {} },
     { server, room, syncOnJoin = true },
   ) => {
-    await dispatch('DISCONNECT_IF_CONNECTED');
-
-    roomJoinRevision += 1;
-    const revision = roomJoinRevision;
-
-    commit('SET_SERVER', server);
-    commit('SET_ROOM', room);
-
-    if (rootGetters['plex/GET_PLEX_AUTH_TOKEN']) {
-      await dispatch('plex/FETCH_PLEX_USER', null, { root: true });
+    const revision = beginRoomJoin();
+    try {
+      await dispatch('DISCONNECT_IF_CONNECTED', { revision });
       ensureRoomJoinCurrent(revision);
-      await dispatch('plex/FETCH_PLEX_DEVICES', null, { root: true });
+
+      commit('SET_SERVER', server);
+      commit('SET_ROOM', room);
+
+      if (rootGetters['plex/GET_PLEX_AUTH_TOKEN']) {
+        await dispatch('plex/FETCH_PLEX_USER', null, { root: true });
+        ensureRoomJoinCurrent(revision);
+        await dispatch('plex/FETCH_PLEX_DEVICES', null, { root: true });
+        ensureRoomJoinCurrent(revision);
+      }
+
+      return await dispatch('CONNECT_AND_JOIN_ROOM', { syncOnJoin, revision });
+    } catch (error) {
       ensureRoomJoinCurrent(revision);
+      throw error;
     }
-
-    return dispatch('CONNECT_AND_JOIN_ROOM', { syncOnJoin });
   },
 
-  DISCONNECT_IF_CONNECTED: async ({ dispatch }) => {
+  DISCONNECT_IF_CONNECTED: async ({ dispatch }, options) => {
+    if (options) ensureRoomJoinCurrent(options.revision);
     if (isConnected() || hasSocket()) {
-      await dispatch('DISCONNECT');
+      await dispatch('DISCONNECT', options);
     }
   },
 
   ESTABLISH_SOCKET_CONNECTION: async ({
     getters, rootGetters, commit, dispatch,
-  }) => {
-    await dispatch('DISCONNECT_IF_CONNECTED');
-
-    const revision = roomJoinRevision;
+  }, { revision = beginRoomJoin() } = {}) => {
+    ensureRoomJoinCurrent(revision);
+    await dispatch('DISCONNECT_IF_CONNECTED', { revision });
+    ensureRoomJoinCurrent(revision);
     const properBase = new URL(getters.GET_SERVER || '/', window.location.origin);
 
     const url = combineUrl('socket.io', properBase.toString());
@@ -148,8 +163,8 @@ export default {
     ensureRoomJoinCurrent(revision);
   },
 
-  JOIN_ROOM: async ({ getters, rootGetters, dispatch }) => {
-    const revision = roomJoinRevision;
+  JOIN_ROOM: async ({ getters, rootGetters, dispatch }, { revision = roomJoinRevision } = {}) => {
+    ensureRoomJoinCurrent(revision);
     const joinPlayerData = await dispatch(
       'plexclients/FETCH_JOIN_PLAYER_DATA',
       null,
@@ -183,16 +198,15 @@ export default {
 
   JOIN_ROOM_AND_INIT: async ({
     getters, rootGetters, dispatch, commit,
-  }, { syncOnJoin = true, reconnecting = false } = {}) => {
+  }, { syncOnJoin = true, reconnecting = false, revision = beginRoomJoin() } = {}) => {
     // Note: this is also called on rejoining, so be careful not to register handlers twice
     // or duplicate tasks
-    roomJoinRevision += 1;
-    const revision = roomJoinRevision;
+    ensureRoomJoinCurrent(revision);
     const joinStartRevision = getters.GET_USER_EVENT_REVISION || 0;
     const presetRevision = getters.GET_SYNC_PRESET_REVISION || 0;
     const {
       user: { id, ...rest }, users, isPartyPausingEnabled, isAutoHostEnabled, hostId, syncPreset,
-    } = await dispatch('JOIN_ROOM');
+    } = await dispatch('JOIN_ROOM', { revision });
     ensureRoomJoinCurrent(revision);
     clearPendingPartyPause();
     await dispatch('CLEAR_HOST_GRACE_PERIOD');
@@ -309,15 +323,21 @@ export default {
     document.addEventListener('visibilitychange', visibilityChangeHandler);
   },
 
-  DISCONNECT: async ({ commit, dispatch }) => {
-    invalidateRoomJoin({ commit });
+  DISCONNECT: async ({ commit, dispatch }, { revision = invalidateRoomJoin({ commit }) } = {}) => {
+    if (revision !== roomJoinRevision) return;
+    commit('SET_JOIN_SYNC_IN_PROGRESS', false);
     isRecoveringFromBuffering('stopped');
     await dispatch('plexclients/CANCEL_PLAY_MEDIA', null, { root: true });
+    if (revision !== roomJoinRevision) return;
     await dispatch('INVALIDATE_PARTY_PAUSE_COMMANDS');
+    if (revision !== roomJoinRevision) return;
     clearPendingPartyPause();
     await dispatch('CANCEL_IN_PROGRESS_SYNC');
+    if (revision !== roomJoinRevision) return;
     await dispatch('CANCEL_UPNEXT');
+    if (revision !== roomJoinRevision) return;
     await dispatch('STOP_SYNC_POLL_INTERVAL');
+    if (revision !== roomJoinRevision) return;
 
     // Clean up visibilitychange handler
     if (visibilityChangeHandler) {
@@ -327,7 +347,9 @@ export default {
 
     // Clean up host grace period timer
     await dispatch('CLEAR_HOST_GRACE_PERIOD');
+    if (revision !== roomJoinRevision) return;
     await dispatch('CLEAR_HOST_RESTORE_PENDING');
+    if (revision !== roomJoinRevision) return;
 
     close();
     commit('SET_IS_IN_ROOM', false);
