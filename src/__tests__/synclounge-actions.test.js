@@ -84,7 +84,9 @@ describe('synclounge actions', () => {
       };
       const older = actions.SET_AND_CONNECT_AND_JOIN_ROOM(context, { server: '', room: 'older' });
       const cancelled = expect(older).rejects.toMatchObject({ name: 'AbortError' });
-      await vi.waitFor(() => expect(context.dispatch).toHaveBeenCalledWith('plex/FETCH_PLEX_USER', null, { root: true }));
+      await vi.waitFor(() => {
+        expect(context.dispatch).toHaveBeenCalledWith('plex/FETCH_PLEX_USER', null, { root: true });
+      });
       await actions.SET_AND_CONNECT_AND_JOIN_ROOM({ ...context, rootGetters: {} }, { server: '', room: 'newer' });
       failLookup(new Error('Plex unavailable'));
       await cancelled;
@@ -160,7 +162,9 @@ describe('synclounge actions', () => {
         syncOnJoin: false,
       });
 
-      expect(dispatch).toHaveBeenLastCalledWith('CONNECT_AND_JOIN_ROOM', { syncOnJoin: false, revision: expect.any(Number) });
+      expect(dispatch).toHaveBeenLastCalledWith('CONNECT_AND_JOIN_ROOM', {
+        syncOnJoin: false, revision: expect.any(Number),
+      });
     });
   });
 
