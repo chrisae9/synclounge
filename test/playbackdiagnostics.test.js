@@ -14,7 +14,7 @@ test('sanitizes structured playback diagnostics without accepting unrelated fiel
   const diagnostic = sanitizePlaybackDiagnostic({
     event: 'Buffering Started!',
     clientTimestamp: '2026-08-21T12:00:00.000Z',
-    details: { episode: 3, durationMs: 142 },
+    details: { episode: 3, durationMs: 142, attempt: 2 },
     browser: { name: 'firefox', os: 'Linux\nforged-log-line' },
     playback: {
       currentTime: 10,
@@ -29,7 +29,7 @@ test('sanitizes structured playback diagnostics without accepting unrelated fiel
 
   assert.equal(diagnostic.event, 'buffering-started-');
   assert.equal(diagnostic.browser.os, 'Linux forged-log-line');
-  assert.deepEqual(diagnostic.details, { episode: 3, durationMs: 142 });
+  assert.deepEqual(diagnostic.details, { episode: 3, durationMs: 142, attempt: 2 });
   assert.equal(diagnostic.playback.currentTime, 10);
   assert.equal(diagnostic.playback.isCasting, true);
   assert.equal(diagnostic.playback.buffering, false);
