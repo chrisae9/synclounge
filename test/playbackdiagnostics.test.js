@@ -98,3 +98,14 @@ test('bounds participant health measurements before broadcasting', () => {
     event: 'health', playback: { shaka: { streamBandwidth: 1000000000 } },
   }).playback.shaka.streamBandwidth, 1000000000);
 });
+
+test('bounds recovery attempts from untrusted diagnostic payloads', () => {
+  for (const attempt of [0, 3]) {
+    const result = sanitizePlaybackDiagnostic({ event: 'stream-recovery-start', details: { attempt } });
+    assert.equal(result.details.attempt, attempt);
+  }
+  for (const attempt of [-1, 4, '2', null, true, {}, [], Number.NaN, Number.POSITIVE_INFINITY]) {
+    const result = sanitizePlaybackDiagnostic({ event: 'stream-recovery-start', details: { attempt } });
+    assert.equal(result.details.attempt, null);
+  }
+});

@@ -183,6 +183,20 @@ describe('stream recovery fault injection', () => {
     expect(context.dispatch).toHaveBeenCalledWith('REFRESH_PLAYER_STATE');
   });
 
+  it('does not show an exhausted notification after stopping at the diagnostic boundary', async () => {
+    const context = makeContext();
+    for (let attempt = 0; attempt < 3; attempt += 1) await slplayerActions.HANDLE_ERROR(context, error);
+    const dispatch = context.dispatch.getMockImplementation();
+    context.dispatch.mockImplementation((type, payload) => {
+      if (type === 'REPORT_PLAYBACK_DIAGNOSTIC' && payload.event === 'stream-recovery-exhausted') {
+        return slplayerActions.PRESS_STOP(context);
+      }
+      return dispatch(type, payload);
+    });
+    expect(await slplayerActions.HANDLE_ERROR(context, error)).toBe('cancelled');
+    expect(context.dispatch.mock.calls.some(([type]) => type === 'DISPLAY_NOTIFICATION')).toBe(false);
+  });
+
   it('does not perform a fresh source restart for every sequential network error', async () => {
     const context = makeContext();
     for (let attempt = 0; attempt < 5; attempt += 1) await slplayerActions.HANDLE_ERROR(context, error);

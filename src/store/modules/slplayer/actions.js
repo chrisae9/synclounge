@@ -505,8 +505,9 @@ export default {
       await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME', { signal, restorePaused });
       throwIfAborted(signal);
       await dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'stream-recovery-complete' });
-    }, async () => {
+    }, async (signal) => {
       await dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'stream-recovery-exhausted' });
+      throwIfAborted(signal);
       await dispatch('DISPLAY_NOTIFICATION', {
         text: 'Playback could not recover. Check your connection, then reopen the movie to retry.',
         color: 'error',

@@ -98,3 +98,14 @@ it('bounds an empty video wait and cancels its timer on departure', async () => 
   await expect(second).rejects.toMatchObject({ name: 'AbortError' });
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it('reports cancellation if stopped during the exhaustion callback', async () => {
+  const recovery = createStreamRecovery({ maxAttempts: 0 });
+  let receivedSignal;
+  const pending = recovery.run(vi.fn(), async (signal) => {
+    receivedSignal = signal;
+    recovery.cancel();
+  });
+  expect(await pending).toBe('cancelled');
+  expect(receivedSignal.aborted).toBe(true);
+});

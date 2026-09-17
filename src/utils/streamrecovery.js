@@ -60,8 +60,9 @@ export default function createStreamRecovery({ maxAttempts = 3, windowMs = 60000
           throwIfAborted(signal);
           if (!notified) {
             notified = true;
-            await exhausted();
+            await exhausted(signal);
           }
+          throwIfAborted(signal);
           return 'exhausted';
         } catch (error) {
           if (error.name !== 'AbortError') throw error;
