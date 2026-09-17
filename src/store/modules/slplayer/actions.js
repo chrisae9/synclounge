@@ -24,6 +24,7 @@ import subtitleActions from './subtitleActions';
 // Module-level guard for play queue transitions (not reactive, so reads are synchronous)
 let isPlayQueueTransitioning = false;
 let sourceRevision = 0;
+let isPlayerStopping = false;
 const streamRecovery = createStreamRecovery();
 let bufferingStartedAt = null;
 let bufferingEpisode = 0;
@@ -223,6 +224,7 @@ export default {
   CHANGE_PLAYER_SRC: async ({ getters, commit, dispatch }, { signal, restorePaused } = {}) => {
     throwIfAborted(signal);
     if (!signal || restorePaused === undefined) streamRecovery.cancel();
+    isPlayerStopping = false;
     sourceRevision += 1;
     const revision = sourceRevision;
     const ensureCurrent = () => {
@@ -490,6 +492,7 @@ export default {
   },
 
   HANDLE_ERROR: ({ dispatch }, e) => {
+    if (isPlayerStopping) return Promise.resolve('cancelled');
     dispatch('REPORT_PLAYBACK_DIAGNOSTIC', {
       event: 'player-error', details: summarizePlayerError(e),
     });
@@ -549,6 +552,7 @@ export default {
   },
 
   PRESS_STOP: async ({ getters, commit, dispatch }) => {
+    isPlayerStopping = true;
     streamRecovery.cancel();
     sourceRevision += 1;
     await dispatch('plexclients/CANCEL_PLAY_MEDIA', null, { root: true });
@@ -841,6 +845,7 @@ export default {
   },
 
   DESTROY_PLAYER_STATE: async ({ getters, commit, dispatch }) => {
+    isPlayerStopping = true;
     streamRecovery.cancel();
     sourceRevision += 1;
     console.debug('DESTROY_PLAYER_STATE');

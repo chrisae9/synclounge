@@ -72,6 +72,7 @@ describe('stream recovery fault injection', () => {
     const { getMediaElement } = await import('@/player');
     getMediaElement.mockReturnValue(Object.assign(new EventTarget(), { readyState: 4, seeking: false }));
     await slplayerActions.DESTROY_PLAYER_STATE({ getters: {}, commit: vi.fn(), dispatch: vi.fn() });
+    await slplayerActions.CHANGE_PLAYER_SRC({ getters: {}, commit: vi.fn(), dispatch: vi.fn() });
   });
   const error = { detail: { code: 1003, category: 1, severity: 2 } };
   const makeContext = () => {
@@ -143,6 +144,16 @@ describe('stream recovery fault injection', () => {
     finishDecision();
     expect(await pending).toBe('cancelled');
     expect(context.dispatch).not.toHaveBeenCalledWith('LOAD_PLAYER_SRC', expect.anything());
+  });
+
+  it('ignores late errors after stop until a new source is explicitly loaded', async () => {
+    const context = makeContext();
+    await slplayerActions.PRESS_STOP(context);
+    context.dispatch.mockClear();
+    expect(await slplayerActions.HANDLE_ERROR(context, error)).toBe('cancelled');
+    expect(context.dispatch).not.toHaveBeenCalled();
+    await slplayerActions.CHANGE_PLAYER_SRC(context);
+    expect(await slplayerActions.HANDLE_ERROR(context, error)).toBe('recovered');
   });
 
   it('preserves paused playback during source recovery', async () => {
