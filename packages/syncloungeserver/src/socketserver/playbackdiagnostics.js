@@ -27,6 +27,7 @@ const diagnosticSchema = {
   clientTimestamp: true,
   details: {
     episode: true,
+    attempt: 'number:3',
     durationMs: true,
     name: true,
     message: true,

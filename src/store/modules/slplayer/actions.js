@@ -1,4 +1,5 @@
 import { CAF } from 'caf';
+import createStreamRecovery, { waitForVideoReady } from '@/utils/streamrecovery';
 import recommendLowerQuality from '@/utils/qualityrecovery';
 import { rememberDiagnostic } from '@/utils/problemreport';
 import { consumeUserSeekIntent, hasPendingUserSeek, recordSeekIntent } from '@/player/seekIntent';
@@ -23,6 +24,8 @@ import subtitleActions from './subtitleActions';
 // Module-level guard for play queue transitions (not reactive, so reads are synchronous)
 let isPlayQueueTransitioning = false;
 let sourceRevision = 0;
+let isPlayerStopping = false;
+const streamRecovery = createStreamRecovery();
 let bufferingStartedAt = null;
 let bufferingEpisode = 0;
 let lastHealthDiagnosticAt = 0;
@@ -196,9 +199,13 @@ export default {
   },
 
   // Changes the player src to the new one and restores the time afterwards
-  UPDATE_PLAYER_SRC_AND_KEEP_TIME: async ({ commit, dispatch }) => {
-    commit('SET_OFFSET_MS', await dispatch('FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK'));
-    await dispatch('CHANGE_PLAYER_SRC');
+  UPDATE_PLAYER_SRC_AND_KEEP_TIME: async ({ commit, dispatch }, options) => {
+    const revision = sourceRevision;
+    const offset = await abortable(dispatch('FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK'), options?.signal);
+    throwIfAborted(options?.signal);
+    if (revision !== sourceRevision) throw new DOMException('Source replaced', 'AbortError');
+    commit('SET_OFFSET_MS', offset);
+    await dispatch('CHANGE_PLAYER_SRC', options);
   },
 
   CHANGE_SUBTITLES: async ({ getters, dispatch }) => {
@@ -214,7 +221,10 @@ export default {
     }
   },
 
-  CHANGE_PLAYER_SRC: async ({ getters, commit, dispatch }, { signal } = {}) => {
+  CHANGE_PLAYER_SRC: async ({ getters, commit, dispatch }, { signal, restorePaused } = {}) => {
+    throwIfAborted(signal);
+    if (!signal || restorePaused === undefined) streamRecovery.cancel();
+    isPlayerStopping = false;
     sourceRevision += 1;
     const revision = sourceRevision;
     const ensureCurrent = () => {
@@ -243,7 +253,7 @@ export default {
       try {
         await abortable(dispatch('SEND_PLEX_DECISION_REQUEST', { signal, ensureCurrent }), signal);
         ensureCurrent();
-        await abortable(dispatch('LOAD_PLAYER_SRC', { signal, ensureCurrent }), signal);
+        await abortable(dispatch('LOAD_PLAYER_SRC', { signal, ensureCurrent, restorePaused }), signal);
         ensureCurrent();
       } catch (e) {
         ensureCurrent();
@@ -256,7 +266,7 @@ export default {
         commit('SET_FORCE_TRANSCODE_RETRY', true);
         await abortable(dispatch('SEND_PLEX_DECISION_REQUEST', { signal, ensureCurrent }), signal);
         ensureCurrent();
-        await abortable(dispatch('LOAD_PLAYER_SRC', { signal, ensureCurrent }), signal);
+        await abortable(dispatch('LOAD_PLAYER_SRC', { signal, ensureCurrent, restorePaused }), signal);
         ensureCurrent();
       }
 
@@ -482,13 +492,27 @@ export default {
   },
 
   HANDLE_ERROR: ({ dispatch }, e) => {
-    console.error('HANDLE_ERROR: player error, restarting source:', e.detail || e);
+    if (isPlayerStopping) return Promise.resolve('cancelled');
     dispatch('REPORT_PLAYBACK_DIAGNOSTIC', {
-      event: 'player-error',
-      details: summarizePlayerError(e),
+      event: 'player-error', details: summarizePlayerError(e),
     });
-    // Restart source
-    return dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME');
+    const restorePaused = Boolean(isPaused());
+    return streamRecovery.run(async (signal, attempt) => {
+      await dispatch('REPORT_PLAYBACK_DIAGNOSTIC', {
+        event: 'stream-recovery-start', details: { attempt },
+      });
+      throwIfAborted(signal);
+      await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME', { signal, restorePaused });
+      throwIfAborted(signal);
+      await dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'stream-recovery-complete' });
+    }, async (signal) => {
+      await dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'stream-recovery-exhausted' });
+      throwIfAborted(signal);
+      await dispatch('DISPLAY_NOTIFICATION', {
+        text: 'Playback could not recover. Check your connection, then reopen the movie to retry.',
+        color: 'error',
+      }, { root: true });
+    });
   },
 
   PRESS_PLAY: async ({ commit }) => {
@@ -529,8 +553,10 @@ export default {
   },
 
   PRESS_STOP: async ({ getters, commit, dispatch }) => {
-    await dispatch('plexclients/CANCEL_PLAY_MEDIA', null, { root: true });
+    isPlayerStopping = true;
+    streamRecovery.cancel();
     sourceRevision += 1;
+    await dispatch('plexclients/CANCEL_PLAY_MEDIA', null, { root: true });
     const mediaElement = getMediaElement();
     if (getters.IS_AUTOPLAY_BLOCKED && mediaElement) {
       mediaElement.muted = false;
@@ -694,7 +720,9 @@ export default {
     await plexTimelineUpdatePromise;
   },
 
-  LOAD_PLAYER_SRC: async ({ getters, commit, dispatch }, { signal, ensureCurrent = () => {} } = {}) => {
+  LOAD_PLAYER_SRC: async ({ getters, commit, dispatch }, {
+    signal, ensureCurrent = () => {}, restorePaused,
+  } = {}) => {
     const url = getters.GET_SRC_URL;
     const offset = getters.GET_OFFSET_MS;
     // TODO: potentailly unload if already loaded to avoid load interrupted errors
@@ -702,6 +730,8 @@ export default {
     bufferingStartedAt = null;
     commit('CLEAR_QUALITY_RECOVERY');
     console.debug('LOAD_PLAYER_SRC: loading');
+    const mediaElement = getMediaElement();
+    if (mediaElement) mediaElement.autoplay = restorePaused !== true;
     await unload();
     throwIfAborted(signal);
     ensureCurrent();
@@ -715,6 +745,14 @@ export default {
       commit('SET_SYNC_SEEK_TARGET', offset);
       setCurrentTimeMs(offset);
     }
+    // Casting leaves the local video idle; readiness is handled by the receiver.
+    if (restorePaused !== undefined && !isCasting()) await waitForVideoReady(mediaElement, signal);
+    throwIfAborted(signal);
+    ensureCurrent();
+    if (restorePaused === true) pause();
+    else if (restorePaused === false) await dispatch('PRESS_PLAY');
+    throwIfAborted(signal);
+    ensureCurrent();
   },
 
   NAVIGATE_AND_INITIALIZE_PLAYER: ({ getters, commit }) => {
@@ -808,6 +846,8 @@ export default {
   },
 
   DESTROY_PLAYER_STATE: async ({ getters, commit, dispatch }) => {
+    isPlayerStopping = true;
+    streamRecovery.cancel();
     sourceRevision += 1;
     console.debug('DESTROY_PLAYER_STATE');
     recordSeekIntent();
