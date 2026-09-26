@@ -10,7 +10,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     setIsPartyPausingEnabledInSocketRoom, updateUserSyncFlexibility,
     setIsAutoHostEnabledInSocketRoom, isPartyPausingEnabledInSocketRoom,
     isAutoHostEnabledInSocketRoom, initSocketLatencyData, getRoomHostId,
-    updateUserRoomPreview, getUserRoomPreview, restoreReturningHost,
+    updateUserRoomPreview, getUserRoomPreview, restoreReturningHost, preserveRoomForReconnect,
   } = socketState;
   const {
     removeUserAndUpdateRoom, emitToSocket, logSocket, emitAdjustedUserDataToRoom,
@@ -21,7 +21,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
   const restoreHost = ({ server, socket, onRoomMediaUpdate }) => {
     if (!restoreReturningHost(socket.id)) return;
     const roomId = getUserRoomId(socket.id);
-    logSocket({ socketId: socket.id, message: 'Restored host after server restart' });
+    logSocket({ socketId: socket.id, message: 'Restored host after reconnection' });
     announceNewHost({ server, roomId, hostId: socket.id });
     if (onRoomMediaUpdate) {
       onRoomMediaUpdate({ roomId, roomPreview: getUserRoomPreview(socket.id) });
@@ -31,11 +31,16 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
   let partyPauseRequestId = 0;
   const recentSeeks = new Map();
 
-  const removeSocketFromRoom = ({ server, socket, onRoomMediaUpdate }) => {
+  const removeSocketFromRoom = ({
+    server, socket, onRoomMediaUpdate, preserveRecovery = false,
+  }) => {
     recentSeeks.delete(socket.id);
     const roomId = getUserRoomId(socket.id);
     const wasHost = isUserHost(socket.id);
-    const remainingRoomId = removeUserAndUpdateRoom({ server, socketId: socket.id });
+    if (preserveRecovery) preserveRoomForReconnect(socket.id);
+    const remainingRoomId = removeUserAndUpdateRoom({
+      server, socketId: socket.id, preserveRecovery,
+    });
 
     if (wasHost && onRoomMediaUpdate) {
       const newHostId = remainingRoomId == null ? null : getRoomHostId(remainingRoomId);
@@ -132,12 +137,18 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     logRoomStats(roomId);
   };
 
-  const disconnect = ({ server, socket, onRoomMediaUpdate }) => {
+  const disconnect = ({
+    server, socket, onRoomMediaUpdate, reason,
+  }) => {
     logSocket({ socketId: socket.id, message: 'disconnect' });
 
     try {
       if (isUserInARoom(socket.id)) {
-        const roomId = removeSocketFromRoom({ server, socket, onRoomMediaUpdate });
+        const preserveRecovery = ['transport close', 'transport error', 'ping timeout', 'forced close']
+          .includes(reason);
+        const roomId = removeSocketFromRoom({
+          server, socket, onRoomMediaUpdate, preserveRecovery,
+        });
         if (roomId != null) {
           logRoomStats(roomId);
         }
@@ -523,13 +534,6 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
 
     return (eventName) => {
       const now = Date.now();
-      const aggregateResult = incrementBucket(
-        aggregateBucket,
-        AGGREGATE_EVENT_RATE_LIMIT,
-        now,
-      );
-      aggregateBucket = aggregateResult.bucket;
-
       const eventResult = incrementBucket(
         buckets.get(eventName),
         EVENT_RATE_LIMITS[eventName] ?? DEFAULT_EVENT_RATE_LIMIT,
@@ -537,7 +541,27 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       );
       buckets.set(eventName, eventResult.bucket);
 
-      return aggregateResult.limited || eventResult.limited;
+      // Buffer starvation can generate many valid diagnostics. Drop excess telemetry
+      // independently so it cannot consume the budget for pongs and room controls.
+      if (eventName === 'playbackDiagnostic') {
+        return {
+          limited: eventResult.limited,
+          disconnect: false,
+          log: eventResult.bucket.count === EVENT_RATE_LIMITS.playbackDiagnostic.maxEvents + 1,
+        };
+      }
+
+      const aggregateResult = incrementBucket(
+        aggregateBucket,
+        AGGREGATE_EVENT_RATE_LIMIT,
+        now,
+      );
+      aggregateBucket = aggregateResult.bucket;
+      return {
+        limited: aggregateResult.limited || eventResult.limited,
+        disconnect: true,
+        log: true,
+      };
     };
   };
 
@@ -564,7 +588,9 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
       socket.on('disconnect', (reason) => {
         try {
           logSocket({ socketId: socket.id, message: `disconnect reason: ${reason}` });
-          disconnect({ server, socket, onRoomMediaUpdate });
+          disconnect({
+            server, socket, onRoomMediaUpdate, reason,
+          });
         } catch (error) {
           log('Unhandled socket disconnect error:', error);
         }
@@ -574,9 +600,12 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
         socket.on(name, (data) => {
           try {
             validateEvent(name, data);
-            if (isRateLimited(name)) {
-              logSocket({ socketId: socket.id, message: `Rate limit exceeded for ${name}` });
-              socket.disconnect(true);
+            const rateLimit = isRateLimited(name);
+            if (rateLimit.limited) {
+              if (rateLimit.log) {
+                logSocket({ socketId: socket.id, message: `Rate limit exceeded for ${name}` });
+              }
+              if (rateLimit.disconnect) socket.disconnect(true);
               return;
             }
             handler({
