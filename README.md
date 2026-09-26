@@ -126,9 +126,11 @@ able to create or own that private directory; it must not be group- or world-wri
 as static content or share it between concurrently running servers. Without this option,
 restarting the server resets reconnect identities and room ownership.
 
-After a restart, a remembered host has 60 seconds to rejoin with its existing tab proof;
-a host that was playing must restore media before reclaiming control. Explicit host
-transfers override recovery. Inactive ownership records expire after 24 hours. Enabling
+After a restart or a transient connection loss, a remembered host has 60 seconds to
+rejoin with its existing tab proof; a host that was playing must restore media before
+reclaiming control. With persistence enabled, the room's settings survive even when
+all participants briefly disconnect. Intentional final departures remove the saved
+ownership, and explicit host transfers override recovery. Inactive ownership records expire after 24 hours. Enabling
 persistence for the first time cannot recover proofs from an earlier server instance.
 
 Only documented browser configuration is returned from `/config.json`; arbitrary keys in a

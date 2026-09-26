@@ -75,7 +75,7 @@ export const createActions = (socketState) => {
     });
   };
 
-  const removeUserAndUpdateRoom = ({ server, socketId }) => {
+  const removeUserAndUpdateRoom = ({ server, socketId, preserveRecovery = false }) => {
     const roomId = getUserRoomId(socketId);
 
     removeUser(socketId);
@@ -83,7 +83,7 @@ export const createActions = (socketState) => {
     if (isRoomEmpty(roomId)) {
       log('Removing room:', roomId);
 
-      removeRoom(roomId);
+      removeRoom(roomId, { preserveRecovery });
       logRoomsStats();
       return null;
     }

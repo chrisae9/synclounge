@@ -190,9 +190,16 @@ export const createState = ({ hostPersistence } = {}) => {
     socketRoomPreview.delete(socketId);
   };
 
-  const removeRoom = (roomId) => {
+  const preserveRoomForReconnect = (socketId) => {
+    const roomId = getUserRoomId(socketId);
+    if (rooms.get(roomId)?.hostId === socketId) hostPersistence?.beginRecovery(roomId);
+  };
+
+  const removeRoom = (roomId, { preserveRecovery = false } = {}) => {
     rooms.delete(roomId);
-    hostPersistence?.remove(roomId);
+    if (!preserveRecovery || !hostPersistence?.getRecovery(roomId)) {
+      hostPersistence?.remove(roomId);
+    }
   };
 
   const isUserHost = (socketId) => getUserRoom(socketId).hostId === socketId;
@@ -322,6 +329,7 @@ export const createState = ({ hostPersistence } = {}) => {
     makeUserHost,
     restoreReturningHost,
     removeRoom,
+    preserveRoomForReconnect,
     removeSocketLatencyData,
     removeUser,
     setIsAutoHostEnabledInSocketRoom,
