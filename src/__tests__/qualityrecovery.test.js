@@ -44,9 +44,11 @@ describe('quality recovery advice', () => {
   it('ignores brief pause/seek pulses and bounds recovery history', () => {
     const state = { bufferingHistory: [] };
     for (let index = 0; index < 1000; index += 1) {
-      mutations.RECORD_BUFFERING_EPISODE(state, { at: now, durationMs: 37 });
+      mutations.RECORD_BUFFERING_EPISODE(state, { at: now - 1000 + index, durationMs: 37 });
     }
-    expect(state.bufferingHistory.length).toBeLessThanOrEqual(120);
+    expect(state.bufferingHistory).toHaveLength(120);
+    expect(state.bufferingHistory[0].at).toBe(now - 120);
+    expect(state.bufferingHistory.at(-1).at).toBe(now - 1);
     expect(recommendLowerQuality({ ...input, episodes: state.bufferingHistory })).toBeNull();
   });
   it('never increases quality or falls below the useful recovery floor', () => {

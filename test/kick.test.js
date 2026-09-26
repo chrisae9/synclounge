@@ -235,9 +235,10 @@ describe('kick socket event', () => {
   it('bounds buffering diagnostics without disconnecting the viewer or starving room events', async () => {
     const roomId = `diagnostics-flood-${Date.now()}`;
     const client = await joinClient({ roomId, username: 'diagnostic-flooder' });
-    const peer = await joinClient({ roomId, username: 'diagnostic-peer' });
+    let peer;
 
     try {
+      peer = await joinClient({ roomId, username: 'diagnostic-peer' });
       const message = waitForSocketEvent(peer.socket, 'newMessage');
       for (let index = 0; index < 160; index += 1) {
         client.socket.emit('playbackDiagnostic', {
@@ -247,6 +248,7 @@ describe('kick socket event', () => {
       }
       client.socket.emit('sendMessage', 'Still in the room');
       await message;
+      await waitForOutput('diagnostic-flooder : Rate limit exceeded for playbackDiagnostic');
       assert.equal(client.socket.connected, true);
       const diagnostics = serverOutput.split('\n').filter((line) => (
         line.includes('diagnostic-flooder') && line.includes('playback-diagnostic')
@@ -258,7 +260,7 @@ describe('kick socket event', () => {
       assert.equal(warnings.length, 1);
     } finally {
       client.socket.close();
-      peer.socket.close();
+      peer?.socket.close();
     }
   });
 });
