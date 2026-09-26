@@ -7,7 +7,8 @@ export default {
   },
   SET_QUALITY_RECOMMENDATION: (state, value) => { state.qualityRecommendation = value; },
   RECORD_BUFFERING_EPISODE: (state, episode) => {
-    state.bufferingHistory = [...state.bufferingHistory.slice(-9), episode];
+    state.bufferingHistory = [...state.bufferingHistory
+      .filter(({ at }) => episode.at - at < 120000).slice(-119), episode];
   },
   RESET: (state) => {
     Object.assign(state, stateFactory());

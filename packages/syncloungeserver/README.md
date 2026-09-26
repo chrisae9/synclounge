@@ -89,7 +89,10 @@ STATIC_PATH='/apps/synclounge/dist' syncloungeserver
 recovery. Point it to a private JSON file on a persistent volume writable by the server.
 The parent directory must be owned by the server user and must not be group- or world-writable.
 The file contains signing material and must not be inside `STATIC_PATH`. Use one active
-server per state file. Omit the option to retain in-memory behavior.
+server per state file. A remembered host can reclaim ownership for 60 seconds after
+restart or transient transport loss; explicit host transfers override that claim.
+Transiently empty rooms retain their settings during this recovery window. Intentional
+final departures clear the saved ownership. Omit the option to retain in-memory behavior.
 
 #### Base URL
 
