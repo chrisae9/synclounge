@@ -39,14 +39,16 @@ const nextEvent = (socket, event) => new Promise((resolve, reject) => {
   socket.once(event, (data) => { clearTimeout(timer); resolve(data); });
 });
 
-const fixture = async () => {
+const fixture = async (options = {}) => {
   const directory = mkdtempSync(path.join(os.tmpdir(), 'synclounge-host-'));
   const file = path.join(directory, 'room-state.json');
   let router;
   let url;
   const clients = [];
   const start = async () => {
-    router = socketServer({ base_url: '/', port: 0, room_state_path: file });
+    router = socketServer({
+      base_url: '/', port: 0, room_state_path: file, ...options,
+    });
     const address = await router.ready;
     url = `http://127.0.0.1:${address.port}`;
   };
@@ -88,6 +90,27 @@ const fixture = async () => {
 };
 
 describe('durable room ownership', () => {
+  it('restores room settings and the original host after both application heartbeats expire', async () => {
+    const room = await fixture({ ping_interval: 500, ping_timeout: 250 });
+    try {
+      const host = await room.join('host');
+      const viewer = await room.join('viewer');
+      host.socket.emit('setSyncPreset', 'strict');
+      await nextEvent(host.socket, 'setSyncPreset');
+      const reasons = await Promise.all([
+        nextEvent(host.socket, 'disconnect'), nextEvent(viewer.socket, 'disconnect'),
+      ]);
+      reasons.forEach((reason) => assert.notEqual(reason, 'io server disconnect'));
+      const returnedViewer = await room.join('viewer', viewer.token);
+      assert.equal(returnedViewer.data.syncPreset, 'strict');
+      const restored = nextEvent(returnedViewer.socket, 'newHost');
+      const returnedHost = await room.join('host', host.token);
+      assert.equal(await restored, returnedHost.socket.id);
+      assert.equal(returnedHost.data.hostId, returnedHost.socket.id);
+      assert.equal(returnedHost.data.user.reconnectIdentity, host.data.user.reconnectIdentity);
+    } finally { await room.cleanup(); }
+  });
+
   it('restores the verified host after a real server restart with another viewer joining first', async () => {
     const room = await fixture();
     try {
@@ -306,6 +329,36 @@ describe('durable room ownership', () => {
           base_url: '/', port: 0, static_path: publicDirectory, room_state_path: destination,
         }), /outside static_path/);
       }
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  });
+
+  it('bounds live reconnect claims without extending them on repeated departures', () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), 'synclounge-reconnect-'));
+    const file = path.join(directory, 'state.json');
+    let now = 100000;
+    try {
+      const persistence = createHostPersistence(file, () => now);
+      persistence.remember('room', storedRecord);
+      now += 120000; // Reconnect recovery must work long after server startup.
+      persistence.beginRecovery('room');
+      assert.equal(persistence.getRecovery('room').identity, storedRecord.identity);
+      now += 59000;
+      persistence.beginRecovery('room');
+      assert.ok(persistence.getRecovery('room'));
+      now += 1000;
+      assert.equal(persistence.getRecovery('room'), null);
+      const restarted = createHostPersistence(file, () => now);
+      assert.equal(restarted.getRecovery('room'), null);
+      restarted.close();
+      persistence.beginRecovery('room');
+      persistence.remember('room', { ...storedRecord, identity: crypto.randomUUID() }, {
+        force: true, revokeRecovery: true,
+      });
+      assert.equal(persistence.getRecovery('room'), null);
+      persistence.beginRecovery('room');
+      persistence.remove('room');
+      assert.equal(persistence.getRecovery('room'), null);
+      persistence.close();
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 

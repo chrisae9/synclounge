@@ -232,24 +232,33 @@ describe('kick socket event', () => {
     }
   });
 
-  it('disconnects a client that floods playback diagnostics', async () => {
+  it('bounds buffering diagnostics without disconnecting the viewer or starving room events', async () => {
     const roomId = `diagnostics-flood-${Date.now()}`;
     const client = await joinClient({ roomId, username: 'diagnostic-flooder' });
+    const peer = await joinClient({ roomId, username: 'diagnostic-peer' });
 
     try {
-      const disconnectPromise = waitForSocketEvent(client.socket, 'disconnect');
-      for (let index = 0; index < 61; index += 1) {
+      const message = waitForSocketEvent(peer.socket, 'newMessage');
+      for (let index = 0; index < 160; index += 1) {
         client.socket.emit('playbackDiagnostic', {
-          event: 'playback-health',
-          playback: { currentTime: index },
+          event: index % 2 ? 'buffering-end' : 'buffering-start',
+          playback: { currentTime: index, bufferAhead: index % 2 },
         });
       }
-
-      await disconnectPromise;
-      assert.equal(client.socket.connected, false);
-      await waitForOutput('Rate limit exceeded for playbackDiagnostic');
+      client.socket.emit('sendMessage', 'Still in the room');
+      await message;
+      assert.equal(client.socket.connected, true);
+      const diagnostics = serverOutput.split('\n').filter((line) => (
+        line.includes('diagnostic-flooder') && line.includes('playback-diagnostic')
+      ));
+      assert.equal(diagnostics.length, 60);
+      const warnings = serverOutput.split('\n').filter((line) => (
+        line.includes('diagnostic-flooder') && line.includes('Rate limit exceeded for playbackDiagnostic')
+      ));
+      assert.equal(warnings.length, 1);
     } finally {
       client.socket.close();
+      peer.socket.close();
     }
   });
 });

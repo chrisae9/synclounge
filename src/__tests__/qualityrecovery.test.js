@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import recommendLowerQuality from '@/utils/qualityrecovery';
 import settingsGetters from '@/store/modules/settings/getters';
+import mutations from '@/store/modules/slplayer/mutations';
 
 const now = 200000;
 const input = {
@@ -20,6 +21,33 @@ describe('quality recovery advice', () => {
     expect(recommendLowerQuality({ ...input, now: now + 200000 })).toBeNull();
     expect(recommendLowerQuality({ ...input, bufferAhead: 12 })).toBeNull();
     expect(recommendLowerQuality({ ...input, currentLimit: null, streamBitrate: null })).toBeNull();
+  });
+  it('offers recovery after the observed 15.5-second empty-buffer stall', () => {
+    expect(recommendLowerQuality({
+      ...input,
+      episodes: [{ at: now, durationMs: 15521 }],
+      currentLimit: 10000,
+      streamBitrate: 9517000,
+    })?.maxVideoBitrate).toBe(4000);
+  });
+  it('offers recovery for repeated shorter stalls from the observed starvation burst', () => {
+    const durations = [68, 141, 1581, 144, 941, 549, 1038, 1048, 104, 1050,
+      19, 1088, 824, 84, 1600, 781, 259, 1555, 805, 1142, 164, 1698,
+      2039, 750, 232, 1050, 873, 93, 1579];
+    const state = { bufferingHistory: [] };
+    durations.forEach((durationMs, index) => mutations.RECORD_BUFFERING_EPISODE(state, {
+      at: now - (durations.length - index) * 2000, durationMs,
+    }));
+    expect(recommendLowerQuality({ ...input, episodes: state.bufferingHistory })?.maxVideoBitrate)
+      .toBe(4000);
+  });
+  it('ignores brief pause/seek pulses and bounds recovery history', () => {
+    const state = { bufferingHistory: [] };
+    for (let index = 0; index < 1000; index += 1) {
+      mutations.RECORD_BUFFERING_EPISODE(state, { at: now, durationMs: 37 });
+    }
+    expect(state.bufferingHistory.length).toBeLessThanOrEqual(120);
+    expect(recommendLowerQuality({ ...input, episodes: state.bufferingHistory })).toBeNull();
   });
   it('never increases quality or falls below the useful recovery floor', () => {
     expect(recommendLowerQuality({ ...input, currentLimit: 720 })).toBeNull();

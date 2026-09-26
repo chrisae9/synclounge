@@ -40,7 +40,9 @@ export const createHostPersistence = (filePath, now = Date.now) => {
         && ['expectsPlayback', 'isPartyPausingEnabled', 'isAutoHostEnabled']
           .every((key) => typeof record[key] === 'boolean')
         && Number.isFinite(record.updatedAt) && record.updatedAt > now() - TTL_MS
-        && record.updatedAt <= now() + 60000;
+        && record.updatedAt <= now() + 60000
+        && (record.recoveryUntil == null || (Number.isFinite(record.recoveryUntil)
+          && record.recoveryUntil > now()));
     }).slice(-MAX_ROOMS).map(([roomId, record]) => [roomId, {
       ...record,
       syncPreset: ['strict', 'balanced', 'relaxed'].includes(record.syncPreset)
@@ -48,8 +50,9 @@ export const createHostPersistence = (filePath, now = Date.now) => {
     }]);
   }
   const records = new Map(entries);
-  const recovery = new Map(entries);
-  const deadline = now() + RECOVERY_MS;
+  const recovery = new Map(entries.map(([roomId, record]) => (
+    [roomId, { record, deadline: Math.min(now() + RECOVERY_MS, record.recoveryUntil ?? Infinity) }]
+  )));
   let shuttingDown = false;
   let dirty = false;
   const persist = (strict = false) => {
@@ -89,11 +92,27 @@ export const createHostPersistence = (filePath, now = Date.now) => {
   return {
     secret: Buffer.from(secret, 'hex'),
     getRecovery: (roomId) => {
-      if (now() >= deadline) {
-        recovery.clear();
+      const claim = recovery.get(roomId);
+      if (!claim || now() >= claim.deadline) {
+        recovery.delete(roomId);
         return null;
       }
-      return recovery.get(roomId) || null;
+      return claim.record;
+    },
+    beginRecovery: (roomId) => {
+      if (shuttingDown) return;
+      for (const [id, claim] of recovery) {
+        if (now() >= claim.deadline) recovery.delete(id);
+      }
+      const record = records.get(roomId);
+      if (!record || recovery.has(roomId)) return;
+      const deadline = now() + RECOVERY_MS;
+      // Persist the deadline so restarting cannot renew an expired transient claim.
+      const saved = { ...record, recoveryUntil: deadline };
+      records.set(roomId, saved);
+      recovery.set(roomId, { record: saved, deadline });
+      while (recovery.size > MAX_ROOMS) recovery.delete(recovery.keys().next().value);
+      persist();
     },
     remember: (roomId, record, { force = false, revokeRecovery = false } = {}) => {
       if (shuttingDown || !IDENTITY.test(record.identity)) return;
