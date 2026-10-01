@@ -4,6 +4,20 @@
     class="ma-n3"
   >
     <v-col class="pa-0">
+      <v-alert
+        v-if="startupFailed"
+        type="error"
+        class="ma-4"
+      >
+        Player could not start. Try again.
+        <v-btn
+          class="ml-2"
+          variant="text"
+          @click="initializePlayer"
+        >
+          Retry playback
+        </v-btn>
+      </v-alert>
       <div
         ref="videoPlayerContainer"
         class="slplayer"
@@ -139,7 +153,7 @@
               variant="flat"
               color="primary"
               class="text-white"
-              @click="MANUAL_SYNC"
+              @click="MANUAL_SYNC({ notify: true })"
             >
               Manual sync
             </v-btn>
@@ -190,6 +204,8 @@ export default {
   data: () => ({
     videoTimeStamp: 0,
     controlsOffset: 0,
+    startupFailed: false,
+    startupController: null,
   }),
 
   computed: {
@@ -202,6 +218,7 @@ export default {
       'GET_PLAYER_STATE',
       'IS_USING_NATIVE_SUBTITLES',
       'IS_AUTOPLAY_BLOCKED',
+      'GET_PLAYER_INITIALIZED_DEFERRED_PROMISE',
     ]),
 
     ...mapGetters('synclounge', [
@@ -259,6 +276,13 @@ export default {
   },
 
   watch: {
+    startupFailed(failed) {
+      if (failed && this.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE) this.initializePlayer();
+    },
+
+    GET_PLAYER_INITIALIZED_DEFERRED_PROMISE(pending) {
+      if (pending && this.startupFailed) this.initializePlayer();
+    },
     GET_PLAYER_STATE(state) {
       if (state === 'stopped') {
         this.$router.push(this.linkWithRoom({ name: 'PlexHome' }));
@@ -300,37 +324,51 @@ export default {
     },
   },
 
-  async mounted() {
-    // TODO: monitor upnext stuff interval probably or idk state change timeugh
-    console.debug('WebPlayer: mounted, initializing Shaka player');
-
-    try {
-      await initialize({
-        mediaElement: this.$refs.videoPlayer,
-        playerConfig: this.playerConfig,
-        videoContainer: this.$refs.videoPlayerContainer,
-        overlayConfig: this.getPlayerUiOptions(),
-      });
-    } catch (e) {
-      console.error('WebPlayer: Shaka initialization failed:', e);
-      throw e;
-    }
-
-    await this.INIT_PLAYER_STATE();
-    console.debug('WebPlayer: player initialized successfully');
-
-    window.addEventListener('keydown', this.onKeyUp);
-    window.addEventListener('resize', this.RERENDER_SUBTITLE_CONTAINER);
-    this.controlsOffset = getControlsOffset(this.$refs?.videoPlayerContainer?.offsetHeight);
+  mounted() {
+    return this.initializePlayer();
   },
 
   beforeUnmount() {
+    this.startupController?.abort();
     window.removeEventListener('keydown', this.onKeyUp);
     window.removeEventListener('resize', this.RERENDER_SUBTITLE_CONTAINER);
     this.DESTROY_PLAYER_STATE();
   },
 
   methods: {
+    async initializePlayer() {
+      this.startupFailed = false;
+      const controller = new AbortController();
+      this.startupController = controller;
+      const { signal } = controller;
+      try {
+        await initialize({
+          mediaElement: this.$refs.videoPlayer,
+          playerConfig: this.playerConfig,
+          videoContainer: this.$refs.videoPlayerContainer,
+          overlayConfig: this.getPlayerUiOptions(),
+          signal,
+        });
+      } catch (error) {
+        if (!signal.aborted) {
+          await this.FAIL_PLAYER_INITIALIZATION(error);
+          if (!signal.aborted) this.startupFailed = true;
+        }
+        return;
+      }
+      if (signal.aborted) return;
+      try {
+        await this.INIT_PLAYER_STATE({ signal });
+      } catch (error) {
+        if (!signal.aborted) this.startupFailed = true;
+        return;
+      }
+      if (signal.aborted) return;
+      window.addEventListener('keydown', this.onKeyUp);
+      window.addEventListener('resize', this.RERENDER_SUBTITLE_CONTAINER);
+      this.controlsOffset = getControlsOffset(this.$refs?.videoPlayerContainer?.offsetHeight);
+    },
+
     ...mapActions('plexservers', [
       'SET_MEDIA_AS_BACKGROUND',
     ]),
@@ -348,6 +386,7 @@ export default {
 
       'PRESS_STOP',
       'INIT_PLAYER_STATE',
+      'FAIL_PLAYER_INITIALIZATION',
       'DESTROY_PLAYER_STATE',
       'PLAY_PAUSE_VIDEO',
       'SEND_PARTY_PLAY_PAUSE',

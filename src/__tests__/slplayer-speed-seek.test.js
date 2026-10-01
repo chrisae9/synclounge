@@ -134,7 +134,7 @@ describe('INIT_PLAYER_STATE', () => {
       dispatch,
     });
 
-    expect(dispatch).toHaveBeenCalledWith('CHANGE_PLAYER_SRC');
+    expect(dispatch).toHaveBeenCalledWith('CHANGE_PLAYER_SRC', { signal: undefined });
     expect(dispatch).not.toHaveBeenCalledWith('PRESS_PLAY');
     expect(commit).toHaveBeenCalledWith('SET_SHOULD_PLAY_ON_LOAD', null);
     expect(dispatch).toHaveBeenCalledWith('START_PERIODIC_PLEX_TIMELINE_UPDATE');
@@ -162,7 +162,7 @@ describe('INIT_PLAYER_STATE', () => {
       dispatch,
     });
 
-    expect(dispatch).toHaveBeenCalledWith('CHANGE_PLAYER_SRC');
+    expect(dispatch).toHaveBeenCalledWith('CHANGE_PLAYER_SRC', { signal: undefined });
     expect(dispatch).toHaveBeenCalledWith('PRESS_PLAY');
     expect(commit).toHaveBeenCalledWith('SET_SHOULD_PLAY_ON_LOAD', null);
     expect(dispatch).toHaveBeenCalledWith('START_PERIODIC_PLEX_TIMELINE_UPDATE');
@@ -193,7 +193,7 @@ describe('INIT_PLAYER_STATE', () => {
       dispatch,
     })).rejects.toThrow('media load failed');
 
-    expect(dispatch).toHaveBeenCalledWith('ROLLBACK_PLAYER_INITIALIZATION');
+    expect(dispatch).toHaveBeenCalledWith('FAIL_PLAYER_INITIALIZATION', error);
     expect(commit).not.toHaveBeenCalledWith('SET_IS_PLAYER_INITIALIZED', true);
   });
 
