@@ -11,6 +11,8 @@ class Forward30Button extends shaka.ui.Element {
     this.button.classList.add('shaka-slplayer-button');
     this.button.classList.add('material-icons-round');
     this.button.textContent = 'forward_30';
+    this.button.setAttribute('aria-label', 'Seek forward 30 seconds');
+    this.button.title = 'Seek forward 30 seconds';
     this.parent.appendChild(this.button);
 
     // Listen for clicks on the button to start the next playback

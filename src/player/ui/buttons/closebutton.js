@@ -11,6 +11,8 @@ export default (store) => {
       this.button.classList.add('shaka-slplayer-button');
       this.button.classList.add('material-icons-round');
       this.button.textContent = 'close';
+      this.button.setAttribute('aria-label', 'Stop playback');
+      this.button.title = 'Stop playback';
       this.parent.appendChild(this.button);
 
       // Listen for clicks on the button to start the next playback
