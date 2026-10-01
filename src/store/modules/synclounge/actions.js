@@ -642,6 +642,23 @@ export default {
     }
   },
 
+  PUBLISH_CANCELLED_PLAYBACK: ({ getters, commit }) => {
+    const id = getters.GET_SOCKET_ID;
+    if (!getters.IS_IN_ROOM || !isConnected() || !getters.GET_USER(id)) return;
+    const playerState = {
+      state: 'stopped', time: 0, duration: 0, playbackRate: 0,
+    };
+    commit('SET_USER_MEDIA', { id, media: null });
+    commit('SET_USER_PLAYER_STATE', { id, ...playerState });
+    // Synchronous publication cannot arrive after a newer local play request's update.
+    emit({
+      eventName: 'mediaUpdate',
+      data: {
+        media: null, roomPreview: null, ...playerState, userInitiated: false,
+      },
+    });
+  },
+
   PROCESS_MEDIA_UPDATE: async ({
     dispatch, getters, commit, rootGetters,
   }, userInitiated) => {

@@ -14,6 +14,8 @@ export default (store) => {
       this.button.classList.add('shaka-slplayer-button');
       this.button.classList.add('material-icons-round');
       this.button.textContent = 'sync';
+      this.button.setAttribute('aria-label', 'Sync with host');
+      this.button.title = 'Sync with host';
       this.parent.appendChild(this.button);
 
       this.#watcherCancellers = [

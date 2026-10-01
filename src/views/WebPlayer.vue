@@ -206,6 +206,9 @@ export default {
     controlsOffset: 0,
     startupFailed: false,
     startupController: null,
+    startupInProgress: false,
+    startupDisposed: false,
+    startupRequest: null,
   }),
 
   computed: {
@@ -281,10 +284,16 @@ export default {
     },
 
     GET_PLAYER_INITIALIZED_DEFERRED_PROMISE(pending) {
-      if (pending && this.startupFailed) this.initializePlayer();
+      if (pending && this.startupInProgress && !this.startupController.signal.aborted) {
+        this.startupRequest = pending;
+        this.startupRequest.controller = this.startupController;
+      } else if (pending && (this.startupFailed || this.startupController?.signal.aborted)) {
+        this.initializePlayer();
+      }
     },
     GET_PLAYER_STATE(state) {
       if (state === 'stopped') {
+        if (this.startupInProgress && this.startupController?.signal.aborted) return;
         this.$router.push(this.linkWithRoom({ name: 'PlexHome' }));
       }
     },
@@ -329,6 +338,7 @@ export default {
   },
 
   beforeUnmount() {
+    this.startupDisposed = true;
     this.startupController?.abort();
     window.removeEventListener('keydown', this.onKeyUp);
     window.removeEventListener('resize', this.RERENDER_SUBTITLE_CONTAINER);
@@ -337,36 +347,52 @@ export default {
 
   methods: {
     async initializePlayer() {
+      if (this.startupInProgress || this.startupDisposed) return;
+      this.startupInProgress = true;
       this.startupFailed = false;
       const controller = new AbortController();
       this.startupController = controller;
+      this.startupRequest = this.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE;
+      if (this.startupRequest) this.startupRequest.controller = controller;
       const { signal } = controller;
       try {
-        await initialize({
-          mediaElement: this.$refs.videoPlayer,
-          playerConfig: this.playerConfig,
-          videoContainer: this.$refs.videoPlayerContainer,
-          overlayConfig: this.getPlayerUiOptions(),
-          signal,
-        });
-      } catch (error) {
-        if (!signal.aborted) {
-          await this.FAIL_PLAYER_INITIALIZATION(error);
-          if (!signal.aborted) this.startupFailed = true;
+        try {
+          await initialize({
+            mediaElement: this.$refs.videoPlayer,
+            playerConfig: this.playerConfig,
+            videoContainer: this.$refs.videoPlayerContainer,
+            overlayConfig: this.getPlayerUiOptions(),
+            signal,
+          });
+        } catch (error) {
+          if (!signal.aborted) {
+            await this.FAIL_PLAYER_INITIALIZATION(error);
+            if (!signal.aborted) this.startupFailed = true;
+          }
+          return;
         }
-        return;
+        if (signal.aborted) return;
+        try {
+          await this.INIT_PLAYER_STATE({ signal });
+        } catch (error) {
+          if (!signal.aborted) this.startupFailed = true;
+          return;
+        }
+        if (signal.aborted) return;
+        window.addEventListener('keydown', this.onKeyUp);
+        window.addEventListener('resize', this.RERENDER_SUBTITLE_CONTAINER);
+        this.controlsOffset = getControlsOffset(this.$refs?.videoPlayerContainer?.offsetHeight);
+      } finally {
+        if (signal.aborted) await this.startupRequest?.cleanupPromise;
+        this.startupInProgress = false;
+        const pending = this.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE;
+        if (!this.startupDisposed && pending && pending !== this.startupRequest) {
+          this.initializePlayer();
+        } else if (!this.startupDisposed && signal.aborted && this.GET_PLAYER_STATE === 'stopped'
+          && this.startupRequest?.isCurrent?.() !== false) {
+          this.$router.push(this.linkWithRoom({ name: 'PlexHome' }));
+        }
       }
-      if (signal.aborted) return;
-      try {
-        await this.INIT_PLAYER_STATE({ signal });
-      } catch (error) {
-        if (!signal.aborted) this.startupFailed = true;
-        return;
-      }
-      if (signal.aborted) return;
-      window.addEventListener('keydown', this.onKeyUp);
-      window.addEventListener('resize', this.RERENDER_SUBTITLE_CONTAINER);
-      this.controlsOffset = getControlsOffset(this.$refs?.videoPlayerContainer?.offsetHeight);
     },
 
     ...mapActions('plexservers', [
@@ -447,25 +473,46 @@ export default {
       const { activeElement } = document;
       if (!activeElement) return false;
       const { tagName } = activeElement;
-      return tagName === 'INPUT' || tagName === 'TEXTAREA'
-        || activeElement.closest('[contenteditable]');
+      return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT'
+        || activeElement.isContentEditable
+        || !!activeElement.closest('[contenteditable=""], [contenteditable="true"], [role="textbox"]');
     },
 
     onKeyUp(event) {
-      if (this.isTyping()) return;
+      if (event.altKey || event.ctrlKey || event.metaKey
+        || event.shiftKey || event.repeat || event.isComposing) return;
+      const focusedSeekBar = document.activeElement?.classList?.contains('shaka-seek-bar');
+      if (focusedSeekBar && event.key === ' ') {
+        // Shaka owns the range's local toggle, including prevented events.
+        // Preserve the party command without toggling playback a second time.
+        this.SEND_PARTY_PLAY_PAUSE();
+        return;
+      }
+      if (event.defaultPrevented || this.isTyping()) return;
 
+      // Shaka owns local playback keys inside the player and while fullscreen.
+      // Page shortcuts leave controls and dialogs alone.
       const { activeElement } = document;
-      const isSeekBar = activeElement && activeElement.classList
-        && activeElement.classList.contains('shaka-seek-bar');
+      const container = this.$refs.videoPlayerContainer;
+      if (container?.contains(activeElement)
+        || (activeElement && activeElement !== document.body
+          && activeElement !== document.documentElement)
+        || document.querySelector('[role="dialog"][aria-modal="true"]:not([aria-hidden="true"]):not([hidden])')) return;
+      if (document.fullscreenElement) {
+        // Shaka toggles local playback for page-level Space in fullscreen;
+        // retain the party command without toggling the local player twice.
+        if (event.key === ' ') {
+          event.preventDefault();
+          this.SEND_PARTY_PLAY_PAUSE();
+        }
+        return;
+      }
 
       switch (event.key) {
         case ' ':
-          if (activeElement.tagName !== 'BUTTON') {
-            if (!isSeekBar) {
-              this.PLAY_PAUSE_VIDEO();
-            }
-            this.SEND_PARTY_PLAY_PAUSE();
-          }
+          event.preventDefault();
+          this.PLAY_PAUSE_VIDEO();
+          this.SEND_PARTY_PLAY_PAUSE();
           break;
 
         case 'f':

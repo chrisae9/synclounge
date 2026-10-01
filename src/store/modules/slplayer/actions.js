@@ -1,4 +1,5 @@
 import { CAF } from 'caf';
+import { markRaw } from 'vue';
 import createStreamRecovery, { waitForVideoReady } from '@/utils/streamrecovery';
 import recommendLowerQuality from '@/utils/qualityrecovery';
 import { rememberDiagnostic } from '@/utils/problemreport';
@@ -29,6 +30,7 @@ const streamRecovery = createStreamRecovery();
 let bufferingStartedAt = null;
 let bufferingEpisode = 0;
 let lastHealthDiagnosticAt = 0;
+let pendingPlexTimelineUpdate = null;
 
 const HEALTH_DIAGNOSTIC_INTERVAL_MS = 60 * 1000;
 
@@ -51,6 +53,7 @@ const summarizeStream = (stream) => (stream ? Object.fromEntries([
 
 const rejectPendingInitialization = ({ getters, commit }, error) => {
   const deferred = getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE;
+  deferred?.removeAbortListener?.();
   commit('SET_PLAYER_INITIALIZED_DEFERRED_PROMISE', null);
   deferred?.reject(error);
 };
@@ -562,7 +565,14 @@ export default {
     isPlayerStopping = true;
     streamRecovery.cancel();
     sourceRevision += 1;
-    await dispatch('plexclients/CANCEL_PLAY_MEDIA', null, { root: true });
+    const cancelledStartup = await dispatch('plexclients/CANCEL_PLAY_MEDIA', null, { root: true });
+    if (getters.IS_PLAYER_INITIALIZED === false) {
+      commit('SET_PLAYER_STATE', 'stopped');
+      if (cancelledStartup !== true) {
+        await dispatch('synclounge/PUBLISH_CANCELLED_PLAYBACK', null, { root: true });
+      }
+      return;
+    }
     const mediaElement = getMediaElement();
     if (getters.IS_AUTOPLAY_BLOCKED && mediaElement) {
       mediaElement.muted = false;
@@ -683,22 +693,36 @@ export default {
     return dispatch('NORMAL_SEEK', { cancelSignal, seekToMs });
   },
 
-  START_PERIODIC_PLEX_TIMELINE_UPDATE: async ({ commit, dispatch, rootGetters }) => {
+  START_PERIODIC_PLEX_TIMELINE_UPDATE: async ({
+    getters, commit, dispatch, rootGetters,
+  }) => {
+    getters.GET_PLEX_TIMELINE_UPDATER_CANCEL_TOKEN?.abort();
     // eslint-disable-next-line new-cap
     const cancelToken = new CAF.cancelToken();
-
     commit('SET_PLEX_TIMELINE_UPDATER_CANCEL_TOKEN', cancelToken);
+
+    const updateTimeline = (signal) => {
+      if (pendingPlexTimelineUpdate) return;
+      pendingPlexTimelineUpdate = Promise.resolve().then(() => {
+        throwIfAborted(signal);
+        return dispatch('SEND_PLEX_TIMELINE_UPDATE', { signal });
+      }).catch((error) => {
+        if (!signal.aborted) console.error(error);
+      }).finally(() => { pendingPlexTimelineUpdate = null; });
+    };
 
     const main = CAF(function* plexTimelineUpdater(signal) {
       while (true) {
         yield CAF.delay(signal, rootGetters.GET_CONFIG.slplayer_plex_timeline_update_interval);
-
+        if (signal.aborted) return;
+        // Plex availability must not suppress health reports on the independent room socket.
         try {
-          yield dispatch('SEND_PLEX_TIMELINE_UPDATE', { signal });
           yield dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'playback-health' });
         } catch (e) {
           console.error(e);
         }
+        if (signal.aborted) return;
+        updateTimeline(signal);
       }
     });
 
@@ -761,22 +785,51 @@ export default {
     ensureCurrent();
   },
 
-  NAVIGATE_AND_INITIALIZE_PLAYER: ({ getters, commit }) => {
-    if (getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE) {
-      return getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE.promise;
-    }
+  NAVIGATE_AND_INITIALIZE_PLAYER: ({ getters, commit, dispatch }, {
+    signal, isCurrent = () => true,
+  } = {}) => {
+    throwIfAborted(signal);
+    let deferred = getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE;
+    if (deferred) deferred.removeAbortListener?.();
+    else deferred = markRaw({ ...Deferred() });
+    deferred.isCurrent = isCurrent;
+    // A replacement play request can reuse attachment, but only its owner may cancel it.
+    const cancel = () => {
+      if (getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE === deferred && isCurrent()) {
+        dispatch('CANCEL_PLAYER_INITIALIZATION');
+      }
+    };
+    signal?.addEventListener('abort', cancel, { once: true });
+    deferred.removeAbortListener = () => signal?.removeEventListener('abort', cancel);
+    if (getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE) return deferred.promise;
     console.debug('NAVIGATE_AND_INITIALIZE_PLAYER');
     // I don't really like this. I'd rather have the player be part of the main app rather than a
     // vue route
     // TODO: above
 
     // TODO: this is bad practice, so if you know a better way...
-    const deferred = Deferred();
-
     commit('SET_PLAYER_INITIALIZED_DEFERRED_PROMISE', deferred);
     commit('SET_NAVIGATE_TO_PLAYER', true, { root: true });
 
     return deferred.promise;
+  },
+
+  CANCEL_PLAYER_INITIALIZATION: (context, { isCurrent } = {}) => {
+    const deferred = context.getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE;
+    if (!deferred) return false;
+    if (isCurrent) deferred.isCurrent = isCurrent;
+    deferred.controller?.abort();
+    rejectPendingInitialization(context, new DOMException('Playback cancelled', 'AbortError'));
+    // Clearing a request must not turn cancelled media into a direct-route auto-load.
+    context.commit('plexclients/SET_ACTIVE_MEDIA_METADATA', null, { root: true });
+    context.commit('plexclients/SET_ACTIVE_SERVER_ID', null, { root: true });
+    context.commit('SET_SHOULD_PLAY_ON_LOAD', null);
+    context.commit('SET_PLAYER_STATE', 'stopped');
+    context.dispatch('synclounge/PUBLISH_CANCELLED_PLAYBACK', null, { root: true });
+    deferred.cleanupPromise = deferred.controller
+      ? context.dispatch('ROLLBACK_PLAYER_INITIALIZATION') : Promise.resolve();
+    // Request cancellation is immediate; the route serializes retries behind this cleanup.
+    return true;
   },
 
   INIT_PLAYER_STATE: async ({
@@ -813,6 +866,7 @@ export default {
       }
 
       if (getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE) {
+        getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE.removeAbortListener?.();
         getters.GET_PLAYER_INITIALIZED_DEFERRED_PROMISE.resolve();
         commit('SET_PLAYER_INITIALIZED_DEFERRED_PROMISE', null);
       }
