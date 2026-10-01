@@ -14,6 +14,8 @@ export default (store) => {
       this.button.classList.add('shaka-slplayer-button');
       this.button.classList.add('material-icons-round');
       this.button.textContent = 'sync';
+      this.button.setAttribute('aria-label', 'Sync with host');
+      this.button.title = 'Sync with host';
       this.parent.appendChild(this.button);
 
       this.#watcherCancellers = [
@@ -23,13 +25,9 @@ export default (store) => {
         ),
       ];
 
-      // Listen for clicks on the button to start the next playback
+      // Manual requests opt into feedback; automatic syncs stay quiet.
       this.eventManager.listen(this.button, 'click', async () => {
-        await store.dispatch('synclounge/MANUAL_SYNC');
-        store.dispatch('DISPLAY_NOTIFICATION', {
-          text: 'Synced',
-          color: 'success',
-        });
+        await store.dispatch('synclounge/MANUAL_SYNC', { notify: true });
       });
 
       this.updateButtonDisplay();

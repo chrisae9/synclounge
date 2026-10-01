@@ -14,6 +14,8 @@ export default (store) => {
       this.button.classList.add('shaka-slplayer-button');
       this.button.classList.add('material-icons-round');
       this.button.textContent = 'skip_previous';
+      this.button.setAttribute('aria-label', 'Previous item');
+      this.button.title = 'Previous item';
       this.parent.appendChild(this.button);
 
       this.#watcherCancellers = [

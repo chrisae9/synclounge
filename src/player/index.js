@@ -203,10 +203,18 @@ export const removeCastStatusListener = (callback) => {
 export const destroy = async () => {
   setControlsCleanup(null);
   const savedOverlay = getOverlay();
+  const savedPlayer = getRawPlayer();
   setPlayer(null);
   setOverlay(null);
   cachedDuration = 0;
   if (savedOverlay) {
-    await savedOverlay.destroy();
+    try {
+      await savedOverlay.destroy();
+    } catch (error) {
+      await savedPlayer?.destroy();
+      throw error;
+    }
+  } else {
+    await savedPlayer?.destroy();
   }
 };

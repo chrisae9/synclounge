@@ -28,14 +28,14 @@ describe('player duration cache', () => {
 
   it('clears the previous media duration when the player is destroyed', async () => {
     const mediaElement = { duration: 12 };
-    playerState.player = { getMediaElement: () => mediaElement };
+    playerState.player = { getMediaElement: () => mediaElement, destroy: vi.fn() };
     expect(getDurationMs()).toBe(12000);
 
     mediaElement.duration = Number.NaN;
     expect(getDurationMs()).toBe(12000);
 
     await destroy();
-    playerState.player = { getMediaElement: () => mediaElement };
+    playerState.player = { getMediaElement: () => mediaElement, destroy: vi.fn() };
     expect(getDurationMs()).toBe(0);
   });
 
@@ -56,4 +56,13 @@ describe('player duration cache', () => {
 
     expect(getDurationMs()).toBe(0);
   });
+});
+
+it('destroys a raw player when no overlay was created', async () => {
+  const raw = { destroy: vi.fn().mockResolvedValue(undefined) };
+  playerState.player = raw;
+  playerState.overlay = null;
+  await destroy();
+  expect(raw.destroy).toHaveBeenCalledOnce();
+  expect(playerState.player).toBeNull();
 });

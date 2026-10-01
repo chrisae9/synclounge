@@ -4,7 +4,13 @@ import { abortable, throwIfAborted } from '@/utils/cancellation';
 let playbackGeneration = 0;
 
 export default {
-  CANCEL_PLAY_MEDIA: () => { playbackGeneration += 1; },
+  CANCEL_PLAY_MEDIA: ({ dispatch }) => {
+    playbackGeneration += 1;
+    const generation = playbackGeneration;
+    return dispatch('slplayer/CANCEL_PLAYER_INITIALIZATION', {
+      isCurrent: () => generation === playbackGeneration,
+    }, { root: true });
+  },
   PLAY_MEDIA: async ({
     commit, dispatch, rootGetters,
   }, {
@@ -46,7 +52,9 @@ export default {
     commit('slplayer/SET_SHOULD_PLAY_ON_LOAD', Boolean(shouldPlay), { root: true });
 
     if (!rootGetters['slplayer/IS_PLAYER_INITIALIZED']) {
-      await abortable(dispatch('slplayer/NAVIGATE_AND_INITIALIZE_PLAYER', null, { root: true }), signal);
+      await abortable(dispatch('slplayer/NAVIGATE_AND_INITIALIZE_PLAYER', {
+        signal, isCurrent: () => generation === playbackGeneration,
+      }, { root: true }), signal);
       ensureCurrent();
     }
     await abortable(dispatch('slplayer/CHANGE_PLAYER_SRC', { signal }, { root: true }), signal);

@@ -52,6 +52,10 @@ The host can choose Strict (0.5 seconds), Balanced (3 seconds), or Relaxed (7 se
 
 Settings → Notifications can hide buffering popups without disabling playback diagnostics. Menu → Report a problem copies a bounded report for sharing with the host, without requiring GitHub. Include what happened and the report’s timestamp; Plex/transcode session identifiers connect it to server logs. Raw error messages, credentials, and chat are excluded. GitHub issue creation is optional and requires pasting the report into the issue.
 
+If the player cannot start, use **Retry playback** to start a fresh attempt. Leaving the player cancels pending startup. **Manual sync** reports success only after synchronization and a state refresh complete; if the room is disconnected or the host has no usable playback, reconnect or wait for the host before retrying. A superseded sync stays quiet.
+
+Player shortcuts leave focused controls, text fields, and dialogs to their own keyboard handling. Space on the seek bar still sends the party play/pause command. Custom playback buttons include descriptive accessible names and tooltips. Playback health reporting continues when Plex timeline reporting is unavailable, provided the room socket remains connected.
+
 Picture-in-picture remains available when the browser supports it. Installed iOS web apps may have platform limitations; SyncLounge does not force picture-in-picture when leaving the app.
 
 ## Running

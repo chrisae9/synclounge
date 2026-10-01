@@ -13,6 +13,8 @@ export default (store) => {
       this.button.classList.add('shaka-slplayer-button');
       this.button.classList.add('material-icons-round');
       this.button.textContent = 'skip_next';
+      this.button.setAttribute('aria-label', 'Next item');
+      this.button.title = 'Next item';
       this.parent.appendChild(this.button);
 
       this.#watcherCancellers = [

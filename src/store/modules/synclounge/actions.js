@@ -21,6 +21,8 @@ const getSocketEventTimeout = (rootGetters) => {
     : DEFAULT_SOCKET_EVENT_TIMEOUT;
 };
 
+let manualSyncRevision = 0;
+
 // Hold the requested party-pause state until the host confirms the matching command.
 let pendingPartyPause = null;
 let pendingPartyPauseFallbackTimeout = null;
@@ -202,6 +204,9 @@ export default {
     // Note: this is also called on rejoining, so be careful not to register handlers twice
     // or duplicate tasks
     ensureRoomJoinCurrent(revision);
+    const roomFieldRevisions = { ...getters.GET_ROOM_FIELD_REVISIONS };
+    const hasNewRoomField = (field) => (getters.GET_ROOM_FIELD_REVISIONS?.[field] || 0)
+      !== (roomFieldRevisions[field] || 0);
     const joinStartRevision = getters.GET_USER_EVENT_REVISION || 0;
     const presetRevision = getters.GET_SYNC_PRESET_REVISION || 0;
     const {
@@ -209,9 +214,10 @@ export default {
     } = await dispatch('JOIN_ROOM', { revision });
     ensureRoomJoinCurrent(revision);
     clearPendingPartyPause();
-    await dispatch('CLEAR_HOST_GRACE_PERIOD');
+    // Preserve host transitions received while the join snapshot was pending.
+    if (!hasNewRoomField('host')) await dispatch('CLEAR_HOST_GRACE_PERIOD');
     ensureRoomJoinCurrent(revision);
-    await dispatch('CLEAR_HOST_RESTORE_PENDING');
+    if (!hasNewRoomField('host')) await dispatch('CLEAR_HOST_RESTORE_PENDING');
     ensureRoomJoinCurrent(revision);
     const timeline = await dispatch('plexclients/FETCH_TIMELINE_POLL_DATA_CACHE', null, { root: true });
     ensureRoomJoinCurrent(revision);
@@ -219,7 +225,7 @@ export default {
     const currentUsers = getters.GET_USERS;
     const eventRevisions = getters.GET_USER_EVENT_REVISIONS || {};
 
-    commit('SET_HOST_ID', hostId);
+    if (!hasNewRoomField('host')) commit('SET_HOST_ID', hostId);
 
     // Apply the snapshot without discarding socket events processed while JOIN_ROOM was pending.
     commit('SET_USERS', Object.fromEntries(
@@ -277,8 +283,10 @@ export default {
     if ((getters.GET_SYNC_PRESET_REVISION || 0) === presetRevision) {
       commit('SET_SYNC_PRESET', syncPreset ?? null);
     }
-    commit('SET_IS_PARTY_PAUSING_ENABLED', isPartyPausingEnabled);
-    commit('SET_IS_AUTO_HOST_ENABLED', isAutoHostEnabled);
+    if (!hasNewRoomField('partyPause')) {
+      commit('SET_IS_PARTY_PAUSING_ENABLED', isPartyPausingEnabled);
+    }
+    if (!hasNewRoomField('autoHost')) commit('SET_IS_AUTO_HOST_ENABLED', isAutoHostEnabled);
     commit('SET_IS_IN_ROOM', true);
     await dispatch('SEND_SYNC_FLEXIBILITY_UPDATE');
     ensureRoomJoinCurrent(revision);
@@ -634,6 +642,23 @@ export default {
     }
   },
 
+  PUBLISH_CANCELLED_PLAYBACK: ({ getters, commit }) => {
+    const id = getters.GET_SOCKET_ID;
+    if (!getters.IS_IN_ROOM || !isConnected() || !getters.GET_USER(id)) return;
+    const playerState = {
+      state: 'stopped', time: 0, duration: 0, playbackRate: 0,
+    };
+    commit('SET_USER_MEDIA', { id, media: null });
+    commit('SET_USER_PLAYER_STATE', { id, ...playerState });
+    // Synchronous publication cannot arrive after a newer local play request's update.
+    emit({
+      eventName: 'mediaUpdate',
+      data: {
+        media: null, roomPreview: null, ...playerState, userInitiated: false,
+      },
+    });
+  },
+
   PROCESS_MEDIA_UPDATE: async ({
     dispatch, getters, commit, rootGetters,
   }, userInitiated) => {
@@ -755,26 +780,60 @@ export default {
 
   MANUAL_SYNC: async ({
     getters, dispatch, commit,
-  }) => {
-    console.debug('MANUAL_SYNC');
+  }, { notify = false } = {}) => {
+    manualSyncRevision += 1;
+    const revision = manualSyncRevision;
+    let token;
+    const unavailableReason = () => {
+      if (!getters.IS_IN_ROOM || !isConnected()) {
+        return 'Reconnect to your room before syncing.';
+      }
+      const host = getters.GET_HOST_USER;
+      if (!host || !['playing', 'paused', 'buffering'].includes(host.state)
+        || !Number.isFinite(host.time) || host.time < 0
+        || (host.state === 'playing' && !Number.isFinite(host.updatedAt))) {
+        return 'Wait for the host to start playback, then try syncing again.';
+      }
+      return null;
+    };
+    const finish = async (status, text) => {
+      if (token && getters.GET_SYNC_CANCEL_TOKEN === token) commit('SET_SYNC_CANCEL_TOKEN', null);
+      if (revision !== manualSyncRevision) return { status: 'cancelled' };
+      if (notify && status !== 'cancelled') {
+        await dispatch('DISPLAY_NOTIFICATION', {
+          text: text || 'Synced', color: status === 'success' ? 'success' : 'error',
+        }, { root: true });
+      }
+      return { status };
+    };
+    const initialReason = unavailableReason();
+    if (initialReason) return finish('failure', initialReason);
     await dispatch('CANCEL_IN_PROGRESS_SYNC');
+    if (revision !== manualSyncRevision) return { status: 'cancelled' };
 
     // eslint-disable-next-line new-cap
-    const token = new CAF.cancelToken();
+    token = new CAF.cancelToken();
     commit('SET_SYNC_CANCEL_TOKEN', token);
+    const isCurrent = () => revision === manualSyncRevision
+      && !token.signal.aborted && getters.GET_SYNC_CANCEL_TOKEN === token;
     try {
+      const reasonBeforeSync = unavailableReason();
+      if (reasonBeforeSync) return finish('failure', reasonBeforeSync);
       await dispatch('plexclients/SYNC', token.signal, { root: true });
-    } catch (e) {
-      if (!token.signal.aborted) {
-        console.error('Error in manual sync:', e);
-      }
+      if (!isCurrent()) return finish('cancelled');
+      const reasonAfterSync = unavailableReason();
+      if (reasonAfterSync) return finish('failure', reasonAfterSync);
+      // Refresh stored time/updatedAt only after a completed sync.
+      await dispatch('PROCESS_PLAYER_STATE_UPDATE', true);
+    } catch (error) {
+      if (!isCurrent()) return finish('cancelled');
+      console.error('Error in manual sync:', error);
+      return finish('failure', 'Could not sync. Please try again.');
     }
 
-    if (getters.GET_SYNC_CANCEL_TOKEN === token) {
-      commit('SET_SYNC_CANCEL_TOKEN', null);
-      // Refresh stored time/updatedAt so sidebar displays the new position immediately
-      await dispatch('PROCESS_PLAYER_STATE_UPDATE', true);
-    }
+    if (!isCurrent()) return finish('cancelled');
+    const finalReason = unavailableReason();
+    return finish(finalReason ? 'failure' : 'success', finalReason);
   },
 
   FORCE_SYNC_ALL: async ({ dispatch }) => {

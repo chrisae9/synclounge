@@ -3,7 +3,9 @@ import {
   afterEach, expect, it, vi,
 } from 'vitest';
 import { consumeUserSeekIntent } from '@/player/seekIntent';
-import { setControlsCleanup, setOverlay, setPlayer } from '@/player/state';
+import {
+  getRawPlayer, getOverlay, setControlsCleanup, setOverlay, setPlayer,
+} from '@/player/state';
 
 const api = vi.hoisted(() => ({
   attach: vi.fn(async () => {}),
@@ -14,6 +16,8 @@ const api = vi.hoisted(() => ({
   isCasting: vi.fn(() => false),
   dispatch: vi.fn(),
   getVideo: vi.fn(),
+  destroyPlayer: vi.fn(async () => {}),
+  destroyOverlay: vi.fn(async () => {}),
 }));
 // The production distribution deliberately has no shaka.log API.
 vi.mock('shaka-player/dist/shaka-player.ui', () => ({
@@ -23,10 +27,14 @@ vi.mock('shaka-player/dist/shaka-player.ui', () => ({
       attach = api.attach;
 
       configure = api.configure;
+
+      destroy = api.destroyPlayer;
     },
     ui: {
       Overlay: class {
         configure = api.configureOverlay;
+
+        destroy = api.destroyOverlay;
 
         getControls() {
           return {
@@ -102,4 +110,59 @@ it('removes installed handlers when Cast setup fails and can retry cleanly', asy
   api.proxyVideo.dispatchEvent(new Event('seeked'));
   expect(api.dispatch).toHaveBeenCalledExactlyOnceWith('slplayer/HANDLE_SEEKED');
   videoContainer.remove();
+});
+
+it('destroys an unattached player on attach failure, clears globals, then retries', async () => {
+  const { default: initialize } = await import('@/player/init');
+  const args = {
+    mediaElement: document.createElement('video'),
+    playerConfig: {},
+    videoContainer: document.createElement('div'),
+    overlayConfig: {},
+  };
+  api.attach.mockRejectedValueOnce(new Error('attach failed'));
+  await expect(initialize(args)).rejects.toThrow('attach failed');
+  expect(api.destroyPlayer).toHaveBeenCalledOnce();
+  expect(getRawPlayer()).toBeNull();
+  expect(getOverlay()).toBeNull();
+  await initialize(args);
+  expect(getRawPlayer()).not.toBeNull();
+});
+
+it('destroys the overlay after configuration fails', async () => {
+  const { default: initialize } = await import('@/player/init');
+  api.configureOverlay.mockImplementationOnce(() => { throw new Error('overlay failed'); });
+  await expect(initialize({
+    mediaElement: document.createElement('video'),
+    playerConfig: {},
+    videoContainer: document.createElement('div'),
+    overlayConfig: {},
+  })).rejects.toThrow('overlay failed');
+  expect(api.destroyOverlay).toHaveBeenCalledOnce();
+  expect(getRawPlayer()).toBeNull();
+  expect(getOverlay()).toBeNull();
+});
+
+it('cancels a stalled attach without publishing it over a later successful attempt', async () => {
+  const { default: initialize } = await import('@/player/init');
+  let finishAttach;
+  api.attach.mockImplementationOnce(() => new Promise((resolve) => { finishAttach = resolve; }));
+  const controller = new AbortController();
+  const args = {
+    mediaElement: document.createElement('video'),
+    playerConfig: {},
+    videoContainer: document.createElement('div'),
+    overlayConfig: {},
+  };
+  const attempt = initialize({ ...args, signal: controller.signal });
+  const rejected = expect(attempt).rejects.toMatchObject({ name: 'AbortError' });
+  controller.abort();
+  await rejected;
+  expect(api.destroyPlayer).toHaveBeenCalledOnce();
+  expect(getRawPlayer()).toBeNull();
+  await initialize(args);
+  const replacement = getRawPlayer();
+  finishAttach();
+  await Promise.resolve();
+  expect(getRawPlayer()).toBe(replacement);
 });
