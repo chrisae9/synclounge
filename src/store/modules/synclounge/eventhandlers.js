@@ -223,6 +223,7 @@ export default {
   },
 
   HANDLE_SET_PARTY_PAUSING_ENABLED: async ({ getters, dispatch, commit }, value) => {
+    commit('RECORD_ROOM_FIELD_EVENT', 'partyPause');
     await dispatch('ADD_MESSAGE_AND_CACHE_AND_NOTIFY', {
       senderId: getters.GET_HOST_ID,
       text: `Party Pausing has been turned ${value ? 'on' : 'off'}`,
@@ -232,6 +233,7 @@ export default {
   },
 
   HANDLE_SET_AUTO_HOST_ENABLED: async ({ getters, dispatch, commit }, value) => {
+    commit('RECORD_ROOM_FIELD_EVENT', 'autoHost');
     await dispatch('ADD_MESSAGE_AND_CACHE_AND_NOTIFY', {
       senderId: getters.GET_HOST_ID,
       text: `Auto Host has been turned ${value ? 'on' : 'off'}`,
@@ -270,6 +272,7 @@ export default {
   },
 
   HANDLE_USER_LEFT: async ({ getters, dispatch, commit }, { id, newHostId }) => {
+    if (newHostId) commit('RECORD_ROOM_FIELD_EVENT', 'host');
     await dispatch('ADD_MESSAGE_AND_CACHE_AND_NOTIFY', {
       senderId: id,
       text: `${getters.GET_USER(id).username} left the room`,
@@ -284,6 +287,7 @@ export default {
   },
 
   HANDLE_NEW_HOST: async ({ getters, dispatch, commit }, rawArg) => {
+    commit('RECORD_ROOM_FIELD_EVENT', 'host');
     const hostId = typeof rawArg === 'object' ? rawArg.hostId : rawArg;
     const previousHostLeft = typeof rawArg === 'object' && rawArg.previousHostLeft;
 

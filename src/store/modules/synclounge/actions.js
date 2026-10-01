@@ -204,6 +204,9 @@ export default {
     // Note: this is also called on rejoining, so be careful not to register handlers twice
     // or duplicate tasks
     ensureRoomJoinCurrent(revision);
+    const roomFieldRevisions = { ...getters.GET_ROOM_FIELD_REVISIONS };
+    const hasNewRoomField = (field) => (getters.GET_ROOM_FIELD_REVISIONS?.[field] || 0)
+      !== (roomFieldRevisions[field] || 0);
     const joinStartRevision = getters.GET_USER_EVENT_REVISION || 0;
     const presetRevision = getters.GET_SYNC_PRESET_REVISION || 0;
     const {
@@ -211,9 +214,10 @@ export default {
     } = await dispatch('JOIN_ROOM', { revision });
     ensureRoomJoinCurrent(revision);
     clearPendingPartyPause();
-    await dispatch('CLEAR_HOST_GRACE_PERIOD');
+    // Preserve host transitions received while the join snapshot was pending.
+    if (!hasNewRoomField('host')) await dispatch('CLEAR_HOST_GRACE_PERIOD');
     ensureRoomJoinCurrent(revision);
-    await dispatch('CLEAR_HOST_RESTORE_PENDING');
+    if (!hasNewRoomField('host')) await dispatch('CLEAR_HOST_RESTORE_PENDING');
     ensureRoomJoinCurrent(revision);
     const timeline = await dispatch('plexclients/FETCH_TIMELINE_POLL_DATA_CACHE', null, { root: true });
     ensureRoomJoinCurrent(revision);
@@ -221,7 +225,7 @@ export default {
     const currentUsers = getters.GET_USERS;
     const eventRevisions = getters.GET_USER_EVENT_REVISIONS || {};
 
-    commit('SET_HOST_ID', hostId);
+    if (!hasNewRoomField('host')) commit('SET_HOST_ID', hostId);
 
     // Apply the snapshot without discarding socket events processed while JOIN_ROOM was pending.
     commit('SET_USERS', Object.fromEntries(
@@ -279,8 +283,10 @@ export default {
     if ((getters.GET_SYNC_PRESET_REVISION || 0) === presetRevision) {
       commit('SET_SYNC_PRESET', syncPreset ?? null);
     }
-    commit('SET_IS_PARTY_PAUSING_ENABLED', isPartyPausingEnabled);
-    commit('SET_IS_AUTO_HOST_ENABLED', isAutoHostEnabled);
+    if (!hasNewRoomField('partyPause')) {
+      commit('SET_IS_PARTY_PAUSING_ENABLED', isPartyPausingEnabled);
+    }
+    if (!hasNewRoomField('autoHost')) commit('SET_IS_AUTO_HOST_ENABLED', isAutoHostEnabled);
     commit('SET_IS_IN_ROOM', true);
     await dispatch('SEND_SYNC_FLEXIBILITY_UPDATE');
     ensureRoomJoinCurrent(revision);

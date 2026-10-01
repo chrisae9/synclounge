@@ -1,4 +1,5 @@
 const state = () => ({
+  roomFieldRevisions: {},
   syncPreset: null,
   syncPresetRevision: 0,
   socketId: null,

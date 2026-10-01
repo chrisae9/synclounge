@@ -1,7 +1,15 @@
 import { markRaw } from 'vue';
 import stateFactory from './state';
 
+// Record both event receipt and later commits: handlers may await notifications,
+// while host restoration timers can also change authority during a pending join.
+const recordRoomField = (state, field) => {
+  state.roomFieldRevisions ||= {};
+  state.roomFieldRevisions[field] = (state.roomFieldRevisions[field] || 0) + 1;
+};
+
 export default {
+  RECORD_ROOM_FIELD_EVENT: recordRoomField,
   SET_PARTICIPANT_HEALTH: (state, { id, health }) => {
     if (state.users[id]) state.users[id].health = health;
   },
@@ -36,10 +44,12 @@ export default {
   },
 
   SET_IS_PARTY_PAUSING_ENABLED: (state, isEnabled) => {
+    recordRoomField(state, 'partyPause');
     state.isPartyPausingEnabled = isEnabled;
   },
 
   SET_IS_AUTO_HOST_ENABLED: (state, isEnabled) => {
+    recordRoomField(state, 'autoHost');
     state.isAutoHostEnabled = isEnabled;
   },
 
@@ -84,6 +94,7 @@ export default {
   },
 
   SET_HOST_ID: (state, hostId) => {
+    recordRoomField(state, 'host');
     state.hostId = hostId;
   },
 
