@@ -725,25 +725,28 @@ export default {
     await dispatch('ADD_MESSAGE_AND_CACHE', msg);
 
     if (getters.ARE_SOUND_NOTIFICATIONS_ENABLED) {
-      notificationAudio.play();
+      try {
+        await notificationAudio.play();
+      } catch {
+        // Browsers can block audio until the user interacts with the page.
+        console.debug('Notification sound unavailable');
+      }
     }
 
-    if (getters.ARE_NOTIFICATIONS_ENABLED) {
-      if (Notification.permission !== 'granted') {
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-          return;
-        }
-      }
-
+    if (getters.ARE_NOTIFICATIONS_ENABLED && typeof Notification !== 'undefined'
+      && Notification.permission === 'granted') {
       const { username, thumb } = getters.GET_MESSAGES_USER_CACHE_USER(msg.senderId);
 
-      // TODO: notifications don't work when on http. Maybe make alternative popup thing?
-      // eslint-disable-next-line no-new
-      new Notification(username, {
-        body: msg.text,
-        icon: thumb,
-      });
+      try {
+        // eslint-disable-next-line no-new
+        new Notification(username, {
+          body: msg.text,
+          icon: thumb,
+        });
+      } catch {
+        // Some browsers expose Notification but cannot construct one in this context.
+        console.debug('Desktop notification unavailable');
+      }
     }
   },
 
