@@ -10,7 +10,27 @@
       You’re in the room, but there’s no playback to restore. Rooms clear when everyone leaves.
       Pick a movie below, or wait for your host to start one.
     </v-alert>
-    <PlexOnDeck :machine-identifier="GET_LAST_SERVER_ID">
+    <v-alert
+      v-if="GET_PLEX_SERVERS.length && !hasEnabledServers"
+      type="info"
+      variant="tonal"
+      class="mb-4"
+      title="No libraries enabled"
+    >
+      Your Plex servers are hidden. Use each server’s Show libraries button below to include it in browsing and search.
+    </v-alert>
+    <v-alert
+      v-if="refreshError"
+      type="error"
+      variant="tonal"
+      class="mb-4"
+    >
+      Couldn’t refresh your Plex servers. Check your connection and try again.
+    </v-alert>
+    <PlexOnDeck
+      v-if="GET_LAST_SERVER?.chosenConnection && IS_PLEX_SERVER_ENABLED(GET_LAST_SERVER_ID)"
+      :machine-identifier="GET_LAST_SERVER_ID"
+    >
       <template #header>
         Continue watching from {{ GET_LAST_SERVER.name }}
       </template>
@@ -22,7 +42,10 @@
         size="small"
         icon
         variant="text"
-        @click="FETCH_PLEX_DEVICES"
+        aria-label="Refresh Plex servers"
+        title="Refresh Plex servers"
+        :loading="refreshPending"
+        @click="refreshServers"
       >
         <v-icon size="small">
           refresh
@@ -38,6 +61,15 @@
       >
         No Plex Servers found.
         Make sure your server owner has shared libraries with you!
+        <div class="mt-3">
+          <v-btn
+
+            :loading="refreshPending"
+            @click="refreshServers"
+          >
+            Retry
+          </v-btn>
+        </div>
       </v-col>
 
       <v-col
@@ -49,7 +81,7 @@
         xl="3"
       >
         <v-card
-          :to="IS_PLEX_SERVER_ENABLED(server.clientIdentifier)
+          :to="server.chosenConnection && IS_PLEX_SERVER_ENABLED(server.clientIdentifier)
             ? linkWithRoom({ name: 'PlexServer', params: { machineIdentifier: server.clientIdentifier } })
             : undefined"
           rounded="lg"
@@ -81,6 +113,8 @@
 
                     <v-btn
                       :icon="IS_PLEX_SERVER_ENABLED(server.clientIdentifier) ? 'visibility' : 'visibility_off'"
+                      :aria-label="visibilityLabel(server)"
+                      :title="visibilityLabel(server)"
                       size="small"
                       variant="text"
                       :color="IS_PLEX_SERVER_ENABLED(server.clientIdentifier) ? 'primary' : 'grey'"
@@ -100,15 +134,27 @@
                     v-if="!server.chosenConnection"
                     class="text-error text-caption"
                   >
-                    Unable to connect.
-                    Try disabling your adblocker
+                    Can’t reach this Plex server.
+                    <v-btn
+                      size="small"
+                      variant="text"
+                      :loading="refreshPending"
+                      @click.prevent.stop="refreshServers"
+                    >
+                      Retry connection
+                    </v-btn>
+                    <details @click.stop>
+                      <summary>Troubleshooting</summary>
+                      Check that the server is online and your network can reach it. Browser extensions
+                      may also block requests; check them if the problem continues.
+                    </details>
                   </div>
 
                   <div
                     v-if="!IS_PLEX_SERVER_ENABLED(server.clientIdentifier)"
                     class="text-caption text-medium-emphasis"
                   >
-                    Disabled
+                    Hidden from browsing and search
                   </div>
                 </div>
               </v-col>
@@ -138,9 +184,14 @@ export default {
 
   data: () => ({
     abortController: null,
+    refreshPending: false,
+    refreshError: false,
   }),
 
   computed: {
+    hasEnabledServers() {
+      return this.GET_PLEX_SERVERS.some((server) => this.IS_PLEX_SERVER_ENABLED(server.clientIdentifier));
+    },
     ...mapGetters('plexservers', [
       'GET_LAST_SERVER',
       'GET_LAST_SERVER_ID',
@@ -159,6 +210,21 @@ export default {
   },
 
   methods: {
+    visibilityLabel(server) {
+      return `${this.IS_PLEX_SERVER_ENABLED(server.clientIdentifier) ? 'Hide' : 'Show'} libraries from ${server.name}`;
+    },
+    async refreshServers() {
+      if (this.refreshPending) return;
+      this.refreshPending = true;
+      this.refreshError = false;
+      try {
+        await this.FETCH_PLEX_DEVICES();
+      } catch {
+        this.refreshError = true;
+      } finally {
+        this.refreshPending = false;
+      }
+    },
     ...mapActions('plexservers', [
       'FETCH_AND_SET_RANDOM_BACKGROUND_IMAGE',
     ]),

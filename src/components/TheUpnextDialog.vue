@@ -54,6 +54,14 @@
 
                   <div>{{ getSecondaryTitle(GET_UP_NEXT_POST_PLAY_DATA) }}</div>
 
+                  <p
+                    class="mt-2 text-subtitle-2"
+                    role="timer"
+                    aria-label="Time until next episode"
+                  >
+                    Next episode starts in {{ secondsRemaining }} {{ secondsRemaining === 1 ? 'second' : 'seconds' }}
+                  </p>
+
                   <p class="mt-2 text-subtitle-2 text-primary">
                     From {{ server.name }}
                   </p>
@@ -79,7 +87,7 @@
                       color="white"
                       @click="cancelPressed"
                     >
-                      Cancel
+                      Don’t play next episode
                     </v-btn>
                   </div>
                 </v-col>
@@ -117,6 +125,9 @@ export default {
     sheet: true,
     transitionBarWithStyle: {},
     timeoutId: null,
+    countdownIntervalId: null,
+    deadline: null,
+    secondsRemaining: 0,
   }),
 
   computed: {
@@ -191,7 +202,15 @@ export default {
     },
 
     startTimer() {
+      this.cancelTimer();
+      const lifetime = this.GET_CONFIG.synclounge_upnext_popup_lifetime;
+      this.deadline = Date.now() + lifetime;
+      this.secondsRemaining = Math.ceil(lifetime / 1000);
+      this.countdownIntervalId = setInterval(() => {
+        this.secondsRemaining = Math.max(0, Math.ceil((this.deadline - Date.now()) / 1000));
+      }, 250);
       this.timeoutId = setTimeout(() => {
+        this.cancelTimer();
         this.playMedia();
       }, this.GET_CONFIG.synclounge_upnext_popup_lifetime);
 
@@ -207,6 +226,8 @@ export default {
     },
 
     cancelTimer() {
+      clearInterval(this.countdownIntervalId);
+      this.countdownIntervalId = null;
       if (this.timeoutId != null) {
         clearTimeout(this.timeoutId);
         this.timeoutId = null;

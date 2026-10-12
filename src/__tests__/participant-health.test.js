@@ -36,5 +36,12 @@ describe('participant timing across Plex servers', () => {
     expect(UserList.methods.driftLabel.call({ ...context, GET_HOST_USER: { media: {} } }, {
       media: {},
     })).toBe('Different media');
+  }); it('uses the viewer tolerance for basic status while retaining detailed drift', () => {
+    const basicContext = { ...context, driftLabel: UserList.methods.driftLabel.bind(context) };
+    const user = { media: context.GET_HOST_USER.media, state: 'playing', syncFlexibility: 3000 };
+    expect(UserList.methods.readinessLabel.call(basicContext, user, 'viewer')).toBe('In sync');
+    expect(UserList.methods.readinessLabel.call(basicContext, { ...user, syncFlexibility: 500 }, 'viewer'))
+      .toBe('Catching up');
+    expect(UserList.methods.driftLabel.call(context, user)).toBe('2.0s behind');
   });
 });

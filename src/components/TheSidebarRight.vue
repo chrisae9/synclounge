@@ -50,10 +50,17 @@
             density="compact"
             class="pa-0 ma-0 sidebar-switch"
             color="primary"
-            label="Party Pausing"
+            label="Let anyone pause the party"
             :model-value="IS_PARTY_PAUSING_ENABLED"
             @update:model-value="SEND_SET_PARTY_PAUSING_ENABLED"
           />
+
+          <p
+            v-if="AM_I_HOST"
+            class="text-caption text-medium-emphasis pb-2"
+          >
+            Viewers can pause or resume everyone’s playback when this is enabled.
+          </p>
 
           <v-list-item-subtitle
             v-if="!AM_I_HOST && GET_HOST_USER && GET_HOST_USER.state === 'stopped'"
@@ -250,6 +257,8 @@ export default {
   font-size: 0.8em;
   color: rgb(255 255 255 / 70%);
 }
+
+.party-controls :deep(.v-label) { white-space: normal; }
 
 .switch-item :deep(.v-list-item__content) {
   overflow: visible;

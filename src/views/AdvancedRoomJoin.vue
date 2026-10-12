@@ -83,8 +83,14 @@
                       v-else
                       class="text-center text-red"
                     >
-                      Unavailable
+                      {{ healthChecking ? 'Checking availability…' : 'Unavailable' }}
                     </div>
+                    <p
+                      v-if="!GET_SERVER_HEALTH(server.url) && !healthChecking"
+                      class="text-caption mt-2"
+                    >
+                      This service did not respond. Retry the availability check or choose another service.
+                    </p>
                   </v-card-text>
 
                   <v-card-actions class="px-4 pb-4">
@@ -93,7 +99,8 @@
                       variant="flat"
                       color="primary"
                       class="welcome-primary"
-                      :disabled="connectionPending"
+                      :disabled="connectionPending || !GET_SERVER_HEALTH(server.url)"
+                      :aria-label="`Connect to ${server.name}`"
                       @click="connect(server.url)"
                     >
                       Connect
@@ -124,7 +131,10 @@
 
                   <v-card-text>
                     <v-text-field
-                      hide-details
+                      hide-details="auto"
+                      :error-messages="customServerError"
+                      hint="Use a complete http:// or https:// address."
+                      persistent-hint
                       variant="outlined"
                       density="compact"
                       label="SyncLounge service address"
@@ -142,7 +152,8 @@
                       variant="flat"
                       color="primary"
                       class="welcome-primary"
-                      :disabled="connectionPending"
+                      :disabled="connectionPending || !!customServerError"
+                      aria-label="Connect to custom SyncLounge service"
                       @click="connect(customServerUrl)"
                     >
                       Connect
@@ -151,6 +162,15 @@
                 </v-card>
               </v-col>
             </v-row>
+
+            <v-btn
+              class="mt-4"
+              :loading="healthChecking"
+              :disabled="connectionPending"
+              @click="refreshHealth"
+            >
+              Retry availability check
+            </v-btn>
 
             <v-row
               v-if="connectionPending && !serverError"
@@ -206,11 +226,25 @@ export default {
 
   data: () => ({
     serverError: null,
+    healthChecking: true,
+    healthRequestPending: false,
     connectionPending: false,
     testConnectionInterval: null,
   }),
 
   computed: {
+    customServerError() {
+      try {
+        const address = new URL(this.customServerUrl.trim());
+        if (!['http:', 'https:'].includes(address.protocol) || !address.hostname
+          || address.username || address.password || address.search || address.hash) {
+          return 'Enter an http:// or https:// service address without credentials, query, or fragment.';
+        }
+        return '';
+      } catch {
+        return 'Enter a complete address, such as https://lounge.example.com.';
+      }
+    },
     ...mapGetters([
       'GET_CONFIG',
     ]),
@@ -228,16 +262,29 @@ export default {
     clearInterval(this.testConnectionInterval);
   },
 
-  async created() {
-    await this.FETCH_SERVERS_HEALTH();
+  created() {
+    this.refreshHealth();
 
     this.testConnectionInterval = setInterval(
-      () => this.FETCH_SERVERS_HEALTH(),
+      () => this.refreshHealth(),
       5000,
     );
   },
 
   methods: {
+    async refreshHealth() {
+      if (this.healthRequestPending) return;
+      this.healthRequestPending = true;
+      this.healthChecking = true;
+      try {
+        await this.FETCH_SERVERS_HEALTH();
+      } catch {
+        this.serverError = 'Couldn’t check service availability. Try again.';
+      } finally {
+        this.healthChecking = false;
+        this.healthRequestPending = false;
+      }
+    },
     ...mapMutations('settings', [
       'SET_CUSTOM_SERVER_URL',
     ]),
@@ -275,12 +322,16 @@ export default {
     },
 
     async connect(server) {
+      if (this.connectionPending) return;
+      if (server === this.customServerUrl && this.customServerError) return;
+      if (this.GET_CONFIG.servers.some((configured) => configured.url === server)
+        && !this.GET_SERVER_HEALTH(server)) return;
       this.serverError = null;
       this.connectionPending = true;
 
       try {
         await this.SET_AND_CONNECT_AND_JOIN_ROOM({
-          server,
+          server: server.trim(),
           room: getRandomRoomId(),
         });
 
