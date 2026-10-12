@@ -41,6 +41,7 @@
           @update:model-value="SET_ADVANCED_PARTY_MODE"
         />
         <v-list-item
+          v-if="AM_I_HOST || (GET_HOST_USER && GET_HOST_USER.state === 'stopped')"
           density="compact"
           class="px-3 py-0 switch-item"
         >
@@ -59,7 +60,7 @@
             v-if="AM_I_HOST"
             class="text-caption text-medium-emphasis pb-2"
           >
-            Viewers can pause or resume everyone’s playback when this is enabled.
+            Allow viewers to pause or resume everyone.
           </p>
 
           <v-list-item-subtitle
@@ -226,7 +227,7 @@ export default {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--sl-border);
 }
 
@@ -238,25 +239,26 @@ export default {
 .party-body {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
-.party-controls,
-.party-users {
-  flex: 0 0 auto;
-}
+.party-controls { flex: 0 0 auto; }
+.party-users { flex: 0 1 auto; min-height: 0; }
 
 .messages {
   overflow-y: auto;
-  flex: 1 0 180px;
-  max-height: 60dvh;
-  min-height: 180px;
+  flex: 1 1 96px;
+  min-height: 96px;
 }
 
 .participant-count {
   font-size: 0.8em;
   color: rgb(255 255 255 / 70%);
 }
+
+.party-controls :deep(.v-selection-control) { min-height: 36px; }
+.party-controls :deep(.v-input) { flex: 0 0 auto; }
 
 .party-controls :deep(.v-label) { white-space: normal; }
 
@@ -265,7 +267,7 @@ export default {
 }
 
 .sidebar-switch :deep(.v-selection-control) {
-  min-height: 44px;
+  min-height: 36px;
 }
 
 .sidebar-switch :deep(.v-switch__track) {

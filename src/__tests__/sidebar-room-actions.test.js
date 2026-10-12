@@ -16,7 +16,7 @@ vi.mock('@/components/ThePwaInstall.vue', () => ({ default: { template: '<div />
 vi.mock('@/components/ReportProblem.vue', () => ({ default: { template: '<div />' } }));
 vi.mock('@/components/TheSettingsDialog.vue', () => ({ default: { template: '<div />' } }));
 
-const setup = (component, inRoom = true) => {
+const setup = (component, inRoom = true, host = null) => {
   const disconnect = vi.fn();
   const store = createStore({
     state: { isLeftSidebarOpen: true, isRightSidebarOpen: true },
@@ -31,7 +31,7 @@ const setup = (component, inRoom = true) => {
         getters: {
           IS_IN_ROOM: () => inRoom,
           GET_USERS: () => ({ me: { username: 'Me' } }),
-          GET_HOST_USER: () => null,
+          GET_HOST_USER: () => host,
           AM_I_HOST: () => false,
           IS_PARTY_PAUSING_ENABLED: () => false,
           IS_AUTO_HOST_ENABLED: () => false,
@@ -76,6 +76,14 @@ describe('sidebar close and room exit', () => {
       expect(store.state[stateKey === 'isLeftSidebarOpen' ? 'isRightSidebarOpen' : 'isLeftSidebarOpen']).toBe(true);
       expect(disconnect).not.toHaveBeenCalled();
       if (component === TheSidebarRight) expect(wrapper.find('[aria-label="Leave room"]').exists()).toBe(false);
+    } finally { wrapper.unmount(); }
+  });
+
+  it('omits host-only control rows for a viewer during playback', () => {
+    const { wrapper } = setup(TheSidebarRight, true, { username: 'Host', state: 'playing' });
+    try {
+      expect(wrapper.findAll('.switch-item')).toHaveLength(0);
+      expect(wrapper.get('[aria-label="Pause party"]').exists()).toBe(true);
     } finally { wrapper.unmount(); }
   });
 

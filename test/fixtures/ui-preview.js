@@ -14,11 +14,12 @@ const image = (text, background = '#29231d') => `data:image/svg+xml,${encodeURIC
   // eslint-disable-next-line max-len
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450"><rect width="300" height="450" fill="${background}"/><circle cx="150" cy="170" r="70" fill="#e5a00d"/><path d="m135 135 50 35-50 35z" fill="#17120a"/><text x="150" y="300" text-anchor="middle" fill="white" font-family="sans-serif" font-size="20">${text}</text></svg>`,
 )}`;
-const users = Object.fromEntries(['Alex', 'Morgan', 'Sam', 'Taylor with a long name'].map((username, i) => [
+const participantNames = ['Alex', 'Morgan', 'Sam', 'Taylor with a long name', 'Jordan', 'Riley'];
+const users = Object.fromEntries(participantNames.map((username, i) => [
   `user-${i}`, {
     username,
-    thumb: image(username.slice(0, 1), ['#303e52', '#49304b', '#28504b', '#503b27'][i]),
-    state: ['playing', 'paused', 'buffering', 'playing'][i],
+    thumb: image(username.slice(0, 1), ['#303e52', '#49304b', '#28504b', '#503b27'][i % 4]),
+    state: ['playing', 'paused', 'buffering', 'playing', 'playing', 'playing'][i],
     time: 360000,
     duration: 7200000,
     updatedAt: Date.now(),
@@ -155,6 +156,8 @@ const store = createStore({
         IS_AUTO_HOST_ENABLED: (state) => state.autoHost,
       },
       mutations: {
+        SET_PREVIEW_HOST(state, id) { state.hostId = id; },
+        SET_PREVIEW_MESSAGES(state, messages) { state.messages = messages; },
         ADD_MESSAGE(state, text) { state.messages.push({ senderId: 'user-0', time: Date.now(), text }); },
         SET_SYNC_PRESET(state, value) { state.syncPreset = value; },
         SET_PAUSING(state, value) { state.pausing = value; },
