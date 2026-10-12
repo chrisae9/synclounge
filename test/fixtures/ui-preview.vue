@@ -114,7 +114,7 @@
           Watch party preview
         </h1>
         <p class="mb-4">
-          Four sample participants. Messages and party controls stay in this fixture’s memory.
+          Six sample participants. Messages and party controls stay in this fixture’s memory.
         </p>
         <v-btn
           color="primary"
@@ -126,6 +126,8 @@
         <v-btn class="mb-4 ml-2" @click="$store.commit('SET_LEFT_SIDEBAR_OPEN', true)">
           Open navigation
         </v-btn>
+        <v-btn class="mb-4" @click="$store.commit('synclounge/SET_PREVIEW_HOST', 'user-1')">Preview as viewer</v-btn>
+        <v-btn class="mb-4" @click="$store.commit('synclounge/SET_PREVIEW_MESSAGES', [])">Empty chat</v-btn>
         <div class="preview-chat">
           <MessageList />
           <MessageInput />

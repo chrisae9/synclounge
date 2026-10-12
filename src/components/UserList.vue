@@ -6,7 +6,7 @@
     <v-list-item
       v-for="(user, id) in GET_USERS"
       :key="id"
-      class="user-row px-3 py-2"
+      class="user-row"
     >
       <div class="user-heading">
         <v-avatar
@@ -45,7 +45,10 @@
                   class="text-medium-emphasis"
                 >(you)</span>
               </div>
-              <span class="user-time">{{ getTimeFromMs(getAdjustedTime(user)) }}</span>
+              <div class="user-meta">
+                <span class="user-time">{{ getTimeFromMs(getAdjustedTime(user)) }}</span>
+                <span class="user-readiness">{{ readinessLabel(user, id) }}</span>
+              </div>
             </div>
           </template>
           {{ getTitle(user.media) }}
@@ -59,7 +62,7 @@
         <div class="user-actions">
           <v-chip
             v-if="id === GET_HOST_ID"
-            size="small"
+            size="x-small"
             color="primary"
             variant="tonal"
           >
@@ -71,6 +74,7 @@
                 v-bind="props"
                 icon="more_vert"
                 size="small"
+                class="participant-action"
                 variant="text"
                 :aria-label="`Actions for ${user.username}`"
                 :title="`Actions for ${user.username}`"
@@ -91,9 +95,11 @@
           </v-menu>
         </div>
       </div>
-      <div class="user-status text-caption text-medium-emphasis">
-        <span>{{ readinessLabel(user, id) }}</span>
-        <span v-if="GET_ADVANCED_PARTY_MODE">{{ driftLabel(user) }}</span>
+      <div
+        v-if="GET_ADVANCED_PARTY_MODE"
+        class="user-status text-caption text-medium-emphasis"
+      >
+        {{ driftLabel(user) }}
       </div>
       <ul
         v-if="user.health && GET_ADVANCED_PARTY_MODE"
@@ -107,7 +113,8 @@
         </li>
       </ul>
       <v-progress-linear
-        class="pt-content-progress mt-2"
+        v-if="GET_ADVANCED_PARTY_MODE"
+        class="pt-content-progress mt-1"
         :height="2"
         :model-value="percent(user)"
       />
@@ -368,7 +375,8 @@ export default {
 .moderation-actions { flex-wrap: wrap; }
 
 .user-list {
-  max-height: calc(50vh - 100px);
+  padding-block: 0;
+  min-height: 0;
 }
 
 .avatar-img {
@@ -404,7 +412,12 @@ export default {
   border-color: #0de47499;
 }
 
-.user-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.user-row { min-height: 52px; padding: 6px 12px; }
+.user-meta { display: flex; align-items: baseline; gap: 8px; line-height: 18px; color: rgb(255 255 255 / 65%); }
+.user-readiness { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.participant-action { width: 32px; height: 32px; }
+@media (pointer: coarse) { .participant-action { width: 40px; height: 40px; } }
+.user-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .user-avatar, .user-actions { flex-shrink: 0; }
 .user-identity { flex: 1 1 auto; min-width: 0; }
 .user-actions { display: flex; align-items: center; gap: 2px; }
@@ -414,6 +427,8 @@ export default {
 .user-row + .user-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
 
 .user-name {
+  font-size: 14px;
+  line-height: 20px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -421,8 +436,7 @@ export default {
 }
 
 .user-time {
-  font-size: 75%;
-  opacity: 0.7;
+  font-size: 12px;
   flex-shrink: 0;
 }
 </style>
