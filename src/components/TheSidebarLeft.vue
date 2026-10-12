@@ -5,19 +5,15 @@
     class="sidebar-blur"
     @update:model-value="SET_LEFT_SIDEBAR_OPEN"
   >
-    <v-list-item
-      title="SyncLounge"
-      class="pt-3"
-    >
-      <template #append>
-        <v-btn
-          icon="close"
-          variant="text"
-          aria-label="Close navigation"
-          @click="SET_LEFT_SIDEBAR_OPEN(false)"
-        />
-      </template>
-    </v-list-item>
+    <div class="navigation-header">
+      <h2 class="text-subtitle-1 font-weight-bold">
+        SyncLounge
+      </h2>
+      <SidebarCloseButton
+        label="Close navigation sidebar"
+        @click="SET_LEFT_SIDEBAR_OPEN(false)"
+      />
+    </div>
     <v-list-item
       v-if="GET_PLEX_USER"
       class="py-4"
@@ -95,21 +91,48 @@
       </v-list-item>
     </v-list>
 
-    <div class="sidebar-version">
-      v{{ appVersion }}
-    </div>
+    <template #append>
+      <div class="sidebar-footer">
+        <v-divider
+          v-if="IS_IN_ROOM"
+          class="mb-2"
+        />
+        <v-list
+          v-if="IS_IN_ROOM"
+          nav
+          density="compact"
+        >
+          <v-list-item
+            class="leave-room"
+            role="button"
+            prepend-icon="logout"
+            title="Leave room"
+            subtitle="Disconnect from this watch party"
+            aria-label="Leave room"
+            @click="leaveRoom"
+          />
+        </v-list>
+        <div class="sidebar-version">
+          v{{ appVersion }}
+        </div>
+      </div>
+    </template>
   </v-navigation-drawer>
 </template>
 
 <script>
 import { defineAsyncComponent } from 'vue';
+import SidebarCloseButton from '@/components/SidebarCloseButton.vue';
 import linkWithRoom from '@/mixins/linkwithroom';
-import { mapGetters, mapMutations, mapState } from 'vuex';
+import {
+  mapActions, mapGetters, mapMutations, mapState,
+} from 'vuex';
 
 export default {
   name: 'TheSidebarLeft',
 
   components: {
+    SidebarCloseButton,
     ReportProblem: defineAsyncComponent(() => import('@/components/ReportProblem.vue')),
     ThePwaInstall: defineAsyncComponent(() => import('@/components/ThePwaInstall.vue')),
     TheSettingsDialog: defineAsyncComponent(() => import('@/components/TheSettingsDialog.vue')),
@@ -133,6 +156,13 @@ export default {
   },
 
   methods: {
+    ...mapActions('synclounge', ['DISCONNECT_AND_NAVIGATE_HOME']),
+
+    leaveRoom() {
+      this.SET_LEFT_SIDEBAR_OPEN(false);
+      return this.DISCONNECT_AND_NAVIGATE_HOME();
+    },
+
     ...mapMutations([
       'SET_LEFT_SIDEBAR_OPEN',
     ]),
@@ -141,6 +171,15 @@ export default {
 </script>
 
 <style scoped>
+.navigation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--sl-border);
+}
+
 .sidebar-blur {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -150,10 +189,17 @@ export default {
   padding-left: env(safe-area-inset-left);
 }
 
+.leave-room :deep(.v-list-item-subtitle) {
+  white-space: normal;
+  -webkit-line-clamp: unset;
+}
+
+.sidebar-footer {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
 .sidebar-version {
-  position: absolute;
-  bottom: max(16px, env(safe-area-inset-bottom));
-  left: calc(16px + env(safe-area-inset-left));
+  padding: 8px 16px 0;
   font-size: 0.7rem;
   color: rgba(255, 255, 255, 0.3);
 }
