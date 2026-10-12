@@ -38,18 +38,20 @@ const sampleServer = {
   image: image('SAMPLE SERVER'),
 };
 const store = createStore({
-  state: () => ({ isRightSidebarOpen: true, previewMetadata: null }),
+  state: () => ({ isLeftSidebarOpen: false, isRightSidebarOpen: true, previewMetadata: null }),
   getters: {
     GET_ACTIVE_METADATA: (state) => state.previewMetadata,
     GET_CONFIG: () => ({ servers: [sampleServer], sidebar_time_update_interval: 1000 }),
   },
   mutations: {
+    SET_LEFT_SIDEBAR_OPEN(state, value) { state.isLeftSidebarOpen = value; },
     SET_PREVIEW_METADATA(state, value) { state.previewMetadata = value; },
     SET_RIGHT_SIDEBAR_OPEN(state, value) { state.isRightSidebarOpen = value; },
     TOGGLE_RIGHT_SIDEBAR_OPEN(state) { state.isRightSidebarOpen = !state.isRightSidebarOpen; },
   },
   modules: {
     settings,
+    plex: { namespaced: true, getters: { GET_PLEX_USER: () => null } },
     plexservers: {
       namespaced: true,
       getters: {
@@ -79,6 +81,7 @@ const store = createStore({
         GET_SERVERS_HEALTH: () => ({ [sampleServer.url]: { latency: 24, load: 'low' } }),
         GET_SERVER_HEALTH: () => () => ({ latency: 24, load: 'low' }),
         GET_BEST_SERVER: () => sampleServer.url,
+        IS_IN_ROOM: () => true,
         GET_ROOM: () => 'sample-room',
         GET_SERVER: () => '',
         GET_USERS: (state) => state.users,

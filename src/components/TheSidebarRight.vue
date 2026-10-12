@@ -9,54 +9,22 @@
     @update:model-value="SET_RIGHT_SIDEBAR_OPEN"
   >
     <template #prepend>
-      <v-list-item
-        class="px-2 py-1"
-        density="compact"
-      >
-        <template #prepend>
-          <v-btn
-            icon
-            size="default"
-            aria-label="Close watch party"
-            variant="text"
-            @click="SET_RIGHT_SIDEBAR_OPEN(false)"
-          >
-            <v-icon size="small">
-              close
-            </v-icon>
-          </v-btn>
-        </template>
-
-        <v-list-item-title class="font-weight-bold mb-1">
-          Watch party
-        </v-list-item-title>
-
-        <v-list-item-subtitle
-          v-if="Object.keys(GET_USERS).length != 1"
-          class="participant-count"
-        >
-          {{ Object.keys(GET_USERS).length }} people
-        </v-list-item-subtitle>
-
-        <v-list-item-subtitle
-          v-else
-          class="participant-count"
-        >
-          It's just you, invite some friends
-        </v-list-item-subtitle>
-
-        <template #append>
-          <v-btn
-            icon
-            size="default"
-            variant="text"
-            aria-label="Leave watch party"
-            @click="DISCONNECT_AND_NAVIGATE_HOME"
-          >
-            <v-icon>exit_to_app</v-icon>
-          </v-btn>
-        </template>
-      </v-list-item>
+      <div class="party-header">
+        <div class="party-heading">
+          <h2 class="text-subtitle-1 font-weight-bold">
+            Watch party
+          </h2>
+          <p class="participant-count">
+            {{ Object.keys(GET_USERS).length === 1
+              ? "It's just you, invite some friends"
+              : `${Object.keys(GET_USERS).length} people` }}
+          </p>
+        </div>
+        <SidebarCloseButton
+          label="Close watch party sidebar"
+          @click="SET_RIGHT_SIDEBAR_OPEN(false)"
+        />
+      </div>
     </template>
 
     <div class="party-body">
@@ -191,6 +159,7 @@
 
 <script>
 import { defineAsyncComponent } from 'vue';
+import SidebarCloseButton from '@/components/SidebarCloseButton.vue';
 import {
   mapActions, mapGetters, mapMutations, mapState,
 } from 'vuex';
@@ -199,6 +168,7 @@ export default {
   name: 'TheSidebarRight',
 
   components: {
+    SidebarCloseButton,
     MessageList: defineAsyncComponent(() => import('@/components/MessageList.vue')),
     MessageInput: defineAsyncComponent(() => import('@/components/MessageInput.vue')),
     UserList: defineAsyncComponent(() => import('@/components/UserList.vue')),
@@ -234,7 +204,6 @@ export default {
       'SEND_SET_PARTY_PAUSING_ENABLED',
       'SEND_SET_AUTO_HOST_ENABLED',
       'sendPartyPause',
-      'DISCONNECT_AND_NAVIGATE_HOME',
     ]),
 
     ...mapMutations([
@@ -246,6 +215,19 @@ export default {
 </script>
 
 <style scoped>
+.party-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--sl-border);
+}
+
+.party-heading {
+  flex: 1;
+  min-width: 0;
+}
+
 .party-body {
   display: flex;
   flex-direction: column;
