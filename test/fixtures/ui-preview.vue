@@ -9,6 +9,7 @@
       <template #navigation><TheAppBarCrumbs /></template>
       <template #party-button><v-btn icon="chat" aria-label="Open watch party" @click="selectPage('party')" /></template>
     </TheAppHeader>
+    <TheUpnextDialog v-if="page === 'upnext' && $store.state.upNext" />
     <v-main>
       <nav
         aria-label="Visual fixture views"
@@ -30,7 +31,20 @@
           </v-btn>
         </div>
       </nav>
-      <v-container v-if="page === 'header'">
+      <v-container v-if="['browse', 'search', 'library', 'server'].includes(page)">
+        <v-select label="Preview scenario" :items="['empty', 'failure', 'disabled']"
+          :model-value="$store.state.scenario" @update:model-value="$store.commit('SET_SCENARIO', $event)" />
+      </v-container>
+      <PlexHome v-if="page === 'browse'" :key="$store.state.scenario" />
+      <PlexSearch v-else-if="page === 'search'" :key="$store.state.scenario" query="Sample missing movie" />
+      <PlexLibrary v-else-if="page === 'library'" :key="$store.state.scenario" machine-identifier="sample" section-id="1" />
+      <v-container v-else-if="page === 'settings'">
+        <TheSettingsDialog v-slot="{ props }"><v-btn v-bind="props">Open settings</v-btn></TheSettingsDialog>
+      </v-container>
+      <v-container v-else-if="page === 'upnext'">
+        <v-btn @click="previewNext">Show next episode</v-btn>
+      </v-container>
+      <v-container v-else-if="page === 'header'">
         <v-alert v-if="inviteCopied" type="success">Invite action activated</v-alert>
         <v-btn @click="$store.commit('SET_PREVIEW_METADATA', null)">Library home</v-btn>
         <v-btn @click="$store.commit('SET_PREVIEW_METADATA', {
@@ -122,6 +136,11 @@
 </template>
 
 <script>
+import PlexHome from '@/views/PlexHome.vue';
+import PlexSearch from '@/views/PlexSearch.vue';
+import PlexLibrary from '@/views/PlexLibrary.vue';
+import TheSettingsDialog from '@/components/TheSettingsDialog.vue';
+import TheUpnextDialog from '@/components/TheUpnextDialog.vue';
 import TheAppHeader from '@/components/TheAppHeader.vue';
 import TheAppBarCrumbs from '@/components/TheAppBarCrumbs.vue';
 import MediaShelf from '@/components/MediaShelf.vue';
@@ -135,6 +154,7 @@ import MessageList from '@/components/MessageList.vue';
 
 export default {
   components: {
+    PlexHome, PlexSearch, PlexLibrary, TheSettingsDialog, TheUpnextDialog,
     TheSidebarLeft, TheAppHeader, TheAppBarCrumbs, MediaShelf, RoomCreation, AdvancedRoomJoin, PlexMediaLayout, TheSidebarRight, MessageInput, MessageList,
   },
   props: { poster: { type: String, required: true } },
@@ -143,6 +163,11 @@ export default {
     inviteCopied: false,
     shelfItems: Array.from({ length: 12 }, (_, i) => ({ key: String(i), title: `Sample movie ${i + 1}` })),
     views: [
+      { id: 'browse', name: 'Browse recovery' },
+      { id: 'search', name: 'Search recovery' },
+      { id: 'library', name: 'Library recovery' },
+      { id: 'settings', name: 'Settings' },
+      { id: 'upnext', name: 'Next episode' },
       { id: 'header', name: 'Library navigation' },
       { id: 'shelf', name: 'Media shelves' },
       { id: 'room', name: 'Create room' },
@@ -159,10 +184,17 @@ export default {
     },
   },
   methods: {
+    previewNext() {
+      this.$store.commit('SET_UP_NEXT_POST_PLAY_DATA', {
+        machineIdentifier: 'sample', type: 'episode', title: 'A New Beginning',
+        grandparentTitle: 'Sample series', parentIndex: 1, index: 2, art: this.poster,
+      });
+    },
     async selectPage(page) {
       if (page === 'room') await this.$router.push({ name: 'RoomCreation' });
       if (page === 'server') await this.$router.push({ name: 'AdvancedRoomJoin' });
       this.page = page;
+      if (page === 'upnext') this.previewNext();
       if (page === 'party') this.$store.commit('SET_RIGHT_SIDEBAR_OPEN', true);
     },
   },
