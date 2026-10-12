@@ -70,6 +70,7 @@
               <v-switch
                 hide-details
                 color="primary"
+                aria-label="Auto Skip Intro"
                 :model-value="GET_AUTO_SKIP_INTRO"
                 @update:model-value="SET_AUTO_SKIP_INTRO"
                 @click.stop
@@ -92,6 +93,7 @@
               <v-switch
                 hide-details
                 color="primary"
+                aria-label="Prefer Original Quality"
                 :model-value="allowDirectPlay"
                 :disabled="GET_SLPLAYERFORCETRANSCODE"
                 @update:model-value="SET_ALLOW_DIRECT_PLAY"
@@ -109,6 +111,7 @@
             <v-select
               density="compact"
               hide-details
+              aria-label="Quality Limit"
               :model-value="GET_SLPLAYERQUALITY"
               :items="qualities"
               item-title="label"
@@ -139,6 +142,7 @@
               <v-switch
                 hide-details
                 color="primary"
+                aria-label="Follow Host Media"
                 :model-value="GET_AUTOPLAY"
                 @update:model-value="SET_AUTOPLAY"
                 @click.stop
@@ -154,6 +158,7 @@
 
             <v-select
               v-model="BLOCKEDSERVERS"
+              aria-label="Disabled Servers"
               density="compact"
               hide-details
               multiple
@@ -206,6 +211,7 @@
               <v-switch
                 hide-details
                 color="primary"
+                aria-label="Desktop Notifications"
                 :model-value="ARE_NOTIFICATIONS_ENABLED && isSecureContext"
                 :disabled="!isSecureContext"
                 @update:model-value="CHANGE_NOTIFICATIONS_ENABLED"
@@ -246,6 +252,7 @@
               <v-switch
                 hide-details
                 color="primary"
+                aria-label="Sound Notifications"
                 :model-value="ARE_SOUND_NOTIFICATIONS_ENABLED"
                 @update:model-value="SET_ARE_SOUND_NOTIFICATIONS_ENABLED"
                 @click.stop
@@ -263,6 +270,7 @@
               density="compact"
               hide-details
               class="text-body-2 text-medium-emphasis"
+              aria-label="Display Name"
               :model-value="GET_ALTUSERNAME"
               :placeholder="username"
               @update:model-value="SET_ALTUSERNAME"
@@ -304,6 +312,7 @@
                     <v-switch
                       hide-details
                       color="primary"
+                      aria-label="Force Transcode"
                       :model-value="GET_SLPLAYERFORCETRANSCODE"
                       @update:model-value="SET_SLPLAYERFORCETRANSCODE"
                       @click.stop
@@ -323,6 +332,7 @@
                     <v-switch
                       hide-details
                       color="primary"
+                      aria-label="Force Burn Subtitles"
                       :model-value="forceBurnSubtitles"
                       @update:model-value="SET_FORCE_BURN_SUBTITLES"
                       @click.stop
@@ -339,6 +349,7 @@
                   <v-select
                     density="compact"
                     hide-details
+                    aria-label="Streaming Protocol"
                     :model-value="GET_STREAMING_PROTOCOL"
                     :items="streamingProtocols"
                     :rules="[v => !!v || 'Item is required']"
@@ -367,6 +378,7 @@
                   <v-slider
                     hide-details
                     color="primary"
+                    aria-label="Sync Flexibility in milliseconds"
                     :model-value="GET_SYNCFLEXIBILITY"
                     :disabled="roomSyncPresetActive"
                     :min="0"
@@ -385,6 +397,7 @@
                   <v-select
                     density="compact"
                     hide-details
+                    aria-label="Syncing Method"
                     :model-value="GET_SYNCMODE"
                     :items="syncMethods"
                     :rules="[v => !!v || 'Item is required']"
@@ -408,6 +421,7 @@
                   <v-slider
                     hide-details
                     color="primary"
+                    aria-label="Client Poll Interval in milliseconds"
                     :model-value="GET_CLIENTPOLLINTERVAL"
                     :min="100"
                     :max="10000"

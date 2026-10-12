@@ -143,7 +143,7 @@ describe('watch party opener', () => {
 });
 
 describe('up next cancellation', () => {
-  it('cancels the pending automatic playback through the remaining Cancel action', async () => {
+  it.each(['cancel', 'automatic', 'play now'])('handles next-episode playback: %s', async (mode) => {
     vi.useFakeTimers();
     const playNext = vi.fn();
     const clearNext = vi.fn();
@@ -168,11 +168,19 @@ describe('up next cancellation', () => {
     try {
       await wrapper.vm.$nextTick();
       const buttons = new DOMWrapper(document.body).findAll('.v-bottom-sheet button');
-      expect(buttons.map((button) => button.text())).toEqual(['Play Now', 'Cancel']);
-      await buttons[1].trigger('click');
+      expect(buttons.map((button) => button.text())).toEqual(['Play Now', 'Don’t play next episode']);
+      expect(new DOMWrapper(document.body).text()).toContain('Next episode starts in 10 seconds');
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(new DOMWrapper(document.body).text()).toContain('Next episode starts in 7 seconds');
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(new DOMWrapper(document.body).text()).toContain('Next episode starts in 1 second');
+      if (mode === 'automatic') await vi.advanceTimersByTimeAsync(1000);
+      else await buttons[mode === 'cancel' ? 1 : 0].trigger('click');
       expect(clearNext).toHaveBeenCalledExactlyOnceWith(null);
+      expect(wrapper.vm.countdownIntervalId).toBe(null);
       await vi.advanceTimersByTimeAsync(10001);
-      expect(playNext).not.toHaveBeenCalled();
+      if (mode === 'cancel') expect(playNext).not.toHaveBeenCalled();
+      else expect(playNext).toHaveBeenCalledTimes(1);
     } finally {
       wrapper.unmount();
       vi.useRealTimers();

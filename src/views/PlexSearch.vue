@@ -8,6 +8,60 @@
       color="primary"
     />
 
+    <v-alert
+      v-if="!loading && !GET_ENABLED_PLEX_SERVER_IDS.length"
+      type="info"
+      variant="tonal"
+      class="my-4"
+      :title="hasEnabledServers ? 'Couldn’t reach your libraries' : 'No libraries enabled'"
+    >
+      {{ hasEnabledServers ? 'Your Plex servers are unavailable. Check their connection in Browse libraries.'
+        : 'Enable a Plex server in Browse libraries or Settings to include its libraries in search.' }}
+      <div class="mt-3">
+        <v-btn
+
+          :to="linkWithRoom({ name: 'PlexHome' })"
+        >
+          Browse libraries
+        </v-btn>
+      </div>
+    </v-alert>
+    <v-alert
+      v-else-if="searchFailed"
+      type="warning"
+      variant="tonal"
+      class="my-4"
+      title="Couldn’t search all libraries"
+    >
+      Some libraries did not respond. Any available results are shown below.
+      <div class="mt-3">
+        <v-btn
+
+          :disabled="loading"
+          @click="searchServers"
+        >
+          Retry search
+        </v-btn>
+      </div>
+    </v-alert>
+    <v-alert
+      v-else-if="!loading && !hasResults"
+      type="info"
+      variant="tonal"
+      class="my-4"
+      title="No matches"
+    >
+      No results for “{{ query }}”. Try another title or clear your search.
+      <div class="mt-3">
+        <v-btn
+
+          :to="linkWithRoom({ name: 'PlexHome' })"
+        >
+          Clear search
+        </v-btn>
+      </div>
+    </v-alert>
+
     <div
       v-for="(hub, id) in hubs"
       :key="id"
@@ -39,7 +93,8 @@
 </template>
 
 <script>
-import { defineAsyncComponent } from 'vue';
+import { defineAsyncComponent, markRaw } from 'vue';
+import linkWithRoom from '@/mixins/linkwithroom';
 import { mapActions, mapGetters, mapMutations } from 'vuex';
 
 export default {
@@ -48,6 +103,8 @@ export default {
   components: {
     PlexThumbnail: defineAsyncComponent(() => import('@/components/PlexThumbnail.vue')),
   },
+
+  mixins: [linkWithRoom],
 
   props: {
     query: {
@@ -58,19 +115,32 @@ export default {
 
   data: () => ({
     loading: false,
+    searchFailed: false,
     hubs: {},
     abortController: null,
   }),
 
   computed: {
+    hasResults() {
+      return Object.values(this.hubs).some((hub) => hub.Metadata?.length);
+    },
+    hasEnabledServers() {
+      return this.GET_PLEX_SERVERS.some((server) => this.IS_PLEX_SERVER_ENABLED(server.clientIdentifier));
+    },
     ...mapGetters('plexservers', [
       'GET_ENABLED_PLEX_SERVER_IDS',
+      'GET_PLEX_SERVERS',
+      'IS_PLEX_SERVER_ENABLED',
       'GET_PLEX_SERVER',
       'GET_MEDIA_IMAGE_URL',
     ]),
   },
 
   watch: {
+    GET_ENABLED_PLEX_SERVER_IDS: {
+      handler() { return this.searchServers(); },
+      deep: true,
+    },
     query: {
       handler() {
         this.updateCrumbs();
@@ -118,35 +188,38 @@ export default {
     },
 
     async searchServersCriticalSection(signal) {
-      await Promise.all(this.GET_ENABLED_PLEX_SERVER_IDS.map(async (machineIdentifier) => {
-        const serverResults = await this.SEARCH_PLEX_SERVER_HUB({
-          query: this.query,
-          machineIdentifier,
-          limit: 30,
-          signal,
-        });
-
-        this.addHubs(serverResults);
-      }));
-
-      this.loading = false;
+      const results = await Promise.allSettled(this.GET_ENABLED_PLEX_SERVER_IDS.map((machineIdentifier) => (
+        this.SEARCH_PLEX_SERVER_HUB({
+          query: this.query, machineIdentifier, limit: 30, signal,
+        })
+      )));
+      if (signal.aborted) return;
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') this.addHubs(result.value);
+      });
+      this.searchFailed = results.some((result) => result.status === 'rejected');
     },
 
     async searchServers() {
       this.abortRequests();
 
+      this.searchFailed = false;
       this.hubs = {};
       this.loading = true;
 
-      const controller = new AbortController();
+      const controller = markRaw(new AbortController());
       this.abortController = controller;
 
       try {
         await this.searchServersCriticalSection(controller.signal);
       } catch (e) {
         if (!controller.signal.aborted) {
+          this.searchFailed = true;
+        }
+      } finally {
+        if (this.abortController === controller) {
           this.loading = false;
-          throw e;
+          this.abortController = null;
         }
       }
     },

@@ -12,6 +12,7 @@
       <v-col cols="auto">
         <v-select
           v-model="gridSort"
+          label="Sort by"
           density="compact"
           hide-details
           variant="outlined"
@@ -28,6 +29,8 @@
       >
         <v-btn
           :icon="gridSortDesc ? 'arrow_downward' : 'arrow_upward'"
+          :aria-label="gridSortDesc ? 'Sort ascending' : 'Sort descending'"
+          :title="gridSortDesc ? 'Sort ascending' : 'Sort descending'"
           size="small"
           variant="text"
           @click="gridSortDesc = !gridSortDesc"
@@ -75,6 +78,44 @@
         </div>
       </v-col>
     </v-row>
+
+    <v-alert
+      v-if="loadError"
+      type="error"
+      variant="tonal"
+      class="ma-3"
+      title="Couldn’t load this library"
+    >
+      Your loaded items are still available. Check the Plex server connection and try again.
+      <div class="mt-3">
+        <v-btn
+
+          :disabled="!!childrenAbortController"
+          @click="fetchMoreContent"
+        >
+          Retry
+        </v-btn>
+      </div>
+    </v-alert>
+    <v-alert
+      v-else-if="stopNewContent && !contents.length && !childrenAbortController"
+      type="info"
+      variant="tonal"
+      class="ma-3"
+      :title="activeFirstCharacter ? 'No matches' : 'This library is empty'"
+    >
+      {{ activeFirstCharacter ? 'No titles match this letter filter.'
+        : 'There are no titles available in this library.' }}
+      <div class="mt-3">
+        <v-btn
+          v-if="activeFirstCharacter"
+
+          @click="setFirstCharacter(null)"
+        >
+          Clear filters
+        </v-btn>
+      </div>
+    </v-alert>
 
     <v-row
       v-if="IS_LIBRARY_LIST_VIEW"
@@ -167,7 +208,7 @@
     </v-row>
 
     <v-row
-      v-if="!stopNewContent"
+      v-if="!stopNewContent && !loadError"
       v-intersect="onIntersect"
       justify="center"
       class="py-4"
@@ -182,7 +223,7 @@
 </template>
 
 <script>
-import { defineAsyncComponent } from 'vue';
+import { defineAsyncComponent, markRaw } from 'vue';
 import { mapActions, mapGetters, mapMutations } from 'vuex';
 import { intervalToDuration } from 'date-fns';
 import contentLink from '@/mixins/contentlink';
@@ -213,6 +254,7 @@ export default {
   data: () => ({
     batchSize: 50,
     stopNewContent: false,
+    loadError: false,
     contents: [],
     itemsPerPage: 0,
     sortByArray: [],
@@ -326,6 +368,8 @@ export default {
   watch: {
     combinedKey: {
       handler() {
+        this.abortChildrenRequests();
+        this.loadError = false;
         this.stopNewContent = false;
         this.contents = [];
         this.itemsPerPage = 0;
@@ -346,6 +390,7 @@ export default {
     },
 
     IS_LIBRARY_LIST_VIEW() {
+      this.loadError = false;
       this.stopNewContent = false;
       this.contents = [];
       this.itemsPerPage = 0;
@@ -430,6 +475,7 @@ export default {
     },
 
     async onSortChange() {
+      this.loadError = false;
       this.abortChildrenRequests();
 
       this.stopNewContent = false;
@@ -450,6 +496,7 @@ export default {
         signal,
       });
 
+      if (signal.aborted) return;
       results.forEach((result) => {
         this.contents.push(result);
       });
@@ -468,14 +515,15 @@ export default {
         return;
       }
 
-      const controller = new AbortController();
+      this.loadError = false;
+      const controller = markRaw(new AbortController());
       this.childrenAbortController = controller;
 
       try {
         await this.fetchMoreContentCriticalSection(controller.signal);
       } catch (e) {
         if (!controller.signal.aborted) {
-          throw e;
+          this.loadError = true;
         }
       } finally {
         if (this.childrenAbortController === controller) {
@@ -495,7 +543,7 @@ export default {
     async fetchRandomBackground() {
       this.abortBackgroundRequests();
 
-      const controller = new AbortController();
+      const controller = markRaw(new AbortController());
       this.backgroundAbortController = controller;
 
       try {

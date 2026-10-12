@@ -158,6 +158,8 @@ describe('cancelled room creation', () => {
     ['advanced creation', AdvancedRoomJoin.methods.connect],
   ])('%s does not tear down a replacement join', async (label, action) => {
     const ctx = {
+      GET_CONFIG: { servers: [{ url: 'https://server.invalid' }] },
+      GET_SERVER_HEALTH: () => ({ latency: 0 }),
       $store: { commit: vi.fn() },
       SET_AND_CONNECT_AND_JOIN_ROOM: vi.fn().mockRejectedValue(new DOMException('Cancelled', 'AbortError')),
       DISCONNECT_IF_CONNECTED: vi.fn(),
