@@ -18,7 +18,7 @@ const media = {
 const participant = (username, extra = {}) => ({
   username, state: 'playing', media, time: 10000, updatedAt: Date.now(), playbackRate: 1, duration: 60000, ...extra,
 });
-const setup = () => {
+const setup = (friendOptions = {}) => {
   const kick = vi.fn().mockResolvedValue();
   const transfer = vi.fn().mockResolvedValue();
   const store = createStore({
@@ -32,7 +32,7 @@ const setup = () => {
           host: 'me',
           users: {
             me: participant('Host viewer'),
-            friend: participant('Morgan with a long display name'),
+            friend: participant('Morgan with a long display name', friendOptions),
             buffering: participant('Sam', { state: 'buffering' }),
             different: participant('Taylor', { media: { ...media, title: 'Another movie', ratingKey: '2' } }),
             stopped: participant('Alex', { state: 'stopped', media: null }),
@@ -74,6 +74,15 @@ describe('participant actions and readable status', () => {
       expect(wrapper.text()).toContain('Different movie or episode');
       expect(wrapper.text()).toContain('Not watching');
       expect(wrapper.find('[aria-label="Remove Morgan with a long display name from the room"]').exists()).toBe(false);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+  it.each([[3000, 'In sync'], [500, 'Catching up']])('renders readiness with tolerance %s', (tolerance, label) => {
+    const { wrapper } = setup({ time: 8000, syncFlexibility: tolerance });
+    try {
+      const row = wrapper.findAll('.v-list-item').find((item) => item.text().includes('Morgan'));
+      expect(row.text()).toContain(label);
     } finally {
       wrapper.unmount();
     }
