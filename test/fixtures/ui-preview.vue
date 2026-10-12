@@ -1,5 +1,6 @@
 <template>
   <v-app>
+    <TheSidebarLeft v-if="page === 'party'" />
     <TheSidebarRight v-if="page === 'party'" />
     <TheAppHeader v-if="page === 'header'" invite-url="https://fixture.invalid/room"
       show-extension @toggle-navigation="selectPage('room')" @copy-invite="inviteCopied = true">
@@ -108,6 +109,9 @@
         >
           Open watch party
         </v-btn>
+        <v-btn class="mb-4 ml-2" @click="$store.commit('SET_LEFT_SIDEBAR_OPEN', true)">
+          Open navigation
+        </v-btn>
         <div class="preview-chat">
           <MessageList />
           <MessageInput />
@@ -124,13 +128,14 @@ import MediaShelf from '@/components/MediaShelf.vue';
 import RoomCreation from '@/views/RoomCreation.vue';
 import AdvancedRoomJoin from '@/views/AdvancedRoomJoin.vue';
 import PlexMediaLayout from '@/components/PlexMediaLayout.vue';
+import TheSidebarLeft from '@/components/TheSidebarLeft.vue';
 import TheSidebarRight from '@/components/TheSidebarRight.vue';
 import MessageInput from '@/components/MessageInput.vue';
 import MessageList from '@/components/MessageList.vue';
 
 export default {
   components: {
-    TheAppHeader, TheAppBarCrumbs, MediaShelf, RoomCreation, AdvancedRoomJoin, PlexMediaLayout, TheSidebarRight, MessageInput, MessageList,
+    TheSidebarLeft, TheAppHeader, TheAppBarCrumbs, MediaShelf, RoomCreation, AdvancedRoomJoin, PlexMediaLayout, TheSidebarRight, MessageInput, MessageList,
   },
   props: { poster: { type: String, required: true } },
   data: () => ({
