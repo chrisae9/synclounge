@@ -67,13 +67,16 @@ const clickText = async (text) => {
 describe('participant actions and readable status', () => {
   it('shows basic readiness and the Host badge without advanced controls', () => {
     const { wrapper } = setup();
-    expect(wrapper.text()).toContain('Host');
-    expect(wrapper.text()).toContain('In sync');
-    expect(wrapper.text()).toContain('Buffering');
-    expect(wrapper.text()).toContain('Different movie or episode');
-    expect(wrapper.text()).toContain('Not watching');
-    expect(wrapper.find('[aria-label="Remove Morgan with a long display name from the room"]').exists()).toBe(false);
-    wrapper.unmount();
+    try {
+      expect(wrapper.text()).toContain('Host');
+      expect(wrapper.text()).toContain('In sync');
+      expect(wrapper.text()).toContain('Buffering');
+      expect(wrapper.text()).toContain('Different movie or episode');
+      expect(wrapper.text()).toContain('Not watching');
+      expect(wrapper.find('[aria-label="Remove Morgan with a long display name from the room"]').exists()).toBe(false);
+    } finally {
+      wrapper.unmount();
+    }
   });
   const moderationCases = [['Remove from room', 'kick'], ['Make host', 'transfer']];
   it.each(moderationCases)('requires named confirmation for %s', async (label, action) => {

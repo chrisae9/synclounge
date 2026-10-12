@@ -172,7 +172,9 @@ describe('up next cancellation', () => {
       expect(new DOMWrapper(document.body).text()).toContain('Next episode starts in 10 seconds');
       await vi.advanceTimersByTimeAsync(3000);
       expect(new DOMWrapper(document.body).text()).toContain('Next episode starts in 7 seconds');
-      if (mode === 'automatic') await vi.advanceTimersByTimeAsync(7000);
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(new DOMWrapper(document.body).text()).toContain('Next episode starts in 1 second');
+      if (mode === 'automatic') await vi.advanceTimersByTimeAsync(1000);
       else await buttons[mode === 'cancel' ? 1 : 0].trigger('click');
       expect(clearNext).toHaveBeenCalledExactlyOnceWith(null);
       expect(wrapper.vm.countdownIntervalId).toBe(null);

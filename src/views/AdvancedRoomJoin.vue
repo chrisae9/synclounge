@@ -154,7 +154,7 @@
                       class="welcome-primary"
                       :disabled="connectionPending || !!customServerError"
                       aria-label="Connect to custom SyncLounge service"
-                      @click="connect(customServerUrl)"
+                      @click="connect(customServerUrl, true)"
                     >
                       Connect
                     </v-btn>
@@ -321,10 +321,10 @@ export default {
       return ['text-white'];
     },
 
-    async connect(server) {
+    async connect(server, custom = false) {
       if (this.connectionPending) return;
       if (server === this.customServerUrl && this.customServerError) return;
-      if (this.GET_CONFIG.servers.some((configured) => configured.url === server)
+      if (!custom && this.GET_CONFIG.servers.some((configured) => configured.url === server)
         && !this.GET_SERVER_HEALTH(server)) return;
       this.serverError = null;
       this.connectionPending = true;

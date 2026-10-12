@@ -17,7 +17,7 @@
       class="mb-4"
       title="No libraries enabled"
     >
-      Your Plex servers are hidden. Use each server’s Show libraries button below to include it in browsing and search.
+      Your Plex servers are hidden. Use each server’s crossed-out eye button below to include it in browsing and search.
     </v-alert>
     <v-alert
       v-if="refreshError"

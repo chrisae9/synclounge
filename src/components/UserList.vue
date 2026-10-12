@@ -251,6 +251,7 @@ export default {
     },
 
     readinessLabel(user, id) {
+      if (!user.state) return 'Connecting';
       if (user.state === 'buffering') return 'Buffering';
       if (!user.media || user.state === 'stopped') return 'Not watching';
       if (id === this.GET_HOST_ID) return user.state === 'paused' ? 'Paused' : 'Playing';

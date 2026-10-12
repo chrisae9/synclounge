@@ -223,8 +223,11 @@ describe('connection recovery', () => {
     store.commit('settings/SET_CUSTOM_SERVER_URL', 'https://example.com/lounge');
     await wrapper.vm.$nextTick();
     expect(wrapper.get('[aria-label="Connect to custom SyncLounge service"]').attributes('disabled')).toBeUndefined();
-    await wrapper.vm.connect(store.state.settings.customServerUrl);
-    expect(connect).toHaveBeenCalledTimes(1);
+    await wrapper.vm.connect(store.state.settings.customServerUrl, true);
+    store.commit('settings/SET_CUSTOM_SERVER_URL', store.getters.GET_CONFIG.servers[0].url);
+    await wrapper.get('[aria-label="Connect to custom SyncLounge service"]').trigger('click');
+    await flushPromises();
+    expect(connect).toHaveBeenCalledTimes(2);
     wrapper.unmount();
   });
 });
