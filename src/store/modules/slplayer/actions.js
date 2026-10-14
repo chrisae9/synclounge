@@ -302,7 +302,7 @@ export default {
     // not mask the room timeline or prevent callers from restarting periodic reports.
     // Each subtitle task guards its renderer writes against source replacement/stop.
     Promise.resolve(dispatch('CHANGE_SUBTITLES', { ensureCurrent })).catch((error) => {
-      if (error.name === 'AbortError' || revision !== sourceRevision) return;
+      if (error?.name === 'AbortError' || revision !== sourceRevision) return;
       dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'subtitle-load-failed' });
       dispatch('DISPLAY_NOTIFICATION', {
         text: 'Subtitles could not be loaded. Try selecting the subtitle track again.',

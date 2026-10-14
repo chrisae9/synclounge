@@ -227,31 +227,64 @@ describe('stream recovery fault injection', () => {
     }
   });
 
-  it('keeps recovered video running when subtitle setup fails', async () => {
-    const context = makeContext();
-    const dispatch = context.dispatch.getMockImplementation();
-    context.dispatch.mockImplementation((type, payload) => (type === 'CHANGE_SUBTITLES'
-      ? Promise.reject(new Error('Subtitle fetch failed')) : dispatch(type, payload)));
-    expect(await slplayerActions.HANDLE_ERROR(context, error)).toBe('recovered');
-    expect(context.dispatch.mock.calls.filter(([type]) => type === 'LOAD_PLAYER_SRC')).toHaveLength(1);
-    expect(context.dispatch).toHaveBeenCalledWith('REFRESH_PLAYER_STATE');
-    expect(context.dispatch).toHaveBeenCalledWith('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'subtitle-load-failed' });
-  });
+  it.each([new Error('Subtitle fetch failed'), null, undefined])(
+    'keeps recovered video running when subtitle setup later fails with %s', async (reason) => {
+      const context = makeContext();
+      let failSubtitles;
+      const subtitles = new Promise((resolve, reject) => { failSubtitles = reject; });
+      const dispatch = context.dispatch.getMockImplementation();
+      context.dispatch.mockImplementation((type, payload) => (type === 'CHANGE_SUBTITLES'
+        ? subtitles : dispatch(type, payload)));
+      expect(await slplayerActions.HANDLE_ERROR(context, error)).toBe('recovered');
+      failSubtitles(reason);
+      await vi.waitFor(() => expect(context.dispatch).toHaveBeenCalledWith(
+        'REPORT_PLAYBACK_DIAGNOSTIC', { event: 'subtitle-load-failed' },
+      ));
+      expect(context.dispatch.mock.calls.filter(([type]) => type === 'LOAD_PLAYER_SRC')).toHaveLength(1);
+      expect(context.dispatch).toHaveBeenCalledWith('REFRESH_PLAYER_STATE');
+    },
+  );
 
-  it('restarts periodic reporting for the next item without waiting for subtitles', async () => {
+  it('sends periodic reports for the next item without waiting for subtitles', async () => {
+    vi.useFakeTimers();
     const context = makeContext();
-    context.rootGetters = { 'plexclients/GET_ACTIVE_PLAY_QUEUE_SELECTED_ITEM': {} };
+    context.rootGetters = {
+      'plexclients/GET_ACTIVE_PLAY_QUEUE_SELECTED_ITEM': {},
+      GET_CONFIG: { slplayer_plex_timeline_update_interval: 1000 },
+    };
+    const commit = context.commit.getMockImplementation();
+    context.commit.mockImplementation((type, value) => {
+      if (type === 'SET_PLEX_TIMELINE_UPDATER_CANCEL_TOKEN') {
+        context.getters.GET_PLEX_TIMELINE_UPDATER_CANCEL_TOKEN = value;
+      }
+      commit(type, value);
+    });
     let finishSubtitles;
     const subtitles = new Promise((resolve) => { finishSubtitles = resolve; });
+    let cadence;
     const dispatch = context.dispatch.getMockImplementation();
-    context.dispatch.mockImplementation((type, payload) => (type === 'CHANGE_SUBTITLES'
-      ? subtitles : dispatch(type, payload)));
+    context.dispatch.mockImplementation((type, payload) => {
+      if (type === 'CHANGE_SUBTITLES') return subtitles;
+      if (type === 'START_PERIODIC_PLEX_TIMELINE_UPDATE') {
+        cadence = slplayerActions[type](context, payload);
+        return cadence;
+      }
+      if (type === 'CANCEL_PERIODIC_PLEX_TIMELINE_UPDATE') return slplayerActions[type](context);
+      return dispatch(type, payload);
+    });
     const transition = slplayerActions.PLAY_ACTIVE_PLAY_QUEUE_SELECTED_ITEM(context);
     try {
-      await vi.waitFor(() => expect(context.dispatch).toHaveBeenCalledWith('START_PERIODIC_PLEX_TIMELINE_UPDATE'));
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(context.dispatch).toHaveBeenCalledWith('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'playback-health' });
+      expect(context.dispatch).toHaveBeenCalledWith('SEND_PLEX_TIMELINE_UPDATE', {
+        signal: expect.objectContaining({ aborted: false }),
+      });
     } finally {
       finishSubtitles();
       await transition;
+      slplayerActions.CANCEL_PERIODIC_PLEX_TIMELINE_UPDATE(context);
+      await cadence;
+      vi.useRealTimers();
     }
   });
 

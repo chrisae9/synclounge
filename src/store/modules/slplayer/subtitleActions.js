@@ -213,16 +213,16 @@ export default {
 
   SET_SUBTITLE_URL: async ({ dispatch }, { ensureCurrent: ensureSource = () => {} } = {}) => {
     console.debug('SET_SUBTITLE_URL: starting');
-    ensureSource();
-    const cleanup = dispatch('DESTROY_ASS');
-    const revision = subtitleRevision;
+    let revision = subtitleRevision;
     const ensureCurrent = () => {
       ensureSource();
       if (revision !== subtitleRevision) throw new DOMException('Subtitles replaced', 'AbortError');
     };
-    await cleanup;
-
     try {
+      ensureSource();
+      const cleanup = dispatch('DESTROY_ASS');
+      revision = subtitleRevision;
+      await cleanup;
       ensureCurrent();
       const ass = await dispatch('MAKE_ASS', { ensureCurrent });
       ensureCurrent();
@@ -242,7 +242,7 @@ export default {
       await dispatch('RERENDER_SUBTITLE_CONTAINER');
       console.debug('SET_SUBTITLE_URL: complete');
     } catch (e) {
-      if (e.name === 'AbortError' || revision !== subtitleRevision) return;
+      if (e?.name === 'AbortError' || revision !== subtitleRevision) return;
       ensureCurrent();
       console.warn('SET_SUBTITLE_URL: error loading subtitles');
       throw e;

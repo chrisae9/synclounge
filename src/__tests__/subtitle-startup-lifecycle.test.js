@@ -3,6 +3,7 @@ import {
   beforeEach, describe, expect, it, vi,
 } from 'vitest';
 import actions from '@/store/modules/slplayer/subtitleActions';
+import { insertElementBeforeVideo } from '@/player';
 
 const fixtures = vi.hoisted(() => ({ pending: [], renderers: [], signals: [] }));
 vi.mock('@/player', () => ({
@@ -69,6 +70,9 @@ describe('subtitle startup ownership', () => {
     await old;
     expect(fixtures.renderers).toHaveLength(1);
     expect(fixtures.renderers[0]._ass).toBe(selected);
+    expect(insertElementBeforeVideo).toHaveBeenCalledExactlyOnceWith(
+      fixtures.renderers[0].libjassSubsWrapper,
+    );
   });
 
   it('does not create a renderer after subtitles have been destroyed', async () => {
@@ -93,6 +97,15 @@ describe('subtitle startup ownership', () => {
     cancelled = true;
     fixtures.pending[0]({ track: 'cancelled' });
     await pending;
+    expect(fixtures.renderers).toHaveLength(0);
+  });
+
+  it('ignores an already-cancelled request without destroying current subtitles', async () => {
+    const context = makeContext();
+    await actions.SET_SUBTITLE_URL(context, {
+      ensureCurrent: () => { throw new DOMException('Source cancelled', 'AbortError'); },
+    });
+    expect(context.dispatch).not.toHaveBeenCalled();
     expect(fixtures.renderers).toHaveLength(0);
   });
 
