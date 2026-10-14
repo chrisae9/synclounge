@@ -48,6 +48,9 @@ const diagnosticSchema = {
     transcode: true,
   },
   playback: {
+    reportedState: true,
+    sourceChanging: 'boolean',
+    stateMasked: 'boolean',
     isCasting: 'boolean',
     buffering: 'nullable-boolean',
     attached: true,

@@ -10,16 +10,13 @@ import VideoClock from '@/utils/videoclock';
 let videoClock = null;
 let subtitleRenderer = null;
 let assAbortController = null;
+let subtitleRevision = 0;
 
-const handleStreamError = async (assPromise) => {
+const handleStreamError = async (assPromise, signal) => {
   try {
     await assPromise;
   } catch (e) {
-    if (assAbortController) {
-      // If there is no abort controller, we have just aborted
-      // If there is one, then something went wrong
-      throw e;
-    }
+    if (!signal.aborted) console.warn('Subtitle stream failed');
   }
 };
 
@@ -59,8 +56,9 @@ export default {
     }
   },
 
-  GET_OR_MAKE_VIDEO_CLOCK: async ({ getters, dispatch }) => {
+  GET_OR_MAKE_VIDEO_CLOCK: async ({ getters, dispatch }, { ensureCurrent = () => {} } = {}) => {
     const libjass = await import('synclounge-libjass');
+    ensureCurrent();
 
     if (!videoClock) {
       console.debug('GET_OR_MAKE_VIDEO_CLOCK: creating new VideoClock');
@@ -137,6 +135,7 @@ export default {
   },
 
   DESTROY_ASS: async ({ dispatch, commit }) => {
+    subtitleRevision += 1;
     if (assAbortController) {
       console.debug('DESTROY_ASS');
       assAbortController.abort();
@@ -158,7 +157,7 @@ export default {
     }
   },
 
-  MAKE_ASS: async ({ getters }) => {
+  MAKE_ASS: async ({ getters }, { ensureCurrent = () => {} } = {}) => {
     const subtitleUrl = makeUrl(
       getters.GET_SUBTITLE_BASE_URL,
       getters.GET_DECISION_AND_START_PARAMS,
@@ -167,6 +166,7 @@ export default {
 
     const libjass = await import('synclounge-libjass');
 
+    ensureCurrent();
     assAbortController = new AbortController();
 
     const stream = resiliantStreamFactory(
@@ -187,7 +187,7 @@ export default {
     if (!useSrtParser) {
       // Purposefully not awaited because we never get the full file at once
       // We still need to catch abort errors to clean up console
-      handleStreamError(parser.ass);
+      handleStreamError(parser.ass, assAbortController.signal);
     }
 
     return useSrtParser
@@ -195,12 +195,15 @@ export default {
       : parser.minimalASS;
   },
 
-  INIT_SUBTITLE_RENDERER: async ({ dispatch }, ass) => {
+  INIT_SUBTITLE_RENDERER: async ({ dispatch }, { ass, ensureCurrent }) => {
     console.debug('INIT_SUBTITLE_RENDERER');
     const libjass = await import('synclounge-libjass');
+    ensureCurrent();
+    const clock = await dispatch('GET_OR_MAKE_VIDEO_CLOCK', { ensureCurrent });
+    ensureCurrent();
     subtitleRenderer = new libjass.renderers.WebRenderer(
       ass,
-      await dispatch('GET_OR_MAKE_VIDEO_CLOCK'),
+      clock,
       document.createElement('div'),
       subtitleSettings,
     );
@@ -208,12 +211,21 @@ export default {
     insertElementBeforeVideo(subtitleRenderer.libjassSubsWrapper);
   },
 
-  SET_SUBTITLE_URL: async ({ dispatch }) => {
+  SET_SUBTITLE_URL: async ({ dispatch }, { ensureCurrent: ensureSource = () => {} } = {}) => {
     console.debug('SET_SUBTITLE_URL: starting');
-    await dispatch('DESTROY_ASS');
-
+    let revision = subtitleRevision;
+    const ensureCurrent = () => {
+      ensureSource();
+      if (revision !== subtitleRevision) throw new DOMException('Subtitles replaced', 'AbortError');
+    };
     try {
-      const ass = await dispatch('MAKE_ASS');
+      ensureSource();
+      const cleanup = dispatch('DESTROY_ASS');
+      revision = subtitleRevision;
+      await cleanup;
+      ensureCurrent();
+      const ass = await dispatch('MAKE_ASS', { ensureCurrent });
+      ensureCurrent();
 
       if (subtitleRenderer) {
         console.debug('SET_SUBTITLE_URL: updating existing renderer');
@@ -221,20 +233,19 @@ export default {
         subtitleRenderer._ass = ass;
       } else {
         console.debug('SET_SUBTITLE_URL: creating new renderer');
-        await dispatch('INIT_SUBTITLE_RENDERER', ass);
+        await dispatch('INIT_SUBTITLE_RENDERER', { ass, ensureCurrent });
+        ensureCurrent();
       }
 
       await dispatch('PUBLISH_SUBTITLE_SIZE');
+      ensureCurrent();
       await dispatch('RERENDER_SUBTITLE_CONTAINER');
       console.debug('SET_SUBTITLE_URL: complete');
     } catch (e) {
-      if (assAbortController) {
-        // If there is no abort controller, we have just aborted
-        // If there is one, then something went wrong
-        console.warn('SET_SUBTITLE_URL: error loading subtitles:', e.message);
-        throw e;
-      }
-      console.debug('SET_SUBTITLE_URL: aborted (intentional)');
+      if (e?.name === 'AbortError' || revision !== subtitleRevision) return;
+      ensureCurrent();
+      console.warn('SET_SUBTITLE_URL: error loading subtitles');
+      throw e;
     }
   },
 
