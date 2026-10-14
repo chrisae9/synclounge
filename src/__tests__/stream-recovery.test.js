@@ -227,23 +227,22 @@ describe('stream recovery fault injection', () => {
     }
   });
 
-  it.each([new Error('Subtitle fetch failed'), null, undefined])(
-    'keeps recovered video running when subtitle setup later fails with %s', async (reason) => {
-      const context = makeContext();
-      let failSubtitles;
-      const subtitles = new Promise((resolve, reject) => { failSubtitles = reject; });
-      const dispatch = context.dispatch.getMockImplementation();
-      context.dispatch.mockImplementation((type, payload) => (type === 'CHANGE_SUBTITLES'
-        ? subtitles : dispatch(type, payload)));
-      expect(await slplayerActions.HANDLE_ERROR(context, error)).toBe('recovered');
-      failSubtitles(reason);
-      await vi.waitFor(() => expect(context.dispatch).toHaveBeenCalledWith(
-        'REPORT_PLAYBACK_DIAGNOSTIC', { event: 'subtitle-load-failed' },
-      ));
-      expect(context.dispatch.mock.calls.filter(([type]) => type === 'LOAD_PLAYER_SRC')).toHaveLength(1);
-      expect(context.dispatch).toHaveBeenCalledWith('REFRESH_PLAYER_STATE');
-    },
-  );
+  const subtitleFailures = [new Error('Subtitle fetch failed'), null, undefined];
+  it.each(subtitleFailures)('keeps video running after a late subtitle failure: %s', async (reason) => {
+    const context = makeContext();
+    let failSubtitles;
+    const subtitles = new Promise((resolve, reject) => { failSubtitles = reject; });
+    const dispatch = context.dispatch.getMockImplementation();
+    context.dispatch.mockImplementation((type, payload) => (type === 'CHANGE_SUBTITLES'
+      ? subtitles : dispatch(type, payload)));
+    expect(await slplayerActions.HANDLE_ERROR(context, error)).toBe('recovered');
+    failSubtitles(reason);
+    await vi.waitFor(() => {
+      expect(context.dispatch).toHaveBeenCalledWith('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'subtitle-load-failed' });
+    });
+    expect(context.dispatch.mock.calls.filter(([type]) => type === 'LOAD_PLAYER_SRC')).toHaveLength(1);
+    expect(context.dispatch).toHaveBeenCalledWith('REFRESH_PLAYER_STATE');
+  });
 
   it('sends periodic reports for the next item without waiting for subtitles', async () => {
     vi.useFakeTimers();
