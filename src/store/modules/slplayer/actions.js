@@ -120,7 +120,12 @@ export default {
           transcodeCode: getters.GET_PLEX_DECISION?.MediaContainer?.transcodeDecisionCode,
         },
       },
-      playback: getPlaybackDiagnostics(),
+      playback: {
+        ...getPlaybackDiagnostics(),
+        reportedState: getters.GET_PLAYER_STATE,
+        sourceChanging: state.isChangingSource,
+        stateMasked: getters.GET_MASK_PLAYER_STATE,
+      },
       details,
     };
     rememberDiagnostic(diagnostic);
@@ -217,14 +222,14 @@ export default {
     await dispatch('CHANGE_PLAYER_SRC', options);
   },
 
-  CHANGE_SUBTITLES: async ({ getters, dispatch }) => {
+  CHANGE_SUBTITLES: async ({ getters, dispatch }, options) => {
     console.debug('CHANGE_SUBTITLES:', {
       isUsingNative: getters.IS_USING_NATIVE_SUBTITLES,
       subtitleStreamId: getters.GET_SUBTITLE_STREAM_ID,
       canDirectPlaySubs: getters.CAN_DIRECT_PLAY_SUBTITLES,
     });
     if (getters.IS_USING_NATIVE_SUBTITLES) {
-      await dispatch('SET_SUBTITLE_URL');
+      await dispatch('SET_SUBTITLE_URL', options);
     } else {
       await dispatch('DESTROY_ASS');
     }
@@ -254,8 +259,7 @@ export default {
 
     commit('SET_SESSION', getRandomPlexId());
 
-    // Suppress seeking/seeked event handlers during source change to prevent them
-    // from aborting the subtitle fetch that CHANGE_SUBTITLES starts below.
+    // Suppress intermediate player events until the replacement stream has loaded.
     commit('SET_IS_CHANGING_SOURCE', true);
 
     try {
@@ -279,9 +283,6 @@ export default {
         ensureCurrent();
       }
 
-      await dispatch('CHANGE_SUBTITLES');
-      ensureCurrent();
-
       // TODO: potentially avoid sending updates on media change since we already do that
       if (getters.GET_MASK_PLAYER_STATE) {
         commit('SET_MASK_PLAYER_STATE', false);
@@ -297,6 +298,17 @@ export default {
       if (revision === sourceRevision) commit('SET_IS_CHANGING_SOURCE', false);
     }
     ensureCurrent();
+    // Subtitle streams can remain pending while video is already playing. They must
+    // not mask the room timeline or prevent callers from restarting periodic reports.
+    // Each subtitle task guards its renderer writes against source replacement/stop.
+    Promise.resolve(dispatch('CHANGE_SUBTITLES', { ensureCurrent })).catch((error) => {
+      if (error.name === 'AbortError' || revision !== sourceRevision) return;
+      dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'subtitle-load-failed' });
+      dispatch('DISPLAY_NOTIFICATION', {
+        text: 'Subtitles could not be loaded. Try selecting the subtitle track again.',
+        color: 'warning',
+      }, { root: true });
+    });
     // Publish readiness only after cancellation cleanup can no longer unload this source.
     await dispatch('REFRESH_PLAYER_STATE');
   },

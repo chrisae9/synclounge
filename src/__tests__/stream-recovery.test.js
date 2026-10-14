@@ -3,6 +3,8 @@ import {
   describe, it, expect, vi, beforeEach,
 } from 'vitest';
 import slplayerActions from '@/store/modules/slplayer/actions';
+import slplayerGetters from '@/store/modules/slplayer/getters';
+import roomGetters from '@/store/modules/synclounge/getters';
 
 vi.mock('@/player', () => ({
   setPlaybackRate: vi.fn(),
@@ -181,6 +183,76 @@ describe('stream recovery fault injection', () => {
     await slplayerActions.HANDLE_ERROR(context, error);
     expect(setCurrentTimeMs).toHaveBeenCalledWith(123000);
     expect(context.dispatch).toHaveBeenCalledWith('REFRESH_PLAYER_STATE');
+  });
+
+  it('publishes a progressing room timeline while subtitles remain pending after recovery', async () => {
+    const context = makeContext();
+    const state = { playerState: 'buffering', maskPlayerState: true, isChangingSource: false };
+    Object.defineProperties(context.getters, {
+      GET_MASK_PLAYER_STATE: { get: () => state.maskPlayerState },
+      GET_PLAYER_STATE: { get: () => slplayerGetters.GET_PLAYER_STATE(state) },
+    });
+    context.commit.mockImplementation((type, value) => {
+      if (type === 'SET_MASK_PLAYER_STATE') state.maskPlayerState = value;
+      if (type === 'SET_IS_CHANGING_SOURCE') state.isChangingSource = value;
+      if (type === 'SET_PLAYER_STATE') state.playerState = value;
+    });
+    let finishSubtitles;
+    const subtitles = new Promise((resolve) => { finishSubtitles = resolve; });
+    let host;
+    const dispatch = context.dispatch.getMockImplementation();
+    context.dispatch.mockImplementation((type, payload) => {
+      if (type === 'CHANGE_SUBTITLES') return subtitles;
+      if (['REFRESH_PLAYER_STATE', 'FETCH_TIMELINE_POLL_DATA'].includes(type)) {
+        return slplayerActions[type](context, payload);
+      }
+      if (type === 'synclounge/PROCESS_PLAYER_STATE_UPDATE') {
+        return slplayerActions.FETCH_TIMELINE_POLL_DATA(context).then((data) => {
+          host = { ...data, updatedAt: Date.now() };
+        });
+      }
+      return dispatch(type, payload);
+    });
+    let result;
+    const recovery = slplayerActions.HANDLE_ERROR(context, error).then((value) => { result = value; });
+    try {
+      await vi.waitFor(() => expect(result).toBe('recovered'));
+      expect(host).toMatchObject({ state: 'playing', time: 123000 });
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(host.updatedAt + 4000);
+      expect(roomGetters.GET_ADJUSTED_HOST_TIME({}, { GET_HOST_USER: host })()).toBe(127000);
+      clock.mockRestore();
+    } finally {
+      finishSubtitles();
+      await recovery;
+    }
+  });
+
+  it('keeps recovered video running when subtitle setup fails', async () => {
+    const context = makeContext();
+    const dispatch = context.dispatch.getMockImplementation();
+    context.dispatch.mockImplementation((type, payload) => (type === 'CHANGE_SUBTITLES'
+      ? Promise.reject(new Error('Subtitle fetch failed')) : dispatch(type, payload)));
+    expect(await slplayerActions.HANDLE_ERROR(context, error)).toBe('recovered');
+    expect(context.dispatch.mock.calls.filter(([type]) => type === 'LOAD_PLAYER_SRC')).toHaveLength(1);
+    expect(context.dispatch).toHaveBeenCalledWith('REFRESH_PLAYER_STATE');
+    expect(context.dispatch).toHaveBeenCalledWith('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'subtitle-load-failed' });
+  });
+
+  it('restarts periodic reporting for the next item without waiting for subtitles', async () => {
+    const context = makeContext();
+    context.rootGetters = { 'plexclients/GET_ACTIVE_PLAY_QUEUE_SELECTED_ITEM': {} };
+    let finishSubtitles;
+    const subtitles = new Promise((resolve) => { finishSubtitles = resolve; });
+    const dispatch = context.dispatch.getMockImplementation();
+    context.dispatch.mockImplementation((type, payload) => (type === 'CHANGE_SUBTITLES'
+      ? subtitles : dispatch(type, payload)));
+    const transition = slplayerActions.PLAY_ACTIVE_PLAY_QUEUE_SELECTED_ITEM(context);
+    try {
+      await vi.waitFor(() => expect(context.dispatch).toHaveBeenCalledWith('START_PERIODIC_PLEX_TIMELINE_UPDATE'));
+    } finally {
+      finishSubtitles();
+      await transition;
+    }
   });
 
   it('does not show an exhausted notification after stopping at the diagnostic boundary', async () => {
