@@ -1,6 +1,6 @@
 {
   "name": "synclounge",
-  "version": "6.4.12",
+  "version": "6.4.13",
   "description": "Synced playback of Plex content",
   "author": "Chris Alves",
   "bin": "./server.js",
