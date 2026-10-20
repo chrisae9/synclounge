@@ -375,6 +375,7 @@ export default {
     commit('SET_MESSAGES_USER_CACHE', {});
     commit('SET_IS_PARTY_PAUSING_ENABLED', null);
     commit('SET_IS_AUTO_HOST_ENABLED', null);
+    commit('SET_SYNC_PRESET', null);
   },
 
   SEND_MESSAGE: async ({ dispatch, getters }, msg) => {

@@ -146,6 +146,7 @@ it('limits automatic updates to idle entry screens, never room or joining routes
     expect(canAutoUpdatePwa({ route: { name }, inRoom: false, joiningRoom: false })).toBe(true);
     expect(canAutoUpdatePwa({ route: { name }, inRoom: true })).toBe(false);
     expect(canAutoUpdatePwa({ route: { name }, joiningRoom: true })).toBe(false);
+    expect(canAutoUpdatePwa({ route: { name }, authenticating: true })).toBe(false);
   }
   for (const name of ['RoomJoin', 'AdvancedRoomJoin', 'WebPlayer', 'PlexHome', 'SignOut', undefined]) {
     expect(canAutoUpdatePwa({ route: { name } })).toBe(false);

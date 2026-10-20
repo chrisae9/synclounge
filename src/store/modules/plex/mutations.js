@@ -1,6 +1,11 @@
 import stateFactory from './state';
 
 export default {
+  BEGIN_AUTHENTICATION: (state) => { state.pendingAuthenticationCount += 1; },
+  END_AUTHENTICATION: (state) => {
+    state.pendingAuthenticationCount = Math.max(0, state.pendingAuthenticationCount - 1);
+  },
+
   RESET: (state) => {
     Object.assign(state, stateFactory());
   },

@@ -111,6 +111,7 @@ const stopPwa = startPwa({
   ready: router.isReady(),
   canAutoUpdate: () => canAutoUpdatePwa({
     inRoom: store.getters['synclounge/IS_IN_ROOM'],
+    authenticating: store.getters['plex/IS_AUTHENTICATING'],
     joiningRoom: store.getters['synclounge/IS_ROOM_JOIN_PENDING']
       || store.getters['synclounge/IS_JOIN_SYNC_IN_PROGRESS'],
     route: router.currentRoute.value,

@@ -49,7 +49,11 @@
         <v-alert v-if="inviteCopied" type="success">Invite action activated</v-alert>
         <v-btn @click="$store.commit('SET_PREVIEW_METADATA', null)">Library home</v-btn>
         <v-btn @click="$store.commit('SET_PREVIEW_METADATA', {
-          machineIdentifier: 'sample', ratingKey: '1', type: 'movie',
+          machineIdentifier: 'sample', ratingKey: '1', type: 'episode',
+          query: 'A very long search across the entire collection',
+          librarySectionID: '1', librarySectionTitle: 'An unusually long television library name',
+          grandparentRatingKey: 'show', grandparentTitle: 'A long running series with an extended title',
+          parentRatingKey: 'season', parentTitle: 'Season twelve and bonus episodes',
           title: 'The Last Light Beyond the Horizon: An Unexpected Journey Home — Extended Edition with a Very Long Library Title',
         })">Media navigation</v-btn>
         <MediaShelf :items="shelfItems" label="Continue watching">

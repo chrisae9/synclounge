@@ -35,6 +35,17 @@ describe('synclounge actions', () => {
     vi.unstubAllGlobals();
   });
 
+  it('clears the previous room synchronization preset on disconnect', async () => {
+    const mutations = (await import('@/store/modules/synclounge/mutations')).default;
+    const state = { syncPreset: 'relaxed', isInRoom: true };
+    await actions.DISCONNECT({
+      commit: (type, value) => mutations[type](state, value),
+      dispatch: vi.fn().mockResolvedValue(),
+    });
+    expect(state.isInRoom).toBe(false);
+    expect(state.syncPreset).toBeNull();
+  });
+
   describe('DISCONNECT_IF_CONNECTED', () => {
     it('disconnects stale socket managers even if the transport is not connected', async () => {
       socketMocks.isConnected.mockReturnValue(false);

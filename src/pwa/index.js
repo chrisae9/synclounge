@@ -16,7 +16,9 @@ let automaticUpdate = false;
 let pendingReload = false;
 let reloadApp;
 
-export const canAutoUpdatePwa = ({ inRoom, joiningRoom, route }) => !inRoom && !joiningRoom
+export const canAutoUpdatePwa = ({
+  inRoom, joiningRoom, authenticating, route,
+}) => !inRoom && !joiningRoom && !authenticating
   && ['RoomCreation', 'SignIn'].includes(route?.name);
 
 export function startPwa({

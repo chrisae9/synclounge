@@ -31,6 +31,8 @@ const resolveRedirect = (redirect) => {
 const makeContext = (redirect) => {
   const push = vi.fn();
   return {
+    BEGIN_AUTHENTICATION: vi.fn(),
+    END_AUTHENTICATION: vi.fn(),
     loading: false,
     plexAuthResponse: { id: 123, code: 'abc' },
     GET_PLEX_AUTH_URL: vi.fn(() => 'https://plex.tv/auth'),

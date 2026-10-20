@@ -4,6 +4,8 @@ import { makeUrl } from '@/utils/fetchutils';
 const capitalizeFirstLetter = (string) => string[0].toUpperCase() + string.slice(1);
 
 export default {
+  IS_AUTHENTICATING: (state) => state.pendingAuthenticationCount > 0,
+
   IS_UNAUTHORIZED: (state, getters) => !getters.GET_PLEX_AUTH_TOKEN
     || (state.areDevicesCached && !getters.IS_USER_AUTHORIZED),
 
