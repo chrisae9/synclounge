@@ -1,0 +1,284 @@
+/* eslint-disable no-await-in-loop -- Reproduce ordered sync polls and seeded traces. */
+import {
+  afterEach, beforeEach, describe, expect, it, vi,
+} from 'vitest';
+import { CAF } from 'caf';
+import actions from '@/store/modules/slplayer/actions';
+import plexActions from '@/store/modules/plexclients/actions';
+import { recordSeekIntent } from '@/player/seekIntent';
+import isSeekLandingValid from '@/utils/seeklanding';
+import incident from '../../test/fixtures/seek-landing-incidents.json';
+import { createDecoder, seededRandom } from './helpers/sync-playback-harness';
+
+const runtime = vi.hoisted(() => ({ decoder: null }));
+vi.mock('@/player/state', () => ({
+  getPlayer: () => runtime.decoder?.getPlayer(),
+  getRawPlayer: () => runtime.decoder?.getPlayer(),
+  getOverlay: () => null,
+  isCasting: () => false,
+}));
+
+let context;
+let decoder;
+const setup = () => {
+  decoder = createDecoder();
+  runtime.decoder = decoder;
+  const state = {
+    offset: 0, changing: false, masked: false, playerState: 'playing',
+  };
+  const diagnostics = [];
+  const notifications = [];
+  context = {
+    getters: {
+      GET_SRC_URL: 'https://fixture.invalid/stream',
+      GET_FORCE_TRANSCODE: true,
+      get GET_OFFSET_MS() { return state.offset; },
+      get GET_MASK_PLAYER_STATE() { return state.masked; },
+      get GET_PLAYER_STATE() { return state.changing || state.masked ? 'buffering' : state.playerState; },
+    },
+    rootGetters: { GET_CONFIG: { slplayer_seek_timeout: 15000 } },
+    commit: vi.fn((type, value) => {
+      if (type === 'SET_OFFSET_MS') state.offset = value;
+      if (type === 'SET_IS_CHANGING_SOURCE') state.changing = value;
+      if (type === 'SET_MASK_PLAYER_STATE') state.masked = value;
+      if (type === 'SET_PLAYER_STATE') state.playerState = value;
+    }),
+  };
+  const real = new Set([
+    'NORMAL_SEEK', 'CHANGE_PLAYER_SRC', 'LOAD_PLAYER_SRC', 'REFRESH_PLAYER_STATE',
+    'FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK',
+  ]);
+  context.dispatch = vi.fn(async (type, payload) => {
+    if (real.has(type)) return actions[type](context, payload);
+    if (type === 'REPORT_PLAYBACK_DIAGNOSTIC') diagnostics.push(payload);
+    if (type === 'DISPLAY_NOTIFICATION') notifications.push(payload);
+    if (type === 'PRESS_PLAY') decoder.video.paused = false;
+    return undefined;
+  });
+  const seek = (target, signal) => {
+    // eslint-disable-next-line new-cap
+    const token = signal ? null : new CAF.cancelToken();
+    return actions.NORMAL_SEEK(context, { seekToMs: target, cancelSignal: signal || token.signal });
+  };
+  return {
+    state, diagnostics, notifications, seek,
+  };
+};
+
+beforeEach(async () => {
+  vi.useFakeTimers();
+  vi.spyOn(console, 'debug').mockImplementation(() => {});
+  recordSeekIntent();
+  setup();
+  await actions.CHANGE_PLAYER_SRC({ getters: {}, commit: vi.fn(), dispatch: vi.fn().mockResolvedValue() });
+});
+afterEach(() => { decoder.finish(); vi.useRealTimers(); vi.restoreAllMocks(); });
+
+describe('decoder landing regression harness', () => {
+  it('rebases a stream that reports seeked 18 seconds ahead, instead of repeating bad correction seeks', async () => {
+    const { seek, diagnostics } = setup();
+    const { requestedMs, landedMs } = incident.aheadLanding;
+    decoder.setPosition(2600);
+    decoder.missMs = landedMs - requestedMs;
+    const operation = seek(requestedMs);
+    await vi.advanceTimersByTimeAsync(100);
+    await operation;
+    expect(decoder.loads).toBe(1);
+    expect(Math.abs(decoder.video.currentTime * 1000 - requestedMs)).toBeLessThan(300);
+    expect(diagnostics).toContainEqual(expect.objectContaining({ event: 'seek-landing-missed' }));
+    expect(decoder.listenerCount()).toBe(0);
+  });
+
+  it('keeps subsequent real sync polls stable after recovering the recorded landing', async () => {
+    const { requestedMs, landedMs, pollIntervalMs } = incident.aheadLanding;
+    setup();
+    const startedAt = Date.now();
+    decoder.setPosition((landedMs + 5000) / 1000);
+    decoder.missMs = landedMs - requestedMs;
+    Object.assign(context.rootGetters, {
+      'synclounge/GET_HOST_USER': { state: 'playing' },
+      'synclounge/GET_ADJUSTED_HOST_TIME': () => requestedMs + Date.now() - startedAt,
+      'settings/GET_SYNCFLEXIBILITY': 500,
+      'settings/GET_SYNCMODE': 'cleanseek',
+    });
+    const dispatch = context.dispatch.getMockImplementation();
+    context.dispatch.mockImplementation(async (type, payload) => {
+      if (type === 'FETCH_TIMELINE_POLL_DATA_CACHE') return actions.FETCH_TIMELINE_POLL_DATA(context);
+      if (type === 'SEEK_TO') return plexActions.SEEK_TO(context, payload);
+      if (type === 'slplayer/NORMAL_SEEK') return actions.NORMAL_SEEK(context, payload);
+      return dispatch(type, payload);
+    });
+    // eslint-disable-next-line new-cap
+    const token = new CAF.cancelToken();
+    const syncing = plexActions.SYNC(context, token.signal);
+    await vi.advanceTimersByTimeAsync(100);
+    await syncing;
+    for (let poll = 0; poll < 12; poll += 1) {
+      decoder.setPosition(decoder.video.currentTime + pollIntervalMs / 1000);
+      await vi.advanceTimersByTimeAsync(pollIntervalMs);
+      await plexActions.SYNC(context, token.signal);
+    }
+    expect(decoder.loads).toBe(1);
+    expect(decoder.seeks).toHaveLength(2);
+    expect(Math.abs(decoder.video.currentTime * 1000
+      - context.rootGetters['synclounge/GET_ADJUSTED_HOST_TIME']())).toBeLessThan(500);
+  });
+
+  it('waits for a late landing even if currentTime initially equals the requested target', async () => {
+    const { seek } = setup();
+    decoder.delayMs = 900;
+    decoder.missMs = 18000;
+    let finished = false;
+    const operation = seek(80000).then(() => { finished = true; });
+    await vi.advanceTimersByTimeAsync(600);
+    expect(finished).toBe(false);
+    await vi.advanceTimersByTimeAsync(1500);
+    await operation;
+    expect(decoder.loads).toBe(1);
+  });
+
+  it('settles a slow seek without an event, then removes its event waiter', async () => {
+    const { seek } = setup();
+    decoder.delayMs = 900;
+    decoder.emitSeeked = false;
+    const operation = seek(80000);
+    await vi.advanceTimersByTimeAsync(1100);
+    await operation;
+    expect(decoder.loads).toBe(0);
+    expect(decoder.listenerCount()).toBe(0);
+  });
+
+  it('does not load or seek after manual input invalidates pending source recovery', async () => {
+    const { seek, state } = setup();
+    decoder.missMs = 18000;
+    let finishDecision;
+    const dispatch = context.dispatch.getMockImplementation();
+    context.dispatch.mockImplementation((type, payload) => (type === 'SEND_PLEX_DECISION_REQUEST'
+      ? new Promise((resolve) => { finishDecision = resolve; }) : dispatch(type, payload)));
+    const result = seek(80000).catch((error) => error.name);
+    await vi.advanceTimersByTimeAsync(30);
+    expect(finishDecision).toBeTypeOf('function');
+    recordSeekIntent(true);
+    decoder.video.currentTime = 200;
+    finishDecision();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await result).toBe('AbortError');
+    expect(decoder.loads).toBe(0);
+    expect(decoder.seeks).toEqual([80000, 200000]);
+    expect(state.changing).toBe(false);
+  });
+
+  it('stops the correction loop if even a fresh stream lands at the wrong position', async () => {
+    const { seek, notifications } = setup();
+    decoder.setPosition(200);
+    decoder.missMs = 30000;
+    decoder.reloadMissMs = 30000;
+    for (let poll = 0; poll < 12; poll += 1) {
+      const operation = seek(100000 + poll * 10000);
+      await vi.advanceTimersByTimeAsync(100);
+      await operation;
+    }
+    expect(decoder.loads).toBe(1);
+    expect(decoder.seeks.length).toBeLessThanOrEqual(2);
+    expect(notifications).toHaveLength(1);
+    expect(decoder.listenerCount()).toBe(0);
+  });
+});
+
+const requestedSeed = process.env.SYNC_FUZZ_SEED;
+const seeds = requestedSeed ? [Number(requestedSeed)]
+  : [1, 7, 19, 43, 101, 257, 1024, 65537, 20261019, 20261020, 0xdeadbeef, 0xffffffff];
+const casesPerSeed = Math.min(200, Math.max(1, Number(process.env.SYNC_FUZZ_CASES) || 30));
+
+describe('seeded sync/decoder fault sequences', () => {
+  it.each(seeds)('preserves seek and recovery invariants for seed %s', async (seed) => {
+    const random = seededRandom(seed);
+    for (let step = 0; step < casesPerSeed; step += 1) {
+      decoder.finish();
+      recordSeekIntent();
+      const { seek, notifications } = setup();
+      await actions.CHANGE_PLAYER_SRC({ getters: {}, commit: vi.fn(), dispatch: vi.fn().mockResolvedValue() });
+      const target = Math.floor(random() * 5000000) + 10000;
+      const fault = Math.floor(random() * 8);
+      decoder.video.playbackRate = 0.5 + random() * 1.5;
+      decoder.video.paused = random() < 0.5;
+      const { paused } = decoder.video;
+      decoder.delayMs = 1 + Math.floor(random() * 1400);
+      decoder.setPosition((target + 5000) / 1000);
+      decoder.missMs = fault === 1 || fault === 2 ? 1000 + Math.floor(random() * 40000) : 0;
+      decoder.reloadMissMs = fault === 2 ? decoder.missMs : 0;
+      if (fault === 3) decoder.emitSeeked = false;
+      // eslint-disable-next-line new-cap
+      const token = new CAF.cancelToken();
+      const result = seek(target, token.signal).then(() => 'settled', (error) => error?.name || 'cancelled');
+      try {
+        if (fault === 4) token.abort('Cancelled fuzz operation');
+        if (fault === 5) {
+          // A deliberate seek arrives while an automatic correction is settling.
+          recordSeekIntent(true);
+          decoder.video.currentTime = (target + 90000) / 1000;
+        }
+        if (fault === 6) {
+          await actions.CHANGE_PLAYER_SRC({ getters: {}, commit: vi.fn(), dispatch: vi.fn().mockResolvedValue() });
+        }
+        if (fault === 7) {
+          // A newer correction owns the next event; the old completion must be inert.
+          const newer = seek(target + 100000, token.signal);
+          await vi.advanceTimersByTimeAsync(3500);
+          await newer;
+        } else await vi.advanceTimersByTimeAsync(3500);
+        const outcome = await result;
+        if ([4, 5, 6, 7].includes(fault)) {
+          expect(['AbortError', 'cancelled']).toContain(outcome);
+          expect(decoder.loads).toBe(0);
+        } else {
+          expect(outcome).toBe('settled');
+          expect(decoder.video.paused).toBe(paused);
+          expect(decoder.loads).toBe(fault === 1 || fault === 2 ? 1 : 0);
+          if (fault === 2) {
+            const seeksBefore = decoder.seeks.length;
+            for (let poll = 0; poll < 5; poll += 1) await seek(target + poll * 10000, token.signal);
+            expect(decoder.seeks).toHaveLength(seeksBefore);
+            expect(notifications).toHaveLength(1);
+          } else {
+            const actual = decoder.video.currentTime * 1000;
+            expect(actual).toBeGreaterThanOrEqual(target - 250);
+            expect(actual).toBeLessThanOrEqual(target + (paused ? 250 : 3500 * decoder.video.playbackRate));
+            expect(notifications).toHaveLength(0);
+          }
+        }
+        expect(decoder.listenerCount()).toBe(0);
+      } catch (error) {
+        throw new Error(`SYNC_FUZZ_SEED=${seed} step=${step} fault=${fault}`, { cause: error });
+      }
+    }
+  });
+});
+
+describe('seek validation fuzz', () => {
+  it('accepts only finite landing positions inside the elapsed playback window', () => {
+    const random = seededRandom(43);
+    for (let sample = 0; sample < 10000; sample += 1) {
+      const target = 10000 + Math.floor(random() * 6000000);
+      const elapsedMs = Math.floor(random() * 15000);
+      const rate = 0.5 + random() * 1.5;
+      const paused = sample % 2 === 0;
+      const tolerance = 250;
+      const upper = target + (paused ? 0 : elapsedMs * rate) + tolerance;
+      const options = {
+        target, elapsedMs, rate, paused, tolerance,
+      };
+      expect(isSeekLandingValid({ ...options, actual: target })).toBe(true);
+      expect(isSeekLandingValid({ ...options, actual: upper })).toBe(true);
+      expect(isSeekLandingValid({ ...options, actual: upper + 1 })).toBe(false);
+      expect(isSeekLandingValid({ ...options, actual: target - tolerance - 1 })).toBe(false);
+    }
+  });
+  const invalidTargets = [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1];
+  it.each(invalidTargets)('rejects invalid targets without side effects: %s', async (target) => {
+    const { seek } = setup();
+    await expect(seek(target)).rejects.toThrow('Invalid seek target');
+    expect(decoder.seeks).toHaveLength(0);
+    expect(context.commit).not.toHaveBeenCalled();
+  });
+});

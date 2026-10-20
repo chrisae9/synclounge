@@ -1,7 +1,11 @@
 // Each request owns its marker, so deferred cleanup cannot erase a newer seek.
 let pendingIntent = null;
+let userSeekRevision = 0;
+
+export const getUserSeekRevision = () => userSeekRevision;
 
 export const recordSeekIntent = (userInitiated = false) => {
+  if (userInitiated) userSeekRevision += 1;
   pendingIntent = userInitiated ? {} : null;
   return pendingIntent;
 };

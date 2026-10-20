@@ -6,6 +6,7 @@ import vuetify from '@/plugins/vuetify';
 import '@/assets/css/style.css';
 import settings from '@/store/modules/settings';
 import Preview from './ui-preview.vue';
+import seekIncident from './seek-landing-incidents.json';
 
 if (!import.meta.env.DEV) throw new Error('UI preview is available only in development');
 
@@ -20,14 +21,14 @@ const users = Object.fromEntries(participantNames.map((username, i) => [
     username,
     thumb: image(username.slice(0, 1), ['#303e52', '#49304b', '#28504b', '#503b27'][i % 4]),
     state: ['playing', 'paused', 'buffering', 'playing', 'playing', 'playing'][i],
-    time: 360000,
+    time: seekIncident.aheadStatus.hostMs + ([0, 0, 0, 7000, -2000, 0][i]),
     duration: 7200000,
     updatedAt: Date.now(),
     playbackRate: 1,
     health: {
       updatedAt: Date.now(), height: 1080, bitrate: 8000000, bufferAhead: 20, bufferingCount: 2,
     },
-    syncFlexibility: 3000,
+    syncFlexibility: seekIncident.aheadStatus.toleranceMs,
     playerProduct: 'Fixture browser',
     media: { type: 'movie', title: 'The Last Light Beyond the Horizon', machineIdentifier: 'sample' },
   },

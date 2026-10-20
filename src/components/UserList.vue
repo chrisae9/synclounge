@@ -208,7 +208,6 @@ export default {
 
     ...mapGetters('synclounge', [
       'GET_USERS',
-      'GET_ADJUSTED_HOST_TIME',
       'GET_HOST_USER',
       'GET_SOCKET_ID',
       'GET_HOST_ID',
@@ -265,10 +264,14 @@ export default {
       const timing = this.driftLabel(user);
       if (timing === 'Different media') return 'Different movie or episode';
       if (timing === 'Timing unavailable') return 'Sync status unavailable';
-      const tolerance = Number.isFinite(user.syncFlexibility) ? user.syncFlexibility : 500;
-      const difference = Math.abs(this.getAdjustedTime(user) - this.GET_ADJUSTED_HOST_TIME());
-      if (difference <= tolerance) return user.state === 'paused' ? 'Paused · In sync' : 'In sync';
-      return user.state === 'paused' ? 'Paused · Catching up' : 'Catching up';
+      const tolerance = Number.isFinite(user.syncFlexibility) && user.syncFlexibility >= 0
+        ? user.syncFlexibility : 500;
+      const difference = this.getAdjustedTime(user) - this.getAdjustedTime(this.GET_HOST_USER);
+      if (!Number.isFinite(difference)) return 'Sync status unavailable';
+      if (Math.abs(difference) <= tolerance) return user.state === 'paused' ? 'Paused · In sync' : 'In sync';
+      const direction = difference > 0 ? 'ahead' : 'behind';
+      const label = `${(Math.abs(difference) / 1000).toFixed(1)}s ${direction}`;
+      return user.state === 'paused' ? `Paused · ${label}` : label;
     },
 
     driftLabel(user) {
@@ -283,7 +286,7 @@ export default {
         && (hostMedia.type !== 'episode' || (user.media.grandparentTitle === hostMedia.grandparentTitle
           && user.media.parentIndex === hostMedia.parentIndex && user.media.index === hostMedia.index));
       if (!sameSource && !matchingTitle) return 'Different media';
-      const drift = (this.getAdjustedTime(user) - this.GET_ADJUSTED_HOST_TIME()) / 1000;
+      const drift = (this.getAdjustedTime(user) - this.getAdjustedTime(this.GET_HOST_USER)) / 1000;
       if (!Number.isFinite(drift)) return 'Timing unavailable';
       const timing = Math.abs(drift) < 0.5 ? 'In sync'
         : `${Math.abs(drift).toFixed(1)}s ${drift < 0 ? 'behind' : 'ahead'}`;
@@ -304,7 +307,7 @@ export default {
       updatedAt, state, time, playbackRate,
     }) {
       return state === 'playing'
-        ? time + (this.nowTimestamp - updatedAt) * playbackRate
+        ? time + (this.nowTimestamp - updatedAt) * (playbackRate || 1)
         : time;
     },
 
@@ -313,11 +316,11 @@ export default {
         return 'border-error';
       }
 
-      const difference = Math.abs(this.getAdjustedTime(rest) - this.GET_ADJUSTED_HOST_TIME());
+      const difference = Math.abs(this.getAdjustedTime(rest) - this.getAdjustedTime(this.GET_HOST_USER));
 
-      return difference > syncFlexibility
-        ? 'border-desync'
-        : 'border-sync';
+      if (!Number.isFinite(difference)) return 'border-error';
+      const tolerance = Number.isFinite(syncFlexibility) && syncFlexibility >= 0 ? syncFlexibility : 500;
+      return difference > tolerance ? 'border-desync' : 'border-sync';
     },
 
     getTitle(media) {

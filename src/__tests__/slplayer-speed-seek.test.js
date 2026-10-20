@@ -397,6 +397,7 @@ describe('SPEED_SEEK', () => {
 describe('NORMAL_SEEK', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setCurrentTimeMs.mockImplementation((target) => getCurrentTimeMs.mockReturnValue(target));
   });
 
   it('registers the seeked listener before setting currentTime so fast seeks cannot strand sync tokens', async () => {

@@ -196,7 +196,10 @@ SKIP_BUILD=true npm ci
 npm run serve   # Vite dev server with HMR
 npm run build   # Production build to dist/
 npm test        # Run tests
+npm run test:sync-fuzz # Replay sync regressions and seeded decoder faults
 ```
+
+See [the sync harness](docs/sync-harness.md) for fault scenarios and seed replay.
 
 Pull requests target `dev`; `main` is reserved for stable release promotions. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete verification and review contract.
 

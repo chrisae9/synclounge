@@ -78,7 +78,7 @@ describe('participant actions and readable status', () => {
       wrapper.unmount();
     }
   });
-  it.each([[3000, 'In sync'], [500, 'Catching up']])('renders readiness with tolerance %s', (tolerance, label) => {
+  it.each([[3000, 'In sync'], [500, '2.0s behind']])('renders readiness with tolerance %s', (tolerance, label) => {
     const { wrapper } = setup({ time: 8000, syncFlexibility: tolerance });
     try {
       const row = wrapper.findAll('.v-list-item').find((item) => item.text().includes('Morgan'));
@@ -86,6 +86,14 @@ describe('participant actions and readable status', () => {
     } finally {
       wrapper.unmount();
     }
+  });
+  it('renders the reported incident as ahead, rather than catching up', () => {
+    const { wrapper } = setup({ time: 17000, syncFlexibility: 500 });
+    try {
+      const row = wrapper.findAll('.v-list-item').find((item) => item.text().includes('Morgan'));
+      expect(row.text()).toContain('7.0s ahead');
+      expect(row.text()).not.toContain('Catching up');
+    } finally { wrapper.unmount(); }
   });
   const moderationCases = [['Remove from room', 'kick'], ['Make host', 'transfer']];
   it.each(moderationCases)('requires named confirmation for %s', async (label, action) => {

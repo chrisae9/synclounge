@@ -3,7 +3,10 @@ import { markRaw } from 'vue';
 import createStreamRecovery, { waitForVideoReady } from '@/utils/streamrecovery';
 import recommendLowerQuality from '@/utils/qualityrecovery';
 import { rememberDiagnostic } from '@/utils/problemreport';
-import { consumeUserSeekIntent, hasPendingUserSeek, recordSeekIntent } from '@/player/seekIntent';
+import {
+  consumeUserSeekIntent, hasPendingUserSeek, recordSeekIntent, getUserSeekRevision,
+} from '@/player/seekIntent';
+import isSeekLandingValid from '@/utils/seeklanding';
 import { abortable, throwIfAborted } from '@/utils/cancellation';
 
 import { getRandomPlexId } from '@/utils/random';
@@ -25,6 +28,9 @@ import subtitleActions from './subtitleActions';
 // Module-level guard for play queue transitions (not reactive, so reads are synchronous)
 let isPlayQueueTransitioning = false;
 let sourceRevision = 0;
+let automaticSeekRevision = 0;
+let seekRebaseRevision = null;
+let blockedSeekRevision = null;
 let isPlayerStopping = false;
 const streamRecovery = createStreamRecovery();
 let bufferingStartedAt = null;
@@ -235,13 +241,16 @@ export default {
     }
   },
 
-  CHANGE_PLAYER_SRC: async ({ getters, commit, dispatch }, { signal, restorePaused } = {}) => {
+  CHANGE_PLAYER_SRC: async ({ getters, commit, dispatch }, {
+    signal, restorePaused, ensureOwner = () => {},
+  } = {}) => {
     throwIfAborted(signal);
     if (!signal || restorePaused === undefined) streamRecovery.cancel();
     isPlayerStopping = false;
     sourceRevision += 1;
     const revision = sourceRevision;
     const ensureCurrent = () => {
+      ensureOwner();
       throwIfAborted(signal);
       if (revision !== sourceRevision) throw new DOMException('Source replaced', 'AbortError');
     };
@@ -595,6 +604,7 @@ export default {
 
   SOFT_SEEK: ({ commit }, seekToMs) => {
     if (hasPendingUserSeek()) return;
+    automaticSeekRevision += 1;
     console.debug('SOFT_SEEK', seekToMs);
     if (!isTimeInBufferedRange(seekToMs)) {
       throw new Error('Soft seek not allowed outside of buffered range');
@@ -648,8 +658,40 @@ export default {
     return main(cancelSignal);
   },
 
-  NORMAL_SEEK: async ({ rootGetters, commit }, { cancelSignal, seekToMs }) => {
-    if (hasPendingUserSeek()) return;
+  NORMAL_SEEK: async ({ rootGetters, commit, dispatch }, { cancelSignal, seekToMs }) => {
+    throwIfAborted(cancelSignal);
+    if (!Number.isFinite(seekToMs) || seekToMs < 0) throw new Error('Invalid seek target');
+    if (hasPendingUserSeek() || blockedSeekRevision === sourceRevision) return;
+    automaticSeekRevision += 1;
+    const operation = automaticSeekRevision;
+    let revision = sourceRevision;
+    const userRevision = getUserSeekRevision();
+    const ensureOwner = () => {
+      throwIfAborted(cancelSignal);
+      if (operation !== automaticSeekRevision || userRevision !== getUserSeekRevision()) {
+        throw new DOMException('Seek replaced', 'AbortError');
+      }
+    };
+    const ensureCurrent = () => {
+      ensureOwner();
+      if (revision !== sourceRevision) throw new DOMException('Source replaced', 'AbortError');
+    };
+    const paused = Boolean(isPaused());
+    const rate = getPlaybackRate() || 1;
+    const startedAt = Date.now();
+    const tolerance = rootGetters.GET_CONFIG.slplayer_seek_settle_tolerance ?? 250;
+    const landed = (target, since) => isSeekLandingValid({
+      target, actual: getCurrentTimeMs(), elapsedMs: Date.now() - since, paused, rate, tolerance,
+    });
+    const blockCorrection = () => {
+      ensureCurrent();
+      blockedSeekRevision = revision;
+      dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'seek-recovery-blocked' });
+      dispatch('DISPLAY_NOTIFICATION', {
+        text: 'Automatic sync could not reach the requested position. Reload the player to retry.',
+        color: 'warning',
+      }, { root: true });
+    };
     console.debug('NORMAL_SEEK', seekToMs);
     commit('SET_SYNC_SEEK_TARGET', seekToMs);
     commit('SET_OFFSET_MS', seekToMs);
@@ -672,18 +714,46 @@ export default {
       const seekedPromise = main(anySignal);
       setCurrentTimeMs(seekToMs);
       const settleTimeout = rootGetters.GET_CONFIG.slplayer_seek_settle_timeout ?? 500;
-      const settleTolerance = rootGetters.GET_CONFIG.slplayer_seek_settle_tolerance ?? 250;
-      await Promise.race([
-        seekedPromise,
-        CAF.delay(anySignal, settleTimeout).then(() => {
-          if (Math.abs(getCurrentTimeMs() - seekToMs) <= settleTolerance) {
-            return undefined;
-          }
-          return seekedPromise;
-        }),
-      ]);
+      const settledWithoutEvent = CAF(function* waitForSettledPosition(signal) {
+        while (true) {
+          yield CAF.delay(signal, settleTimeout);
+          ensureCurrent();
+          if (!getMediaElement()?.seeking && landed(seekToMs, startedAt)) return;
+        }
+      });
+      await Promise.race([seekedPromise, settledWithoutEvent(anySignal)]);
+      ensureCurrent();
+      if (!landed(seekToMs, startedAt)) {
+        dispatch('REPORT_PLAYBACK_DIAGNOSTIC', {
+          event: 'seek-landing-missed',
+          details: { targetTimeMs: seekToMs, actualTimeMs: getCurrentTimeMs(), elapsedMs: Date.now() - startedAt },
+        });
+        // One fresh Plex session per source. Repeated bad landings must not
+        // create a seek/reload storm; an explicit source change allows another try.
+        if (seekRebaseRevision === revision) {
+          blockCorrection();
+          return;
+        }
+        const offset = seekToMs + (paused ? 0 : (Date.now() - startedAt) * rate);
+        commit('SET_OFFSET_MS', offset);
+        const rebaseStartedAt = Date.now();
+        const rebase = dispatch('CHANGE_PLAYER_SRC', { signal: cancelSignal, restorePaused: paused, ensureOwner });
+        revision = sourceRevision;
+        seekRebaseRevision = revision;
+        try {
+          await abortable(rebase, cancelSignal);
+          ensureCurrent();
+          if (!landed(offset, rebaseStartedAt)) blockCorrection();
+        } catch (error) {
+          ensureCurrent();
+          if (error?.name === 'AbortError') throw error;
+          blockCorrection();
+        }
+      }
     } finally {
       timeoutToken.abort();
+      if (revision === sourceRevision && operation === automaticSeekRevision
+        && userRevision === getUserSeekRevision()) commit('SET_SYNC_SEEK_TARGET', null);
     }
   },
 

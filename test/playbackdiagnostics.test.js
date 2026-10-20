@@ -115,3 +115,13 @@ test('bounds recovery attempts from untrusted diagnostic payloads', () => {
     assert.equal(result.details.attempt, null);
   }
 });
+
+test('preserves bounded seek landing evidence without accepting arbitrary details', () => {
+  const diagnostic = sanitizePlaybackDiagnostic({
+    event: 'seek-landing-missed',
+    details: {
+      targetTimeMs: 2582387, actualTimeMs: 2600639, elapsedMs: 262, privateValue: 'not-allowed',
+    },
+  });
+  assert.deepEqual(diagnostic.details, { targetTimeMs: 2582387, actualTimeMs: 2600639, elapsedMs: 262 });
+});
