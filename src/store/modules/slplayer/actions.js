@@ -696,15 +696,14 @@ export default {
     commit('SET_SYNC_SEEK_TARGET', seekToMs);
     commit('SET_OFFSET_MS', seekToMs);
 
+    const seekTimeout = rootGetters.GET_CONFIG.slplayer_seek_timeout ?? 15000;
     const timeoutToken = CAF.timeout(
-      rootGetters.GET_CONFIG.slplayer_seek_timeout,
+      seekTimeout,
       'Normal seek took too long',
     );
 
-    const anySignal = CAF.signalRace([
-      cancelSignal,
-      timeoutToken.signal,
-    ]);
+    const timeoutSignal = timeoutToken.signal;
+    const anySignal = CAF.signalRace([cancelSignal, timeoutSignal]);
 
     const main = CAF(function* main(signal) {
       yield waitForMediaElementEvent({ signal, type: 'seeked' });
@@ -721,9 +720,17 @@ export default {
           if (!getMediaElement()?.seeking && landed(seekToMs, startedAt)) return;
         }
       });
-      await Promise.race([seekedPromise, settledWithoutEvent(anySignal)]);
+      let timedOut = false;
+      try {
+        await Promise.race([seekedPromise, settledWithoutEvent(anySignal)]);
+      } catch (error) {
+        ensureCurrent();
+        if (!timeoutSignal.aborted) throw error;
+        timedOut = true;
+      }
       ensureCurrent();
-      if (!landed(seekToMs, startedAt)) {
+      timeoutToken.abort();
+      if (timedOut || !landed(seekToMs, startedAt)) {
         dispatch('REPORT_PLAYBACK_DIAGNOSTIC', {
           event: 'seek-landing-missed',
           details: { targetTimeMs: seekToMs, actualTimeMs: getCurrentTimeMs(), elapsedMs: Date.now() - startedAt },
@@ -737,17 +744,32 @@ export default {
         const offset = seekToMs + (paused ? 0 : (Date.now() - startedAt) * rate);
         commit('SET_OFFSET_MS', offset);
         const rebaseStartedAt = Date.now();
-        const rebase = dispatch('CHANGE_PLAYER_SRC', { signal: cancelSignal, restorePaused: paused, ensureOwner });
+        const recovery = new AbortController();
+        const cancelRecovery = () => recovery.abort();
+        cancelSignal?.addEventListener('abort', cancelRecovery, { once: true });
+        let recoveryTimedOut = false;
+        const deadline = setTimeout(() => {
+          recoveryTimedOut = true;
+          recovery.abort();
+        }, seekTimeout);
+        const rebase = dispatch('CHANGE_PLAYER_SRC', {
+          signal: recovery.signal, restorePaused: paused, ensureOwner,
+        });
         revision = sourceRevision;
         seekRebaseRevision = revision;
         try {
-          await abortable(rebase, cancelSignal);
+          if (cancelSignal?.aborted) recovery.abort();
+          await abortable(rebase, recovery.signal);
           ensureCurrent();
           if (!landed(offset, rebaseStartedAt)) blockCorrection();
         } catch (error) {
           ensureCurrent();
-          if (error?.name === 'AbortError') throw error;
+          if (error?.name === 'AbortError' && !recoveryTimedOut) throw error;
           blockCorrection();
+        } finally {
+          // Clear the deadline without aborting successful background subtitles.
+          clearTimeout(deadline);
+          cancelSignal?.removeEventListener('abort', cancelRecovery);
         }
       }
     } finally {

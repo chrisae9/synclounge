@@ -114,7 +114,6 @@ describe('decoder landing regression harness', () => {
     await vi.advanceTimersByTimeAsync(100);
     await syncing;
     for (let poll = 0; poll < 12; poll += 1) {
-      decoder.setPosition(decoder.video.currentTime + pollIntervalMs / 1000);
       await vi.advanceTimersByTimeAsync(pollIntervalMs);
       await plexActions.SYNC(context, token.signal);
     }
@@ -168,6 +167,37 @@ describe('decoder landing regression harness', () => {
     expect(state.changing).toBe(false);
   });
 
+  it('recovers a wrong landing even when neither seek emits an event', async () => {
+    const { seek } = setup();
+    decoder.emitSeeked = false;
+    decoder.missMs = 30000;
+    const operation = seek(80000).then(() => 'settled', (error) => String(error?.stack || error));
+    await vi.advanceTimersByTimeAsync(17000);
+    expect(await operation).toBe('settled');
+    expect(decoder.loads).toBe(1);
+    expect(Math.abs(decoder.video.currentTime * 1000 - 97000)).toBeLessThan(300);
+    expect(decoder.listenerCount()).toBe(0);
+  });
+
+  it('bounds a recovery decision that never completes and ignores its late result', async () => {
+    const { seek, notifications } = setup();
+    decoder.missMs = 30000;
+    let finishDecision;
+    const dispatch = context.dispatch.getMockImplementation();
+    context.dispatch.mockImplementation((type, payload) => (type === 'SEND_PLEX_DECISION_REQUEST'
+      ? new Promise((resolve) => { finishDecision = resolve; }) : dispatch(type, payload)));
+    let finished = false;
+    const operation = seek(80000).then(() => { finished = true; });
+    await vi.advanceTimersByTimeAsync(16000);
+    expect(finished).toBe(true);
+    expect(notifications).toHaveLength(1);
+    finishDecision();
+    await operation;
+    await vi.advanceTimersByTimeAsync(100);
+    expect(decoder.loads).toBe(0);
+    expect(decoder.listenerCount()).toBe(0);
+  });
+
   it('stops the correction loop if even a fresh stream lands at the wrong position', async () => {
     const { seek, notifications } = setup();
     decoder.setPosition(200);
@@ -205,9 +235,10 @@ describe('seeded sync/decoder fault sequences', () => {
       const { paused } = decoder.video;
       decoder.delayMs = 1 + Math.floor(random() * 1400);
       decoder.setPosition((target + 5000) / 1000);
-      decoder.missMs = fault === 1 || fault === 2 ? 1000 + Math.floor(random() * 40000) : 0;
+      decoder.missMs = fault === 1 || fault === 2 ? 10000 + Math.floor(random() * 40000) : 0;
       decoder.reloadMissMs = fault === 2 ? decoder.missMs : 0;
-      if (fault === 3) decoder.emitSeeked = false;
+      decoder.emitSeeked = fault !== 3 && random() < 0.7;
+      const advanceMs = decoder.emitSeeked ? 3500 : 19000;
       // eslint-disable-next-line new-cap
       const token = new CAF.cancelToken();
       const result = seek(target, token.signal).then(() => 'settled', (error) => error?.name || 'cancelled');
@@ -224,9 +255,9 @@ describe('seeded sync/decoder fault sequences', () => {
         if (fault === 7) {
           // A newer correction owns the next event; the old completion must be inert.
           const newer = seek(target + 100000, token.signal);
-          await vi.advanceTimersByTimeAsync(3500);
+          await vi.advanceTimersByTimeAsync(advanceMs);
           await newer;
-        } else await vi.advanceTimersByTimeAsync(3500);
+        } else await vi.advanceTimersByTimeAsync(advanceMs);
         const outcome = await result;
         if ([4, 5, 6, 7].includes(fault)) {
           expect(['AbortError', 'cancelled']).toContain(outcome);
@@ -243,7 +274,7 @@ describe('seeded sync/decoder fault sequences', () => {
           } else {
             const actual = decoder.video.currentTime * 1000;
             expect(actual).toBeGreaterThanOrEqual(target - 250);
-            expect(actual).toBeLessThanOrEqual(target + (paused ? 250 : 3500 * decoder.video.playbackRate));
+            expect(actual).toBeLessThanOrEqual(target + (paused ? 250 : advanceMs * decoder.video.playbackRate));
             expect(notifications).toHaveLength(0);
           }
         }

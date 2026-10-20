@@ -1,6 +1,6 @@
 /* eslint-disable no-bitwise -- Unsigned 32-bit seeded PRNG for reproducible fault traces. */
 // Deterministic decoder double. The application actions, player seek adapter,
-// event waits and room sync lock remain real; no Plex or production room is used.
+// event waits and sync decisions remain real; no Plex or production room is used.
 export const createDecoder = () => {
   const video = new EventTarget();
   const listeners = new Set();
@@ -15,7 +15,13 @@ export const createDecoder = () => {
     remove(type, callback);
   };
   let position = 100;
+  let anchoredAt = Date.now();
+  let paused = false;
+  let rate = 1;
   let pending;
+  const currentPosition = () => position + (!paused && !video.seeking
+    ? (Math.max(0, Date.now() - anchoredAt) * rate) / 1000 : 0);
+  const setPosition = (seconds) => { position = seconds; anchoredAt = Date.now(); };
   const decoder = {
     video,
     seeks: [],
@@ -31,36 +37,49 @@ export const createDecoder = () => {
       getMediaElement: () => video,
       isBuffering: () => video.seeking,
       getPlaybackRate: () => video.playbackRate,
-      unload: async () => { clearTimeout(pending); position = 0; video.seeking = false; },
+      unload: async () => {
+        clearTimeout(pending);
+        video.paused = true;
+        video.seeking = false;
+        setPosition(0);
+      },
       load: async () => {
         decoder.loads += 1;
-        position = 0;
         video.paused = !video.autoplay;
+        setPosition(0);
       },
     }),
     finish: () => { clearTimeout(pending); },
-    setPosition: (seconds) => { position = seconds; },
+    setPosition,
   };
   Object.assign(video, {
-    paused: false,
     seeking: false,
     readyState: 4,
-    playbackRate: 1,
     duration: 6000,
     buffered: { length: 1, start: () => decoder.bufferStart, end: () => decoder.bufferEnd },
     pause: () => { video.paused = true; },
     play: async () => { video.paused = false; },
   });
+  Object.defineProperties(video, {
+    paused: {
+      get: () => paused,
+      set: (value) => { setPosition(currentPosition()); paused = value; },
+    },
+    playbackRate: {
+      get: () => rate,
+      set: (value) => { setPosition(currentPosition()); rate = value; },
+    },
+  });
   Object.defineProperty(video, 'currentTime', {
-    get: () => position,
+    get: currentPosition,
     set: (seconds) => {
       clearTimeout(pending);
-      position = seconds;
+      setPosition(seconds);
       video.seeking = true;
       decoder.seeks.push(seconds * 1000);
       pending = setTimeout(() => {
         const miss = decoder.loads ? decoder.reloadMissMs : decoder.missMs;
-        position = seconds + miss / 1000;
+        setPosition(seconds + miss / 1000);
         video.seeking = false;
         if (decoder.emitSeeked) video.dispatchEvent(new Event('seeked'));
       }, decoder.delayMs);
