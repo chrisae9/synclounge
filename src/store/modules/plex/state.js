@@ -15,6 +15,7 @@ const state = () => ({
   areDevicesCached: false,
   deviceFetchPromise: null,
   plexAuthToken: null,
+  pendingAuthenticationCount: 0,
   clientIdentifier: getOrCreateClientIdentifier(),
 });
 

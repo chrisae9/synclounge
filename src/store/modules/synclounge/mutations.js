@@ -142,6 +142,9 @@ export default {
   SET_JOIN_SYNC_IN_PROGRESS: (state, value) => {
     state.joinSyncInProgress = value;
   },
+  SET_ROOM_JOIN_PENDING: (state, value) => {
+    state.roomJoinPending = value;
+  },
 
   SET_HOST_GRACE_TIMEOUT_ID: (state, id) => {
     state.hostGraceTimeoutId = id;

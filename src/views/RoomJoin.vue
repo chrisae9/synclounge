@@ -30,6 +30,8 @@
 
           <v-alert
             v-if="error"
+            class="welcome-status"
+            variant="tonal"
             type="error"
           >
             {{ error }}

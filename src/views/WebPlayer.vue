@@ -187,6 +187,7 @@ import {
 import linkWithRoom from '@/mixins/linkwithroom';
 
 import 'shaka-player/dist/controls.css';
+import '@/assets/css/player-menu.css';
 import 'synclounge-libjass/lib/libjass.css';
 
 export default {

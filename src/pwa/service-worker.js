@@ -19,7 +19,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('message', (event) => {
-  // Activation is a deliberate user action; never interrupt a movie for updates.
+  // The app requests activation explicitly, automatically only outside a room.
   if (event.data?.type === 'ACTIVATE_UPDATE') self.skipWaiting();
 });
 

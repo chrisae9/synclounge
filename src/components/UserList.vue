@@ -414,7 +414,7 @@ export default {
   border-color: #0de47499;
 }
 
-.user-row { min-height: 52px; padding: 6px 12px; }
+.user-list .user-row { min-height: 52px; padding: 6px 16px; }
 .user-meta { display: flex; align-items: baseline; gap: 8px; line-height: 18px; color: rgb(255 255 255 / 65%); }
 .user-readiness { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .participant-action { width: 32px; height: 32px; }
@@ -438,6 +438,8 @@ export default {
 }
 
 .user-time {
+  font-variant-numeric: tabular-nums;
+  min-width: 5ch;
   font-size: 12px;
   flex-shrink: 0;
 }

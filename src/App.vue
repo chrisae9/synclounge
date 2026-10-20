@@ -161,8 +161,9 @@ export default {
 
     inviteUrl() {
       if (this.GET_ROOM) {
-        if (this.GET_CONFIG?.autojoin) {
-          // If autojoin, just link to main site
+        const autojoin = this.GET_CONFIG?.autojoin;
+        if (autojoin?.room === this.GET_ROOM && (autojoin.server || '') === (this.GET_SERVER || '')) {
+          // Only the configured room can use the site's autojoin shortcut.
           return window.location.origin;
         }
 

@@ -83,7 +83,7 @@
       v-if="loadError"
       type="error"
       variant="tonal"
-      class="ma-3"
+      class="recovery-panel"
       title="Couldn’t load this library"
     >
       Your loaded items are still available. Check the Plex server connection and try again.
@@ -101,7 +101,7 @@
       v-else-if="stopNewContent && !contents.length && !childrenAbortController"
       type="info"
       variant="tonal"
-      class="ma-3"
+      class="recovery-panel"
       :title="activeFirstCharacter ? 'No matches' : 'This library is empty'"
     >
       {{ activeFirstCharacter ? 'No titles match this letter filter.'

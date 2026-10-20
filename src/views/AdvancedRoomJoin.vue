@@ -29,7 +29,7 @@
             </p>
           </div>
 
-          <v-card-text class="pt-2">
+          <v-card-text class="pt-2 welcome-body">
             <h2 class="section-header">
               Available watch-party services
             </h2>
@@ -132,7 +132,7 @@
                   <v-card-text>
                     <v-text-field
                       hide-details="auto"
-                      :error-messages="customServerError"
+                      :error-messages="customServerTouched ? customServerError : ''"
                       hint="Use a complete http:// or https:// address."
                       persistent-hint
                       variant="outlined"
@@ -143,6 +143,7 @@
                       placeholder="https://"
                       :model-value="customServerUrl"
                       @update:model-value="SET_CUSTOM_SERVER_URL"
+                      @blur="customServerTouched = true"
                     />
                   </v-card-text>
 
@@ -195,7 +196,7 @@
             </v-alert>
           </v-card-text>
 
-          <v-card-actions class="justify-center pb-4">
+          <v-card-actions class="welcome-actions justify-center">
             <v-btn
               variant="text"
               :to="{ name: 'RoomCreation' }"
@@ -226,6 +227,7 @@ export default {
 
   data: () => ({
     serverError: null,
+    customServerTouched: false,
     healthChecking: true,
     healthRequestPending: false,
     connectionPending: false,
@@ -365,6 +367,8 @@ export default {
   letter-spacing: 0.08em;
 }
 
+.server-card :deep(.v-card-title) { white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
+
 .server-card {
   border: 1px solid rgba(255, 255, 255, 0.1);
   height: 100%;
@@ -375,4 +379,6 @@ export default {
 .server-card :deep(.v-card-text) {
   flex: 1;
 }
+
+.server-card :deep(.v-img) { flex: 0 0 140px; height: 140px; }
 </style>

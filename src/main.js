@@ -5,13 +5,14 @@ import vuetify from './plugins/vuetify';
 import App from './App.vue';
 import router from './router';
 import store from './store';
-import { startPwa } from './pwa';
+import { startPwa, canAutoUpdatePwa } from './pwa';
 import mapErrorMessage from './utils/errorutils';
 import {
   getSignInRoute,
   getEmptyPlayerRedirect,
   shouldApplyAutojoin,
   shouldRedirectProtectedRoute,
+  getRoomJoinRedirect,
 } from './router/guardutils';
 import { isConnected } from './socket';
 
@@ -98,28 +99,24 @@ router.beforeEach(async (to, from, next) => {
     server: store.getters['synclounge/GET_SERVER'],
     room: store.getters['synclounge/GET_ROOM'],
   }, isConnected())) {
-    // TODO: add redirect
-    if (to.params.room) {
-      next({
-        name: 'RoomJoin',
-        params: {
-          room: to.params.room,
-          ...(to.params.server && { server: to.params.server }),
-        },
-        query: {
-          redirect: to.fullPath,
-        },
-      });
-    } else {
-      next({ name: 'RoomCreation' });
-    }
+    next(getRoomJoinRedirect(to));
   } else {
     next(getEmptyPlayerRedirect(to, store.getters['plexclients/GET_ACTIVE_MEDIA_METADATA'])
       || undefined);
   }
 });
 
-const stopPwa = startPwa({ register: import.meta.env.PROD });
+const stopPwa = startPwa({
+  register: import.meta.env.PROD,
+  ready: router.isReady(),
+  canAutoUpdate: () => canAutoUpdatePwa({
+    inRoom: store.getters['synclounge/IS_IN_ROOM'],
+    authenticating: store.getters['plex/IS_AUTHENTICATING'],
+    joiningRoom: store.getters['synclounge/IS_ROOM_JOIN_PENDING']
+      || store.getters['synclounge/IS_JOIN_SYNC_IN_PROGRESS'],
+    route: router.currentRoute.value,
+  }),
+});
 if (import.meta.hot) import.meta.hot.dispose(stopPwa);
 
 app.mount('#app');

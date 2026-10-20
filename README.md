@@ -44,9 +44,9 @@ SyncLounge keeps multiple viewing sessions in sync using a WebSocket server as a
 
 ## Watch-party controls and troubleshooting
 
-New rooms open on library browsing. On phones, library navigation shows a back action and the current location. Media rows support touch scrolling; desktop users can also use the arrows. Invite copies the room link. Settings → Advanced contains the optional watch-party service selector, separate from Plex library selection.
+New rooms open on library browsing. On phones, library navigation shows a back action and the current location. Media rows support touch scrolling; desktop users can also use the arrows. Invite copies the room link; the browser address also preserves the room and current page for sharing. Settings → Advanced contains the optional watch-party service selector, separate from Plex library selection.
 
-The watch-party drawer starts in Basic mode. Advanced controls reveal synchronization settings and participant diagnostics; the message composer stays available in landscape and while typing.
+The watch-party drawer keeps viewers, chat, and party pausing visible. Settings → Advanced contains Show party diagnostics, automatic host transfer, and the room synchronization preset; the message composer stays available in landscape and while typing.
 
 The host can choose Strict (0.5 seconds), Balanced (3 seconds), or Relaxed (7 seconds) room synchronization, or use each viewer’s personal tolerance. Relaxed synchronization reduces corrective seeks; it cannot repair a slow stream. Participant details show playback state, drift, and recent buffer/quality measurements. After repeated substantial buffering, Settings can offer a lower-quality option for that viewer; applying it may require Plex transcoding.
 
@@ -97,8 +97,9 @@ option. Installation uses the root of the hostname, matching the supported deplo
 
 Watching and chatting require a connection. The offline screen caches only public assets;
 room pages, credentials, posters, and video are never cached by the service worker.
-When an update is ready, choose **Update available → Reload now** between viewing sessions.
-Updates do not automatically reload an active player.
+Updates apply automatically when opening or returning to an idle sign-in or room-creation screen.
+Room entry and active rooms defer automatic reloads. During a viewing session,
+**Update available → Reload now** remains an explicit action for when you are ready.
 
 ## Configuration
 

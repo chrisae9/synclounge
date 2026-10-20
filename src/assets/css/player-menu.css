@@ -1,0 +1,51 @@
+/* Shaka creates these nodes outside Vue's scoped styles. */
+.shaka-video-container .shaka-overflow-menu {
+  width: min(360px, calc(100% - 24px));
+  min-width: 0;
+  max-height: min(65dvh, 420px);
+  border: 1px solid var(--sl-border);
+  border-radius: 12px;
+  background: var(--sl-surface);
+}
+.shaka-video-container .shaka-overflow-menu > button {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.shaka-video-container .shaka-overflow-menu > button > .material-svg-icon {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+.shaka-video-container .shaka-overflow-button-label-inline,
+.shaka-video-container .shaka-simple-overflow-button-label-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 40%);
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  padding-inline-end: 32px;
+}
+.shaka-video-container .shaka-overflow-button-label-inline > span:first-child,
+.shaka-video-container .shaka-simple-overflow-button-label-inline > span:first-child {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.shaka-video-container .shaka-overflow-menu .shaka-current-selection-span {
+  padding: 0;
+  min-width: 0;
+  max-width: 100%;
+  text-align: end;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
