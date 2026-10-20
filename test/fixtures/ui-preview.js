@@ -4,11 +4,15 @@ import { createStore } from 'vuex';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import vuetify from '@/plugins/vuetify';
 import '@/assets/css/style.css';
+import 'shaka-player/dist/controls.css';
+import '@/assets/css/player-menu.css';
 import settings from '@/store/modules/settings';
 import Preview from './ui-preview.vue';
 import seekIncident from './seek-landing-incidents.json';
 
 if (!import.meta.env.DEV) throw new Error('UI preview is available only in development');
+
+const previewScenario = new URLSearchParams(globalThis.location.search).get('scenario') || 'empty';
 
 const image = (text, background = '#29231d') => `data:image/svg+xml,${encodeURIComponent(
   // SVG is embedded locally so visual fixtures never fetch media.
@@ -41,7 +45,7 @@ const sampleServer = {
 };
 const store = createStore({
   state: () => ({
-    isLeftSidebarOpen: false, isRightSidebarOpen: true, previewMetadata: null, scenario: 'empty', upNext: null,
+    isLeftSidebarOpen: false, isRightSidebarOpen: true, previewMetadata: null, scenario: previewScenario, upNext: null,
   }),
   getters: {
     GET_ACTIVE_METADATA: (state) => state.previewMetadata,
@@ -66,8 +70,14 @@ const store = createStore({
     settings,
     plex: {
       namespaced: true,
-      getters: { GET_PLEX_USER: () => null },
-      actions: { FETCH_PLEX_DEVICES() {} },
+      getters: { GET_PLEX_USER: () => null, GET_PLEX_AUTH_TOKEN: () => null },
+      actions: {
+        FETCH_PLEX_DEVICES() {},
+        FETCH_PLEX_INIT_AUTH: ({ rootState }) => {
+          if (rootState.scenario === 'failure') throw new Error('Sample unavailable sign-in');
+          return { id: 'sample', code: 'sample' };
+        },
+      },
     },
     plexclients: { namespaced: true, actions: { PLAY_NEXT() {} } },
     slplayer: {

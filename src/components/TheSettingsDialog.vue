@@ -109,6 +109,7 @@
             </v-list-item-subtitle>
 
             <v-select
+              variant="outlined"
               density="compact"
               hide-details
               aria-label="Quality Limit"
@@ -158,6 +159,7 @@
 
             <v-select
               v-model="BLOCKEDSERVERS"
+              variant="outlined"
               aria-label="Disabled Servers"
               density="compact"
               hide-details
@@ -267,6 +269,7 @@
             </v-list-item-subtitle>
 
             <v-text-field
+              variant="outlined"
               density="compact"
               hide-details
               class="text-body-2 text-medium-emphasis"
@@ -298,6 +301,49 @@
                   append-icon="chevron_right"
                   @click="dialogOpen = false"
                 />
+                <v-list-subheader>Watch-party details</v-list-subheader>
+                <v-list-item>
+                  <v-list-item-title>Show party diagnostics</v-list-item-title>
+                  <v-list-item-subtitle>
+                    Show connection, quality and sync details beneath each viewer.
+                  </v-list-item-subtitle>
+                  <template #append>
+                    <v-switch
+                      hide-details
+                      color="primary"
+                      aria-label="Show party diagnostics"
+                      :model-value="GET_ADVANCED_PARTY_MODE"
+                      @update:model-value="SET_ADVANCED_PARTY_MODE"
+                    />
+                  </template>
+                </v-list-item>
+                <v-list-item v-if="AM_I_HOST">
+                  <v-list-item-title>Transfer host automatically</v-list-item-title>
+                  <v-list-item-subtitle>Make another viewer host when they start different media.</v-list-item-subtitle>
+                  <template #append>
+                    <v-switch
+                      hide-details
+                      color="primary"
+                      aria-label="Transfer host automatically"
+                      :model-value="IS_AUTO_HOST_ENABLED"
+                      @update:model-value="SEND_SET_AUTO_HOST_ENABLED"
+                    />
+                  </template>
+                </v-list-item>
+                <v-list-item v-if="syncPreset">
+                  <v-list-item-title>Room synchronization</v-list-item-title>
+                  <v-list-item-subtitle>Host setting for how much timing drift the room allows.</v-list-item-subtitle>
+                  <v-select
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                    aria-label="Room synchronization"
+                    :model-value="syncPreset"
+                    :items="syncPresets"
+                    :disabled="!AM_I_HOST"
+                    @update:model-value="SEND_SYNC_PRESET"
+                  />
+                </v-list-item>
                 <v-list-subheader>Advanced Playback</v-list-subheader>
 
                 <v-list-item
@@ -347,6 +393,7 @@
                   </v-list-item-subtitle>
 
                   <v-select
+                    variant="outlined"
                     density="compact"
                     hide-details
                     aria-label="Streaming Protocol"
@@ -395,6 +442,7 @@
                   </v-list-item-subtitle>
 
                   <v-select
+                    variant="outlined"
                     density="compact"
                     hide-details
                     aria-label="Syncing Method"
@@ -457,6 +505,12 @@ export default {
       { title: 'Skip Ahead', value: 'skipahead' },
     ],
 
+    syncPresets: [
+      { title: 'Strict · 0.5 seconds', value: 'strict' },
+      { title: 'Balanced · 3 seconds', value: 'balanced' },
+      { title: 'Relaxed · 7 seconds', value: 'relaxed' },
+      { title: 'Use each viewer’s setting', value: 'personal' },
+    ],
     streamingProtocols,
     qualities,
   }),
@@ -464,6 +518,7 @@ export default {
   computed: {
     ...mapGetters('settings', [
       'GET_AUTOPLAY',
+      'GET_ADVANCED_PARTY_MODE',
       'GET_SHOW_BUFFERING_NOTIFICATIONS',
       'GET_SLPLAYERFORCETRANSCODE',
       'GET_CLIENTPOLLINTERVAL',
@@ -479,6 +534,8 @@ export default {
     ]),
 
     ...mapGetters('synclounge', [
+      'AM_I_HOST',
+      'IS_AUTO_HOST_ENABLED',
       'ARE_NOTIFICATIONS_ENABLED',
       'ARE_SOUND_NOTIFICATIONS_ENABLED',
     ]),
@@ -491,6 +548,8 @@ export default {
     ...mapGetters('plex', [
       'GET_PLEX_USER',
     ]),
+
+    ...mapState('synclounge', ['syncPreset']),
 
     ...mapState('slplayer', [
       'qualityRecommendation',
@@ -540,11 +599,14 @@ export default {
     },
     ...mapActions('slplayer', ['ACCEPT_QUALITY_RECOMMENDATION']),
     ...mapActions('synclounge', [
+      'SEND_SYNC_PRESET',
+      'SEND_SET_AUTO_HOST_ENABLED',
       'UPDATE_SYNC_FLEXIBILITY',
       'CHANGE_NOTIFICATIONS_ENABLED',
     ]),
 
     ...mapMutations('settings', [
+      'SET_ADVANCED_PARTY_MODE',
       'SET_AUTOPLAY',
       'SET_SHOW_BUFFERING_NOTIFICATIONS',
       'SET_SLPLAYERFORCETRANSCODE',
@@ -584,6 +646,15 @@ export default {
   -webkit-line-clamp: unset;
   overflow: visible;
 }
+
+.settings-card :deep(.v-list-item) { padding-block: 10px; }
+.settings-card :deep(.v-list-item-title) { white-space: normal; font-size: 14px; font-weight: 600; }
+.settings-card :deep(.v-list-item-subtitle) { font-size: 13px; line-height: 1.45; margin-top: 4px; }
+.settings-card :deep(.v-list-item__content > .v-input) { margin-top: 10px; }
+.settings-card :deep(.v-field) { border-radius: var(--sl-control-radius); }
+.settings-card :deep(.v-selection-control) { min-height: 36px; }
+.settings-card :deep(.v-switch__track) { width: 30px; height: 14px; }
+.settings-card :deep(.v-switch__thumb) { width: 18px; height: 18px; }
 
 .settings-body {
   min-height: 0;

@@ -2,12 +2,12 @@ import {
   afterEach, expect, it, vi,
 } from 'vitest';
 import {
-  installPwa, pwaState, startPwa, updatePwa,
+  installPwa, pwaState, startPwa, updatePwa, canAutoUpdatePwa,
 } from '@/pwa';
 
 let stop;
 afterEach(() => { stop?.(); stop = null; });
-function setup({ secure = true, standalone = false } = {}) {
+function setup({ secure = true, standalone = false, ...options } = {}) {
   const display = Object.assign(new EventTarget(), { matches: standalone });
   const win = Object.assign(new EventTarget(), {
     isSecureContext: secure,
@@ -15,11 +15,11 @@ function setup({ secure = true, standalone = false } = {}) {
     location: { reload: vi.fn() },
   });
   const registration = Object.assign(new EventTarget(), { waiting: null, installing: null });
-  const serviceWorker = Object.assign(new EventTarget(), { register: vi.fn(async () => registration) });
+  const serviceWorker = Object.assign(new EventTarget(), { controller: {}, register: vi.fn(async () => registration) });
   const nav = {
     onLine: true, userAgent: 'test browser', platform: '', maxTouchPoints: 0, serviceWorker,
   };
-  stop = startPwa({ window: win, navigator: nav });
+  stop = startPwa({ window: win, navigator: nav, ...options });
   return {
     win, nav, registration, serviceWorker,
   };
@@ -79,4 +79,98 @@ it('keeps plain HTTP usable and tracks connectivity without a worker', () => {
 it('recognizes installed standalone windows without prompting again', () => {
   setup({ standalone: true });
   expect(pwaState.installed).toBe(true);
+});
+
+it('automatically applies a waiting update on a safe visit after routing is ready', async () => {
+  let finishRouting;
+  const ready = new Promise((resolve) => { finishRouting = resolve; });
+  const { win, registration, serviceWorker } = setup({ ready, canAutoUpdate: () => true });
+  const worker = { postMessage: vi.fn() };
+  registration.waiting = worker;
+  await Promise.resolve();
+  expect(worker.postMessage).not.toHaveBeenCalled();
+  finishRouting();
+  await Promise.resolve();
+  expect(worker.postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'ACTIVATE_UPDATE' });
+  win.dispatchEvent(new Event('focus'));
+  expect(worker.postMessage).toHaveBeenCalledTimes(1);
+  serviceWorker.dispatchEvent(new Event('controllerchange'));
+  expect(win.location.reload).toHaveBeenCalledTimes(1);
+});
+
+it('keeps updates manual in a room and applies them on returning outside it', async () => {
+  let inRoom = true;
+  const { win, registration, serviceWorker } = setup({ canAutoUpdate: () => !inRoom });
+  registration.waiting = { postMessage: vi.fn() };
+  await Promise.resolve();
+  expect(registration.waiting.postMessage).not.toHaveBeenCalled();
+  win.dispatchEvent(new Event('pageshow'));
+  expect(registration.waiting.postMessage).not.toHaveBeenCalled();
+  inRoom = false;
+  win.dispatchEvent(new Event('pageshow'));
+  expect(registration.waiting.postMessage).toHaveBeenCalledTimes(1);
+  serviceWorker.dispatchEvent(new Event('controllerchange'));
+  expect(win.location.reload).toHaveBeenCalledTimes(1);
+});
+
+it('does not reload if a room join starts while automatic activation is pending', async () => {
+  let safe = true;
+  const { win, registration, serviceWorker } = setup({ canAutoUpdate: () => safe });
+  registration.waiting = { postMessage: vi.fn() };
+  await Promise.resolve();
+  safe = false;
+  registration.waiting = null;
+  serviceWorker.dispatchEvent(new Event('controllerchange'));
+  expect(win.location.reload).not.toHaveBeenCalled();
+  expect(pwaState.updateAvailable).toBe(true);
+  safe = true;
+  win.dispatchEvent(new Event('focus'));
+  expect(win.location.reload).toHaveBeenCalledTimes(1);
+});
+
+it('does not interrupt an occupied page for an update discovered during use, or after cleanup', async () => {
+  const { win, registration } = setup({ canAutoUpdate: () => false });
+  await Promise.resolve();
+  registration.waiting = { postMessage: vi.fn() };
+  registration.installing = new EventTarget();
+  registration.dispatchEvent(new Event('updatefound'));
+  registration.installing.dispatchEvent(new Event('statechange'));
+  expect(registration.waiting.postMessage).not.toHaveBeenCalled();
+  stop();
+  win.dispatchEvent(new Event('focus'));
+  expect(registration.waiting.postMessage).not.toHaveBeenCalled();
+});
+
+it('limits automatic updates to idle entry screens, never room or joining routes', () => {
+  for (const name of ['RoomCreation', 'SignIn']) {
+    expect(canAutoUpdatePwa({ route: { name }, inRoom: false, joiningRoom: false })).toBe(true);
+    expect(canAutoUpdatePwa({ route: { name }, inRoom: true })).toBe(false);
+    expect(canAutoUpdatePwa({ route: { name }, joiningRoom: true })).toBe(false);
+    expect(canAutoUpdatePwa({ route: { name }, authenticating: true })).toBe(false);
+  }
+  for (const name of ['RoomJoin', 'AdvancedRoomJoin', 'WebPlayer', 'PlexHome', 'SignOut', undefined]) {
+    expect(canAutoUpdatePwa({ route: { name } })).toBe(false);
+  }
+});
+
+it('lets a first worker install without an unnecessary automatic reload', async () => {
+  const { win, registration, serviceWorker } = setup({ canAutoUpdate: () => true });
+  serviceWorker.controller = null;
+  registration.waiting = { postMessage: vi.fn() };
+  await Promise.resolve();
+  expect(registration.waiting.postMessage).not.toHaveBeenCalled();
+  serviceWorker.dispatchEvent(new Event('controllerchange'));
+  expect(win.location.reload).not.toHaveBeenCalled();
+});
+
+it('automatically activates an update whose download finishes on an idle entry screen', async () => {
+  const { registration, serviceWorker, win } = setup({ canAutoUpdate: () => true });
+  await Promise.resolve();
+  registration.installing = new EventTarget();
+  registration.dispatchEvent(new Event('updatefound'));
+  registration.waiting = { postMessage: vi.fn() };
+  registration.installing.dispatchEvent(new Event('statechange'));
+  expect(registration.waiting.postMessage).toHaveBeenCalledWith({ type: 'ACTIVATE_UPDATE' });
+  serviceWorker.dispatchEvent(new Event('controllerchange'));
+  expect(win.location.reload).toHaveBeenCalledTimes(1);
 });

@@ -30,6 +30,8 @@
 
           <v-alert
             v-if="error"
+            class="welcome-status"
+            variant="tonal"
             type="error"
           >
             {{ error }}
@@ -37,6 +39,8 @@
 
           <v-alert
             v-if="GET_SERVERS_HEALTH && Object.keys(GET_SERVERS_HEALTH).length === 0"
+            class="welcome-status"
+            variant="tonal"
             prominent
             type="error"
           >

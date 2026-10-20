@@ -83,6 +83,15 @@ export default {
 
 <style scoped>
 .media-shelf { min-width: 0; }
+.shelf-heading :deep(.v-list-subheader) {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-inline: 0;
+  min-height: 44px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--sl-text-primary, #f2f3f5);
+}
 .shelf-heading { display: flex; align-items: center; justify-content: space-between; }
 .shelf-arrows { display: flex; flex-shrink: 0; }
 .shelf-track {
@@ -105,7 +114,7 @@ export default {
   .shelf-track--posters .shelf-item { flex-basis: calc((100% - 72px) / 4); }
 }
 @media (max-width: 599px) {
-  .shelf-arrows { display: none; }
+  .shelf-arrows :deep(.v-btn) { width: 36px; height: 44px; }
   .shelf-track { gap: 12px; }
   .shelf-item { flex-basis: 72%; }
   .shelf-track--posters .shelf-item { flex-basis: 38%; }

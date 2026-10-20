@@ -35,6 +35,17 @@ describe('synclounge actions', () => {
     vi.unstubAllGlobals();
   });
 
+  it('clears the previous room synchronization preset on disconnect', async () => {
+    const mutations = (await import('@/store/modules/synclounge/mutations')).default;
+    const state = { syncPreset: 'relaxed', isInRoom: true };
+    await actions.DISCONNECT({
+      commit: (type, value) => mutations[type](state, value),
+      dispatch: vi.fn().mockResolvedValue(),
+    });
+    expect(state.isInRoom).toBe(false);
+    expect(state.syncPreset).toBeNull();
+  });
+
   describe('DISCONNECT_IF_CONNECTED', () => {
     it('disconnects stale socket managers even if the transport is not connected', async () => {
       socketMocks.isConnected.mockReturnValue(false);
@@ -48,6 +59,63 @@ describe('synclounge actions', () => {
   });
 
   describe('SET_AND_CONNECT_AND_JOIN_ROOM', () => {
+    it('blocks idle-page updates throughout deferred room creation and clears after failure', async () => {
+      const { canAutoUpdatePwa } = await import('@/pwa');
+      const mutations = (await import('@/store/modules/synclounge/mutations')).default;
+      const state = { roomJoinPending: false, isInRoom: false };
+      let failLookup;
+      const lookup = new Promise((resolve, reject) => { failLookup = reject; });
+      const context = {
+        commit: (type, value) => mutations[type](state, value),
+        rootGetters: { 'plex/GET_PLEX_AUTH_TOKEN': 'token' },
+        dispatch: vi.fn((type) => (type === 'plex/FETCH_PLEX_USER' ? lookup : Promise.resolve())),
+      };
+      const safe = () => canAutoUpdatePwa({
+        inRoom: state.isInRoom,
+        joiningRoom: state.roomJoinPending,
+        route: { name: 'RoomCreation' },
+      });
+      const creating = actions.SET_AND_CONNECT_AND_JOIN_ROOM(context, { server: '', room: 'new' });
+      const rejected = expect(creating).rejects.toThrow('Lookup failed');
+      expect(safe()).toBe(false);
+      await vi.waitFor(() => {
+        expect(context.dispatch).toHaveBeenCalledWith('plex/FETCH_PLEX_USER', null, { root: true });
+      });
+      expect(safe()).toBe(false);
+      failLookup(new Error('Lookup failed'));
+      await rejected;
+      expect(safe()).toBe(true);
+    });
+
+    it.each([false, true])('preserves pending ownership when an old join settles (cancel: %s)', async (cancel) => {
+      const mutations = (await import('@/store/modules/synclounge/mutations')).default;
+      const state = { roomJoinPending: false };
+      const lookups = [];
+      const context = {
+        commit: (type, value) => mutations[type](state, value),
+        rootGetters: { 'plex/GET_PLEX_AUTH_TOKEN': 'token' },
+        dispatch: vi.fn((type) => (type === 'plex/FETCH_PLEX_USER'
+          ? new Promise((resolve) => { lookups.push(resolve); }) : Promise.resolve())),
+      };
+      const older = actions.SET_AND_CONNECT_AND_JOIN_ROOM(context, { server: '', room: 'older' });
+      const cancelled = expect(older).rejects.toMatchObject({ name: 'AbortError' });
+      await vi.waitFor(() => expect(lookups).toHaveLength(1));
+      let newer;
+      if (cancel) actions.INVALIDATE_ROOM_JOIN(context);
+      else {
+        newer = actions.SET_AND_CONNECT_AND_JOIN_ROOM(context, { server: '', room: 'newer' });
+        await vi.waitFor(() => expect(lookups).toHaveLength(2));
+      }
+      lookups[0]();
+      await cancelled;
+      expect(state.roomJoinPending).toBe(!cancel);
+      if (newer) {
+        lookups[1]();
+        await newer;
+      }
+      expect(state.roomJoinPending).toBe(false);
+    });
+
     it('keeps the newer room when an older disconnect finishes last', async () => {
       let finishOldCleanup;
       const oldCleanup = new Promise((resolve) => { finishOldCleanup = resolve; });
@@ -137,12 +205,14 @@ describe('synclounge actions', () => {
       });
 
       expect(calls).toEqual([
+        ['commit', 'SET_ROOM_JOIN_PENDING', true],
         ['dispatch', 'DISCONNECT_IF_CONNECTED', { revision: expect.any(Number) }, undefined],
         ['commit', 'SET_SERVER', ''],
         ['commit', 'SET_ROOM', 'stale123'],
         ['dispatch', 'plex/FETCH_PLEX_USER', null, { root: true }],
         ['dispatch', 'plex/FETCH_PLEX_DEVICES', null, { root: true }],
         ['dispatch', 'CONNECT_AND_JOIN_ROOM', { syncOnJoin: true, revision: expect.any(Number) }, undefined],
+        ['commit', 'SET_ROOM_JOIN_PENDING', false],
       ]);
     });
 

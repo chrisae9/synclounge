@@ -50,7 +50,9 @@
       </div>
     </v-card>
 
-    <slot name="actions" />
+    <div class="media-actions">
+      <slot name="actions" />
+    </div>
 
     <template v-if="children.length">
       <v-list-subheader>{{ childrenHeader }}</v-list-subheader>
@@ -235,6 +237,8 @@ export default {
   align-items: center;
 }
 
+.media-actions { padding-inline: clamp(20px, 3vw, 40px); margin-block: 16px 24px; }
+
 .media-summary {
   margin-top: 28px;
   line-height: 1.65;
@@ -262,6 +266,8 @@ export default {
   .media-secondary-title {
     margin-top: 8px;
   }
+
+  .media-actions { padding-inline: 16px; }
 
   .media-summary {
     margin-top: 20px;

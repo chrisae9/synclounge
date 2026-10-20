@@ -13,6 +13,8 @@
         >
           <v-alert
             v-if="GET_PLEX_AUTH_TOKEN && IS_USER_AUTHORIZED === false"
+            class="welcome-status"
+            variant="tonal"
             type="error"
           >
             You are not authorized to access this server
@@ -34,6 +36,24 @@
               Bring your Plex library and your favorite people. Sign in to start a watch party.
             </p>
           </div>
+
+          <v-alert
+            v-if="authSetupError"
+            type="error"
+            variant="tonal"
+            class="welcome-status"
+            role="alert"
+          >
+            {{ authSetupError }}
+            <div class="mt-3">
+              <v-btn
+                :disabled="loading"
+                @click="fetchInitialAuthCode"
+              >
+                Retry connection
+              </v-btn>
+            </div>
+          </v-alert>
 
           <v-card-actions class="welcome-actions justify-center">
             <v-btn
@@ -69,6 +89,7 @@ export default {
   data: () => ({
     loading: false,
     plexAuthResponse: null,
+    authSetupError: null,
   }),
 
   computed: {
@@ -103,7 +124,6 @@ export default {
     // Check if we're returning from a Plex auth redirect
     const savedPin = sessionStorage.getItem(PIN_STORAGE_KEY);
     if (savedPin) {
-      sessionStorage.removeItem(PIN_STORAGE_KEY);
       const parsedPin = parseSavedPlexAuthPin(savedPin);
       if (parsedPin) {
         await this.completeRedirectAuth(parsedPin);
@@ -128,12 +148,18 @@ export default {
 
     ...mapMutations('plex', [
       'SET_PLEX_AUTH_TOKEN',
+      'BEGIN_AUTHENTICATION',
+      'END_AUTHENTICATION',
     ]),
 
     async fetchInitialAuthCode() {
       this.loading = true;
+      this.authSetupError = null;
       try {
         this.plexAuthResponse = await this.FETCH_PLEX_INIT_AUTH();
+      } catch {
+        this.plexAuthResponse = null;
+        this.authSetupError = 'Couldn’t connect to Plex. Check your connection and try again.';
       } finally {
         this.loading = false;
       }
@@ -168,27 +194,31 @@ export default {
     },
 
     async completeRedirectAuth(savedPin) {
+      this.BEGIN_AUTHENTICATION();
       this.loading = true;
 
       try {
         await this.REQUEST_PLEX_AUTH_TOKEN({ id: savedPin.id });
         await this.FETCH_PLEX_DEVICES_IF_NEEDED();
         this.FETCH_AND_SET_RANDOM_BACKGROUND_IMAGE();
-        this.$router.push(this.getSafeRedirect(savedPin.redirect || '/'));
+        await this.$router.push(this.getSafeRedirect(savedPin.redirect || '/'));
+        sessionStorage.removeItem(PIN_STORAGE_KEY);
       } catch {
-        // Token not ready yet or PIN expired — start fresh
+        // Keep the saved PIN until authentication succeeds so a reload can retry.
         await this.fetchInitialAuthCode();
+      } finally {
+        this.loading = false;
+        this.END_AUTHENTICATION();
       }
-
-      this.loading = false;
     },
 
     async cookieAuth(token) {
+      this.BEGIN_AUTHENTICATION();
       this.loading = true;
       this.SET_PLEX_AUTH_TOKEN(token);
       try {
         await this.FETCH_PLEX_USER();
-        this.redirect();
+        await this.redirect();
         await this.FETCH_PLEX_DEVICES_IF_NEEDED();
         this.FETCH_AND_SET_RANDOM_BACKGROUND_IMAGE();
       } catch (e) {
@@ -197,11 +227,12 @@ export default {
         await this.fetchInitialAuthCode();
       } finally {
         this.loading = false;
+        this.END_AUTHENTICATION();
       }
     },
 
     redirect() {
-      this.$router.push(this.getSafeRedirect(this.$route.query.redirect || '/'));
+      return this.$router.push(this.getSafeRedirect(this.$route.query.redirect || '/'));
     },
   },
 };

@@ -12,8 +12,19 @@ export const pwaState = reactive({
 let installEvent;
 let registration;
 let reloadOnUpdate = false;
+let automaticUpdate = false;
+let pendingReload = false;
+let reloadApp;
 
-export function startPwa({ window: win = window, navigator: nav = navigator, register = true } = {}) {
+export const canAutoUpdatePwa = ({
+  inRoom, joiningRoom, authenticating, route,
+}) => !inRoom && !joiningRoom && !authenticating
+  && ['RoomCreation', 'SignIn'].includes(route?.name);
+
+export function startPwa({
+  window: win = window, navigator: nav = navigator, register = true,
+  ready = Promise.resolve(), canAutoUpdate = () => false,
+} = {}) {
   pwaState.canPrompt = false;
   pwaState.updateAvailable = false;
   const standalone = win.matchMedia('(display-mode: standalone)');
@@ -42,24 +53,56 @@ export function startPwa({ window: win = window, navigator: nav = navigator, reg
 
   let stopped = false;
   let installing;
-  const checkWaiting = () => { pwaState.updateAvailable = !!registration?.waiting; };
+  let autoReady = false;
+  reloadApp = () => win.location.reload();
+  const checkWaiting = (allowAutomatic = false) => {
+    pwaState.updateAvailable = !!registration?.waiting || pendingReload;
+    if (!allowAutomatic || !autoReady || stopped || !nav.onLine || win.document?.hidden || !canAutoUpdate()) return;
+    if (pendingReload) {
+      pendingReload = false;
+      reloadApp();
+    } else if (registration?.waiting && nav.serviceWorker?.controller && !reloadOnUpdate) {
+      automaticUpdate = true;
+      reloadOnUpdate = true;
+      registration.waiting.postMessage({ type: 'ACTIVATE_UPDATE' });
+    }
+  };
+  // Installation may finish after entry; recheck the actual route and join state.
+  const onInstallingState = () => checkWaiting(true);
   const onUpdateFound = () => {
-    installing?.removeEventListener('statechange', checkWaiting);
+    installing?.removeEventListener('statechange', onInstallingState);
     installing = registration.installing;
-    installing?.addEventListener('statechange', checkWaiting);
+    installing?.addEventListener('statechange', onInstallingState);
   };
   const onControllerChange = () => {
     if (reloadOnUpdate) {
       reloadOnUpdate = false;
-      win.location.reload();
+      if (automaticUpdate && !canAutoUpdate()) {
+        pendingReload = true;
+        pwaState.updateAvailable = true;
+      } else reloadApp();
+      automaticUpdate = false;
     }
   };
+  const onResume = () => {
+    if (win.document?.hidden) return;
+    checkWaiting(true);
+    registration?.update?.().then(() => checkWaiting(true)).catch(() => {});
+  };
+  win.addEventListener('pageshow', onResume);
+  win.addEventListener('focus', onResume);
+  win.document?.addEventListener('visibilitychange', onResume);
+  Promise.resolve(ready).then(() => {
+    if (stopped) return;
+    autoReady = true;
+    checkWaiting(true);
+  }).catch(() => {});
   if (register && win.isSecureContext && nav.serviceWorker) {
     nav.serviceWorker.addEventListener('controllerchange', onControllerChange);
     nav.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).then((result) => {
       if (stopped) return;
       registration = result;
-      checkWaiting();
+      checkWaiting(true);
       registration.addEventListener('updatefound', onUpdateFound);
       onUpdateFound();
     }).catch((error) => console.debug('Offline support could not be registered:', error));
@@ -70,13 +113,19 @@ export function startPwa({ window: win = window, navigator: nav = navigator, reg
     win.removeEventListener('offline', onConnection);
     win.removeEventListener('beforeinstallprompt', onPrompt);
     win.removeEventListener('appinstalled', onInstalled);
+    win.removeEventListener('pageshow', onResume);
+    win.removeEventListener('focus', onResume);
+    win.document?.removeEventListener('visibilitychange', onResume);
     standalone.removeEventListener('change', onDisplayMode);
     nav.serviceWorker?.removeEventListener('controllerchange', onControllerChange);
     registration?.removeEventListener('updatefound', onUpdateFound);
-    installing?.removeEventListener('statechange', checkWaiting);
+    installing?.removeEventListener('statechange', onInstallingState);
     installEvent = null;
     registration = null;
     reloadOnUpdate = false;
+    automaticUpdate = false;
+    pendingReload = false;
+    reloadApp = null;
   };
 }
 
@@ -90,7 +139,13 @@ export async function installPwa() {
 }
 
 export function updatePwa() {
+  if (pendingReload && reloadApp) {
+    pendingReload = false;
+    reloadApp();
+    return true;
+  }
   if (!registration?.waiting) return false;
+  automaticUpdate = false;
   reloadOnUpdate = true;
   registration.waiting.postMessage({ type: 'ACTIVATE_UPDATE' });
   return true;

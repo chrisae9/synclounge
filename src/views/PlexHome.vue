@@ -4,7 +4,7 @@
       v-if="$route?.query?.playback === 'unavailable'"
       type="info"
       variant="tonal"
-      class="mb-4"
+      class="recovery-panel"
       title="No movie is playing in this room"
     >
       You’re in the room, but there’s no playback to restore. Rooms clear when everyone leaves.
@@ -14,7 +14,7 @@
       v-if="GET_PLEX_SERVERS.length && !hasEnabledServers"
       type="info"
       variant="tonal"
-      class="mb-4"
+      class="recovery-panel"
       title="No libraries enabled"
     >
       Your Plex servers are hidden. Use each server’s crossed-out eye button below to include it in browsing and search.
@@ -23,7 +23,7 @@
       v-if="refreshError"
       type="error"
       variant="tonal"
-      class="mb-4"
+      class="recovery-panel"
     >
       Couldn’t refresh your Plex servers. Check your connection and try again.
     </v-alert>
