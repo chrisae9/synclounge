@@ -115,3 +115,23 @@ test('bounds recovery attempts from untrusted diagnostic payloads', () => {
     assert.equal(result.details.attempt, null);
   }
 });
+
+test('preserves bounded seek landing evidence without accepting arbitrary details', () => {
+  const diagnostic = sanitizePlaybackDiagnostic({
+    event: 'seek-landing-missed',
+    details: {
+      targetTimeMs: 2582387, actualTimeMs: 2600639, elapsedMs: 262, privateValue: 'not-allowed',
+    },
+  });
+  assert.deepEqual(diagnostic.details, { targetTimeMs: 2582387, actualTimeMs: 2600639, elapsedMs: 262 });
+});
+
+test('bounds every seek landing timing field for malformed and boundary values', () => {
+  for (const value of [-1, NaN, Infinity, 31536000001, '262', 31536000000]) {
+    const details = Object.fromEntries(['targetTimeMs', 'actualTimeMs', 'elapsedMs'].map((key) => [key, value]));
+    const sanitized = sanitizePlaybackDiagnostic({ event: 'seek-landing-missed', details }).details;
+    for (const field of Object.keys(details)) {
+      assert.equal(sanitized[field], value === 31536000000 ? value : null);
+    }
+  }
+});

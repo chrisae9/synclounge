@@ -80,10 +80,12 @@ export default function createStreamRecovery({ maxAttempts = 3, windowMs = 60000
 export const waitForVideoReady = (video, signal, timeoutMs = 15000) => new Promise((resolve, reject) => {
   if (!video) { reject(new Error('Player was removed')); return; }
   let timer;
+  let readinessPoll;
   let check;
   let cancel;
   const cleanup = () => {
     clearTimeout(timer);
+    clearInterval(readinessPoll);
     video.removeEventListener('canplay', check);
     video.removeEventListener('seeked', check);
     signal?.removeEventListener('abort', cancel);
@@ -98,5 +100,6 @@ export const waitForVideoReady = (video, signal, timeoutMs = 15000) => new Promi
   video.addEventListener('seeked', check);
   signal?.addEventListener('abort', cancel, { once: true });
   timer = setTimeout(() => finish(new Error('Playback did not become ready')), timeoutMs);
+  readinessPoll = setInterval(check, 100);
   check();
 });

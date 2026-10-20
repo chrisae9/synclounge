@@ -1,0 +1,13 @@
+{
+  "aheadLanding": {
+    "requestedMs": 2582387,
+    "landedMs": 2600639,
+    "delayMs": 262,
+    "pollIntervalMs": 10000
+  },
+  "aheadStatus": {
+    "hostMs": 2632000,
+    "viewerMs": 2639000,
+    "toleranceMs": 500
+  }
+}
