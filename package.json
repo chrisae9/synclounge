@@ -1,6 +1,6 @@
 {
   "name": "synclounge",
-  "version": "6.4.12",
+  "version": "6.4.13",
   "description": "Synced playback of Plex content",
   "author": "Chris Alves",
   "bin": "./server.js",
@@ -29,7 +29,8 @@
     "test:frontend": "vitest run",
     "test:unit": "npm run test:node && npm run test:frontend",
     "test:ci": "npm run test:unit",
-    "prepare": "if-env SKIP_BUILD=true && echo 'Skipping build' || npm run build"
+    "prepare": "if-env SKIP_BUILD=true && echo 'Skipping build' || npm run build",
+    "test:sync-fuzz": "vitest run src/__tests__/sync-seek-harness.test.js src/__tests__/participant-health.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

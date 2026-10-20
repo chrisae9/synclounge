@@ -397,6 +397,7 @@ describe('SPEED_SEEK', () => {
 describe('NORMAL_SEEK', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setCurrentTimeMs.mockImplementation((target) => getCurrentTimeMs.mockReturnValue(target));
   });
 
   it('registers the seeked listener before setting currentTime so fast seeks cannot strand sync tokens', async () => {
@@ -651,8 +652,9 @@ describe('Source request cancellation', () => {
     const controller = new AbortController();
     const commit = vi.fn();
     let started = false;
-    const dispatch = vi.fn((type) => {
+    const dispatch = vi.fn((type, payload) => {
       if (type === 'LOAD_PLAYER_SRC') {
+        payload.onLoadStart();
         started = true;
         return new Promise(() => {});
       }
