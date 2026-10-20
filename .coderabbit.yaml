@@ -4,11 +4,11 @@ early_access: false
 reviews:
   profile: assertive
   request_changes_workflow: false
-  high_level_summary: true
-  review_status: true
+  high_level_summary: false
+  review_status: false
   auto_review:
-    enabled: true
-    drafts: true
+    enabled: false
+    drafts: false
     base_branches:
       - '^dev$'
   path_filters:
@@ -33,4 +33,4 @@ reviews:
         Check that tests assert externally observable behavior, cleanup spawned resources, avoid
         timing flakiness, and cover malformed and boundary inputs.
 chat:
-  auto_reply: true
+  auto_reply: false
