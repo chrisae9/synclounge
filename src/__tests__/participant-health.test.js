@@ -29,7 +29,7 @@ describe('participant timing across Plex servers', () => {
     const near = { ...context, getAdjustedTime: (value) => value.time ?? 9600 };
     const boundary = { ...context, getAdjustedTime: (value) => value.time ?? 9500 };
     expect(UserList.methods.driftLabel.call(near, user)).toBe('In sync');
-    expect(UserList.methods.driftLabel.call(boundary, user)).toBe('0.5s behind');
+    expect(UserList.methods.driftLabel.call(boundary, user)).toBe('In sync');
   });
   it('normalizes numeric identifiers without treating missing identifiers as a match', () => {
     const numeric = { ...context, GET_HOST_USER: { media: { machineIdentifier: 42, ratingKey: 1 }, time: 10000 } };
@@ -44,13 +44,13 @@ describe('participant timing across Plex servers', () => {
     expect(UserList.methods.readinessLabel.call(context, {}, 'viewer')).toBe('Connecting');
     expect(UserList.methods.readinessLabel.call(context, { media }, 'viewer')).toBe('Connecting');
   });
-  it('uses the viewer tolerance for basic status while retaining detailed drift', () => {
+  it('uses the viewer tolerance for basic and detailed status', () => {
     const basicContext = { ...context, driftLabel: UserList.methods.driftLabel.bind(context) };
     const user = { media: context.GET_HOST_USER.media, state: 'playing', syncFlexibility: 3000 };
     expect(UserList.methods.readinessLabel.call(basicContext, user, 'viewer')).toBe('In sync');
     expect(UserList.methods.readinessLabel.call(basicContext, { ...user, syncFlexibility: 500 }, 'viewer'))
       .toBe('2.0s behind');
-    expect(UserList.methods.driftLabel.call(context, user)).toBe('2.0s behind');
+    expect(UserList.methods.driftLabel.call(context, user)).toBe('In sync');
   });
 });
 
@@ -84,11 +84,14 @@ describe('signed participant status fuzz', () => {
         playbackRate: sample % 3 ? 1 : undefined,
         syncFlexibility: sample % 11 === 0 ? undefined : tolerance,
       };
+      const trace = JSON.stringify({
+        seed: 20261019, sample, difference, tolerance, state, hostAge, viewerAge,
+      });
       const label = UserList.methods.readinessLabel.call(context, user, 'viewer');
-      if (Math.abs(difference) <= tolerance) expect(label).toContain('In sync');
-      else expect(label).toContain(difference > 0 ? 'ahead' : 'behind');
-      expect(label.startsWith('Paused')).toBe(user.state === 'paused');
-      expect(UserList.methods.getSyncBorderClass.call(context, user))
+      if (Math.abs(difference) <= tolerance) expect(label, trace).toContain('In sync');
+      else expect(label, trace).toContain(difference > 0 ? 'ahead' : 'behind');
+      expect(label.startsWith('Paused'), trace).toBe(user.state === 'paused');
+      expect(UserList.methods.getSyncBorderClass.call(context, user), trace)
         .toBe(Math.abs(difference) <= tolerance ? 'border-sync' : 'border-desync');
     }
   });

@@ -167,6 +167,12 @@
 import { mapActions, mapGetters } from 'vuex';
 import contentTitle from '@/mixins/contentTitle';
 
+const participantTiming = (context, user) => ({
+  difference: context.GET_HOST_USER
+    ? context.getAdjustedTime(user) - context.getAdjustedTime(context.GET_HOST_USER) : NaN,
+  tolerance: Number.isFinite(user.syncFlexibility) && user.syncFlexibility >= 0 ? user.syncFlexibility : 500,
+});
+
 export default {
   name: 'UserList',
 
@@ -264,9 +270,7 @@ export default {
       const timing = this.driftLabel(user);
       if (timing === 'Different media') return 'Different movie or episode';
       if (timing === 'Timing unavailable') return 'Sync status unavailable';
-      const tolerance = Number.isFinite(user.syncFlexibility) && user.syncFlexibility >= 0
-        ? user.syncFlexibility : 500;
-      const difference = this.getAdjustedTime(user) - this.getAdjustedTime(this.GET_HOST_USER);
+      const { difference, tolerance } = participantTiming(this, user);
       if (!Number.isFinite(difference)) return 'Sync status unavailable';
       if (Math.abs(difference) <= tolerance) return user.state === 'paused' ? 'Paused · In sync' : 'In sync';
       const direction = difference > 0 ? 'ahead' : 'behind';
@@ -286,9 +290,10 @@ export default {
         && (hostMedia.type !== 'episode' || (user.media.grandparentTitle === hostMedia.grandparentTitle
           && user.media.parentIndex === hostMedia.parentIndex && user.media.index === hostMedia.index));
       if (!sameSource && !matchingTitle) return 'Different media';
-      const drift = (this.getAdjustedTime(user) - this.getAdjustedTime(this.GET_HOST_USER)) / 1000;
+      const { difference, tolerance } = participantTiming(this, user);
+      const drift = difference / 1000;
       if (!Number.isFinite(drift)) return 'Timing unavailable';
-      const timing = Math.abs(drift) < 0.5 ? 'In sync'
+      const timing = Math.abs(difference) <= tolerance ? 'In sync'
         : `${Math.abs(drift).toFixed(1)}s ${drift < 0 ? 'behind' : 'ahead'}`;
       return sameSource ? timing : `${timing} (estimated)`;
     },
@@ -311,16 +316,10 @@ export default {
         : time;
     },
 
-    getSyncBorderClass({ syncFlexibility, ...rest }) {
-      if (!this.GET_HOST_USER) {
-        return 'border-error';
-      }
-
-      const difference = Math.abs(this.getAdjustedTime(rest) - this.getAdjustedTime(this.GET_HOST_USER));
-
+    getSyncBorderClass(user) {
+      const { difference, tolerance } = participantTiming(this, user);
       if (!Number.isFinite(difference)) return 'border-error';
-      const tolerance = Number.isFinite(syncFlexibility) && syncFlexibility >= 0 ? syncFlexibility : 500;
-      return difference > tolerance ? 'border-desync' : 'border-sync';
+      return Math.abs(difference) > tolerance ? 'border-desync' : 'border-sync';
     },
 
     getTitle(media) {

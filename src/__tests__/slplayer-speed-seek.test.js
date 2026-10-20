@@ -652,8 +652,9 @@ describe('Source request cancellation', () => {
     const controller = new AbortController();
     const commit = vi.fn();
     let started = false;
-    const dispatch = vi.fn((type) => {
+    const dispatch = vi.fn((type, payload) => {
       if (type === 'LOAD_PLAYER_SRC') {
+        payload.onLoadStart();
         started = true;
         return new Promise(() => {});
       }

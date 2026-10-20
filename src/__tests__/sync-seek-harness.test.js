@@ -24,7 +24,7 @@ const setup = () => {
   decoder = createDecoder();
   runtime.decoder = decoder;
   const state = {
-    offset: 0, changing: false, masked: false, playerState: 'playing',
+    session: 'original-session', offset: 0, changing: false, masked: false, playerState: 'playing',
   };
   const diagnostics = [];
   const notifications = [];
@@ -32,12 +32,14 @@ const setup = () => {
     getters: {
       GET_SRC_URL: 'https://fixture.invalid/stream',
       GET_FORCE_TRANSCODE: true,
+      get GET_X_PLEX_SESSION_ID() { return state.session; },
       get GET_OFFSET_MS() { return state.offset; },
       get GET_MASK_PLAYER_STATE() { return state.masked; },
       get GET_PLAYER_STATE() { return state.changing || state.masked ? 'buffering' : state.playerState; },
     },
     rootGetters: { GET_CONFIG: { slplayer_seek_timeout: 15000 } },
     commit: vi.fn((type, value) => {
+      if (type === 'SET_SESSION') state.session = value;
       if (type === 'SET_OFFSET_MS') state.offset = value;
       if (type === 'SET_IS_CHANGING_SOURCE') state.changing = value;
       if (type === 'SET_MASK_PLAYER_STATE') state.masked = value;
@@ -164,6 +166,30 @@ describe('decoder landing regression harness', () => {
     expect(await result).toBe('AbortError');
     expect(decoder.loads).toBe(0);
     expect(decoder.seeks).toEqual([80000, 200000]);
+    expect(state.changing).toBe(false);
+    expect(state.session).toBe('original-session');
+    expect(context.dispatch).toHaveBeenCalledWith('CHANGE_SUBTITLES', expect.any(Object));
+  });
+
+  it('cleans up a source load invalidated by manual input', async () => {
+    const { seek, state } = setup();
+    decoder.missMs = 18000;
+    const { getPlayer } = decoder;
+    let finishLoad;
+    let unloads = 0;
+    decoder.getPlayer = () => ({
+      ...getPlayer(),
+      unload: async () => { unloads += 1; },
+      load: () => new Promise((resolve) => { finishLoad = resolve; }),
+    });
+    const result = seek(80000).catch((error) => error.name);
+    await vi.advanceTimersByTimeAsync(30);
+    expect(finishLoad).toBeTypeOf('function');
+    recordSeekIntent(true);
+    finishLoad();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await result).toBe('AbortError');
+    expect(unloads).toBe(2);
     expect(state.changing).toBe(false);
   });
 

@@ -258,9 +258,10 @@ export default {
     console.debug('CHANGE_PLAYER_SRC');
     recordSeekIntent();
 
-    // Abort subtitle requests now or else we get ugly errors from the server closing it.
-    await dispatch('DESTROY_ASS');
-    ensureCurrent();
+    const previousSession = getters.GET_X_PLEX_SESSION_ID;
+    let loadStarted = false;
+    let subtitlesDestroyed = false;
+    const onLoadStart = () => { ensureCurrent(); loadStarted = true; };
 
     if (getters.GET_FORCE_TRANSCODE_RETRY) {
       commit('SET_FORCE_TRANSCODE_RETRY', false);
@@ -272,10 +273,16 @@ export default {
     commit('SET_IS_CHANGING_SOURCE', true);
 
     try {
+      // Keep teardown inside the same ownership cleanup as decision/load.
+      await dispatch('DESTROY_ASS');
+      subtitlesDestroyed = true;
+      ensureCurrent();
       try {
         await abortable(dispatch('SEND_PLEX_DECISION_REQUEST', { signal, ensureCurrent }), signal);
         ensureCurrent();
-        await abortable(dispatch('LOAD_PLAYER_SRC', { signal, ensureCurrent, restorePaused }), signal);
+        await abortable(dispatch('LOAD_PLAYER_SRC', {
+          signal, ensureCurrent, restorePaused, onLoadStart,
+        }), signal);
         ensureCurrent();
       } catch (e) {
         ensureCurrent();
@@ -288,7 +295,9 @@ export default {
         commit('SET_FORCE_TRANSCODE_RETRY', true);
         await abortable(dispatch('SEND_PLEX_DECISION_REQUEST', { signal, ensureCurrent }), signal);
         ensureCurrent();
-        await abortable(dispatch('LOAD_PLAYER_SRC', { signal, ensureCurrent, restorePaused }), signal);
+        await abortable(dispatch('LOAD_PLAYER_SRC', {
+          signal, ensureCurrent, restorePaused, onLoadStart,
+        }), signal);
         ensureCurrent();
       }
 
@@ -297,11 +306,25 @@ export default {
         commit('SET_MASK_PLAYER_STATE', false);
       }
     } finally {
-      if (signal?.aborted && revision === sourceRevision) {
-        try {
-          await unload();
-        } catch (error) {
-          console.warn('Cancelled source cleanup failed', error);
+      let ownerCancelled = false;
+      try { ensureOwner(); } catch { ownerCancelled = true; }
+      if ((signal?.aborted || ownerCancelled) && revision === sourceRevision) {
+        if (loadStarted) {
+          try {
+            await unload();
+          } catch (error) {
+            console.warn('Cancelled source cleanup failed', error);
+          }
+        } else {
+          // The old stream is intact; keep its Plex session and subtitle renderer.
+          commit('SET_SESSION', previousSession);
+          if (subtitlesDestroyed) {
+            const ensureRestorationCurrent = () => {
+              if (revision !== sourceRevision) throw new DOMException('Source replaced', 'AbortError');
+            };
+            Promise.resolve(dispatch('CHANGE_SUBTITLES', { ensureCurrent: ensureRestorationCurrent }))
+              .catch(() => {});
+          }
         }
       }
       if (revision === sourceRevision) commit('SET_IS_CHANGING_SOURCE', false);
@@ -855,7 +878,7 @@ export default {
   },
 
   LOAD_PLAYER_SRC: async ({ getters, commit, dispatch }, {
-    signal, ensureCurrent = () => {}, restorePaused,
+    signal, ensureCurrent = () => {}, restorePaused, onLoadStart = () => {},
   } = {}) => {
     const url = getters.GET_SRC_URL;
     const offset = getters.GET_OFFSET_MS;
@@ -866,6 +889,7 @@ export default {
     console.debug('LOAD_PLAYER_SRC: loading');
     const mediaElement = getMediaElement();
     if (mediaElement) mediaElement.autoplay = restorePaused !== true;
+    onLoadStart();
     await unload();
     throwIfAborted(signal);
     ensureCurrent();
