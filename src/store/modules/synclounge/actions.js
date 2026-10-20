@@ -73,6 +73,7 @@ const ensureRoomJoinCurrent = (revision) => {
 const invalidateRoomJoin = ({ commit }) => {
   const revision = beginRoomJoin();
   commit('SET_JOIN_SYNC_IN_PROGRESS', false);
+  commit('SET_ROOM_JOIN_PENDING', false);
   return revision;
 };
 
@@ -99,6 +100,7 @@ export default {
     { server, room, syncOnJoin = true },
   ) => {
     const revision = beginRoomJoin();
+    commit('SET_ROOM_JOIN_PENDING', true);
     try {
       await dispatch('DISCONNECT_IF_CONNECTED', { revision });
       ensureRoomJoinCurrent(revision);
@@ -117,6 +119,8 @@ export default {
     } catch (error) {
       ensureRoomJoinCurrent(revision);
       throw error;
+    } finally {
+      if (revision === roomJoinRevision) commit('SET_ROOM_JOIN_PENDING', false);
     }
   },
 

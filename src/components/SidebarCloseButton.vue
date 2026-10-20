@@ -22,5 +22,8 @@ export default {
 .sidebar-close {
   flex: 0 0 auto;
   min-height: 44px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
 }
 </style>

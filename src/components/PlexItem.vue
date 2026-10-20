@@ -94,7 +94,7 @@
             metadata.Media && metadata.Media[0] && metadata.Media[0].videoResolution
           "
           variant="outlined"
-          class="mr-2 mb-2"
+          size="small"
         >
           {{ metadata.Media[0].videoResolution.toUpperCase() }}
         </v-chip>
@@ -104,7 +104,6 @@
           color="grey-darken-2"
           size="small"
           label
-          class="mr-2 mb-2"
         >
           {{ metadata.contentRating }}
         </v-chip>
@@ -478,6 +477,10 @@ export default {
 
 <style scoped>
 .media-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
   flex: 1 1 160px;
   white-space: normal;

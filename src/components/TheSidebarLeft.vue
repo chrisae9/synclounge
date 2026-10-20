@@ -176,7 +176,8 @@ export default {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px;
+  min-height: 72px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--sl-border);
 }
 

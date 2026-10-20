@@ -81,7 +81,7 @@ export default {
 
 <style scoped>
 .chat-composer {
-  padding: 12px;
+  padding: 12px 16px;
   padding-bottom: max(12px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--sl-border);
   background: rgba(16, 18, 22, 0.94);

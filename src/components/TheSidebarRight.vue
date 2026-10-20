@@ -32,18 +32,10 @@
         class="party-controls"
         aria-label="Watch party controls"
       >
-        <v-switch
-          class="px-3"
-          label="Advanced controls"
-          hide-details
-          density="compact"
-          :model-value="GET_ADVANCED_PARTY_MODE"
-          @update:model-value="SET_ADVANCED_PARTY_MODE"
-        />
         <v-list-item
           v-if="AM_I_HOST || (GET_HOST_USER && GET_HOST_USER.state === 'stopped')"
           density="compact"
-          class="px-3 py-0 switch-item"
+          class="pa-0 switch-item"
         >
           <v-switch
             v-if="AM_I_HOST"
@@ -56,13 +48,6 @@
             @update:model-value="SEND_SET_PARTY_PAUSING_ENABLED"
           />
 
-          <p
-            v-if="AM_I_HOST"
-            class="text-caption text-medium-emphasis pb-2"
-          >
-            Allow viewers to pause or resume everyone.
-          </p>
-
           <v-list-item-subtitle
             v-if="!AM_I_HOST && GET_HOST_USER && GET_HOST_USER.state === 'stopped'"
           >
@@ -70,37 +55,11 @@
           </v-list-item-subtitle>
         </v-list-item>
 
-        <v-tooltip
-          v-if="AM_I_HOST && GET_ADVANCED_PARTY_MODE"
-          location="bottom"
-          content-class="thumbnail-tooltip"
-        >
-          <template #activator="{ props }">
-            <v-list-item
-              density="compact"
-              class="px-3 py-0 switch-item"
-              v-bind="props"
-            >
-              <v-switch
-                class="pa-0 ma-0 sidebar-switch"
-                hide-details
-                density="compact"
-                color="primary"
-                label="Auto Host"
-                :model-value="IS_AUTO_HOST_ENABLED"
-                @update:model-value="SEND_SET_AUTO_HOST_ENABLED"
-              />
-            </v-list-item>
-          </template>
-
-          <span>Automatically transfers host to other users when they play something new</span>
-        </v-tooltip>
-
         <v-list-item
           v-if="!AM_I_HOST
             && GET_HOST_USER && GET_HOST_USER.state !== 'stopped'"
           density="compact"
-          class="px-3 py-0"
+          class="pa-0"
         >
           <div class="d-flex ga-2">
             <v-tooltip
@@ -132,25 +91,6 @@
             </v-tooltip>
           </div>
         </v-list-item>
-
-        <div
-          v-if="syncPreset && GET_ADVANCED_PARTY_MODE"
-          class="px-3 py-2"
-        >
-          <v-select
-            :model-value="syncPreset"
-            :items="syncPresets"
-            label="Room synchronization"
-            density="compact"
-            :disabled="!AM_I_HOST"
-            hide-details
-            @update:model-value="SEND_SYNC_PRESET"
-          />
-          <p class="text-caption mt-2">
-            Relaxed allows up to 7 seconds of drift to reduce corrective seeks.
-            It cannot fix a slow stream.
-          </p>
-        </div>
       </section>
       <v-divider />
       <UserList class="party-users" />
@@ -182,23 +122,11 @@ export default {
     UserList: defineAsyncComponent(() => import('@/components/UserList.vue')),
   },
 
-  data: () => ({
-    syncPresets: [
-      { title: 'Strict · 0.5 seconds', value: 'strict' },
-      { title: 'Balanced · 3 seconds', value: 'balanced' },
-      { title: 'Relaxed · 7 seconds', value: 'relaxed' },
-      { title: 'Use each viewer’s setting', value: 'personal' },
-    ],
-  }),
-
   computed: {
-    ...mapGetters('settings', ['GET_ADVANCED_PARTY_MODE']),
-    ...mapState('synclounge', ['syncPreset']),
     ...mapState(['isRightSidebarOpen']),
 
     ...mapGetters('synclounge', [
       'IS_PARTY_PAUSING_ENABLED',
-      'IS_AUTO_HOST_ENABLED',
       'GET_USERS',
       'GET_HOST_USER',
       'AM_I_HOST',
@@ -206,11 +134,8 @@ export default {
   },
 
   methods: {
-    ...mapMutations('settings', ['SET_ADVANCED_PARTY_MODE']),
     ...mapActions('synclounge', [
-      'SEND_SYNC_PRESET',
       'SEND_SET_PARTY_PAUSING_ENABLED',
-      'SEND_SET_AUTO_HOST_ENABLED',
       'sendPartyPause',
     ]),
 
@@ -225,9 +150,10 @@ export default {
 <style scoped>
 .party-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  padding: 8px 12px;
+  min-height: 72px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--sl-border);
 }
 
@@ -243,7 +169,7 @@ export default {
   min-height: 0;
 }
 
-.party-controls { flex: 0 0 auto; }
+.party-controls { flex: 0 0 auto; padding: 4px 16px 8px; }
 .party-users { flex: 0 1 auto; min-height: 0; }
 
 .messages {
@@ -269,6 +195,8 @@ export default {
 .sidebar-switch :deep(.v-selection-control) {
   min-height: 36px;
 }
+
+.sidebar-switch :deep(.v-selection-control__wrapper) { width: 40px; }
 
 .sidebar-switch :deep(.v-switch__track) {
   width: 30px;

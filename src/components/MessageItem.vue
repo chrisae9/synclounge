@@ -1,7 +1,7 @@
 <template>
   <v-list-item class="message-item">
     <template #prepend>
-      <v-avatar size="32">
+      <v-avatar size="28">
         <v-img
           :src="sender.thumb"
         />
@@ -52,12 +52,19 @@ export default {
 </script>
 
 <style scoped>
+.message-item.v-list-item { padding: 8px 16px; }
+
+.message-item :deep(.v-list-item__spacer) { width: 8px; }
+
 .message-item :deep(.v-list-item__prepend) {
   align-self: start;
-  padding-top: 4px;
+  padding-top: 0;
 }
 
 .message-heading {
+  min-height: 20px;
+  line-height: 20px;
+  font-size: 14px;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -70,6 +77,7 @@ export default {
 }
 
 .message-time {
+  font-variant-numeric: tabular-nums;
   flex-shrink: 0;
   white-space: nowrap;
 }

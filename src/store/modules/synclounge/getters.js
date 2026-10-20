@@ -88,6 +88,7 @@ export default {
     ?? rootGetters.GET_CONFIG?.default_are_sound_notification_enabled,
 
   IS_JOIN_SYNC_IN_PROGRESS: (state) => state.joinSyncInProgress,
+  IS_ROOM_JOIN_PENDING: (state) => state.roomJoinPending,
 
   GET_HOST_GRACE_TIMEOUT_ID: (state) => state.hostGraceTimeoutId,
   IS_HOST_GRACE_PERIOD: (state) => state.isHostGracePeriod,

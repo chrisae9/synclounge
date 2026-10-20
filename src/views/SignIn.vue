@@ -13,6 +13,8 @@
         >
           <v-alert
             v-if="GET_PLEX_AUTH_TOKEN && IS_USER_AUTHORIZED === false"
+            class="welcome-status"
+            variant="tonal"
             type="error"
           >
             You are not authorized to access this server
@@ -34,6 +36,24 @@
               Bring your Plex library and your favorite people. Sign in to start a watch party.
             </p>
           </div>
+
+          <v-alert
+            v-if="authSetupError"
+            type="error"
+            variant="tonal"
+            class="welcome-status"
+            role="alert"
+          >
+            {{ authSetupError }}
+            <div class="mt-3">
+              <v-btn
+                :disabled="loading"
+                @click="fetchInitialAuthCode"
+              >
+                Retry connection
+              </v-btn>
+            </div>
+          </v-alert>
 
           <v-card-actions class="welcome-actions justify-center">
             <v-btn
@@ -69,6 +89,7 @@ export default {
   data: () => ({
     loading: false,
     plexAuthResponse: null,
+    authSetupError: null,
   }),
 
   computed: {
@@ -132,8 +153,12 @@ export default {
 
     async fetchInitialAuthCode() {
       this.loading = true;
+      this.authSetupError = null;
       try {
         this.plexAuthResponse = await this.FETCH_PLEX_INIT_AUTH();
+      } catch {
+        this.plexAuthResponse = null;
+        this.authSetupError = 'Couldn’t connect to Plex. Check your connection and try again.';
       } finally {
         this.loading = false;
       }

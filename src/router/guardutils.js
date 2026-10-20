@@ -24,6 +24,12 @@ export const getSignInRoute = (route) => ({
   }),
 });
 
+export const getRoomJoinRedirect = (to) => (to.params.room ? {
+  name: 'RoomJoin',
+  params: { room: to.params.room, ...(to.params.server && { server: to.params.server }) },
+  query: { redirect: to.fullPath },
+} : { name: 'RoomCreation' });
+
 const isEqualIfExpectedTrue = (expected, got) => (expected
   ? expected === got
   : !got);

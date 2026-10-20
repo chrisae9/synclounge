@@ -94,3 +94,20 @@ describe('SignIn redirects', () => {
     expect(ctx.$router.push).toHaveBeenCalledWith('/');
   });
 });
+
+it('shows a recoverable error when sign-in setup fails, and clears it after retry', async () => {
+  const context = {
+    loading: false,
+    plexAuthResponse: null,
+    authSetupError: null,
+    FETCH_PLEX_INIT_AUTH: vi.fn().mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ id: 'sample', code: 'sample' }),
+  };
+  await SignIn.methods.fetchInitialAuthCode.call(context);
+  expect(context.loading).toBe(false);
+  expect(context.authSetupError).toContain('Couldn’t connect to Plex');
+  expect(context.plexAuthResponse).toBe(null);
+  await SignIn.methods.fetchInitialAuthCode.call(context);
+  expect(context.authSetupError).toBe(null);
+  expect(context.plexAuthResponse).toEqual({ id: 'sample', code: 'sample' });
+});

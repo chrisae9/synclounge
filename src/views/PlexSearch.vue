@@ -12,7 +12,7 @@
       v-if="!loading && !GET_ENABLED_PLEX_SERVER_IDS.length"
       type="info"
       variant="tonal"
-      class="my-4"
+      class="recovery-panel"
       :title="hasEnabledServers ? 'Couldn’t reach your libraries' : 'No libraries enabled'"
     >
       {{ hasEnabledServers ? 'Your Plex servers are unavailable. Check their connection in Browse libraries.'
@@ -30,7 +30,7 @@
       v-else-if="searchFailed"
       type="warning"
       variant="tonal"
-      class="my-4"
+      class="recovery-panel"
       title="Couldn’t search all libraries"
     >
       Some libraries did not respond. Any available results are shown below.
@@ -48,7 +48,7 @@
       v-else-if="!loading && !hasResults"
       type="info"
       variant="tonal"
-      class="my-4"
+      class="recovery-panel"
       title="No matches"
     >
       No results for “{{ query }}”. Try another title or clear your search.

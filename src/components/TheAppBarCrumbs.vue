@@ -47,6 +47,7 @@
         :to="props.item.to"
         :exact="true"
         class="breadcrumb-item"
+        :title="props.item.title"
       >
         {{ props.item.title }}
       </v-breadcrumbs-item>
@@ -195,15 +196,29 @@ export default {
 }
 
 .breadcrumbs-truncate {
-  flex: 1 1 0;
+  flex: 0 0 36px;
+  min-height: 36px;
   min-width: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
   padding-top: 0;
   padding-bottom: 0;
   padding-left: 8px;
 }
 
 .breadcrumb-item {
+  flex: 0 0 auto;
+  max-width: 24%;
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+.breadcrumb-item:last-child { flex: 1 1 0; max-width: none; }
+.breadcrumb-item :deep(a) {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.breadcrumbs-truncate :deep(.v-breadcrumbs-divider) { flex-shrink: 0; }
 </style>
