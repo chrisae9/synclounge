@@ -21,8 +21,8 @@
   height: 24px;
   padding: 0;
 }
-.shaka-video-container .shaka-overflow-button-label-inline,
-.shaka-video-container .shaka-simple-overflow-button-label-inline {
+.shaka-video-container .shaka-overflow-menu .shaka-overflow-button-label-inline,
+.shaka-video-container .shaka-overflow-menu .shaka-simple-overflow-button-label-inline {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 40%);
   align-items: center;
@@ -32,8 +32,8 @@
   width: auto;
   padding-inline-end: 32px;
 }
-.shaka-video-container .shaka-overflow-button-label-inline > span:first-child,
-.shaka-video-container .shaka-simple-overflow-button-label-inline > span:first-child {
+.shaka-video-container .shaka-overflow-menu .shaka-overflow-button-label-inline > span:first-child,
+.shaka-video-container .shaka-overflow-menu .shaka-simple-overflow-button-label-inline > span:first-child {
   min-width: 0;
   white-space: normal;
   overflow-wrap: anywhere;
