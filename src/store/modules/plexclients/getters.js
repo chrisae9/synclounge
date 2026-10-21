@@ -114,7 +114,8 @@ export default {
     ? getters.GET_ACTIVE_PLAY_QUEUE.playQueueSelectedItemOffset > 0
     : false),
 
-  IS_THIS_MEDIA_PLAYING: (state, getters) => (media) => (getters.GET_ACTIVE_MEDIA_METADATA
+  IS_THIS_MEDIA_PLAYING: (state, getters, rootState, rootGetters) => (media) => (getters.GET_ACTIVE_MEDIA_METADATA
+    && !rootGetters['slplayer/GET_MASK_PLAYER_STATE']
     ? getters.GET_ACTIVE_MEDIA_METADATA.machineIdentifier === media.machineIdentifier
       && getters.GET_ACTIVE_MEDIA_METADATA.ratingKey === media.ratingKey
     : false),

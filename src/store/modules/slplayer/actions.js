@@ -309,6 +309,7 @@ export default {
       let ownerCancelled = false;
       try { ensureOwner(); } catch { ownerCancelled = true; }
       if ((signal?.aborted || ownerCancelled) && revision === sourceRevision) {
+        dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'source-startup-cancelled' });
         if (loadStarted) {
           try {
             await unload();
