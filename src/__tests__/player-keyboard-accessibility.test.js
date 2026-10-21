@@ -22,7 +22,7 @@ vi.mock('shaka-player/dist/shaka-player.ui', () => ({
           this.parent = parent;
           this.controls = controls;
           this.video = { currentTime: 100, duration: 300 };
-          this.eventManager = { listen: vi.fn() };
+          this.eventManager = { listen: (target, type, listener) => target.addEventListener?.(type, listener) };
         }
       },
       Controls: { registerElement: (name, factory) => factories.set(name, factory) },
@@ -166,4 +166,14 @@ describe('custom player control accessible names', () => {
     expect(control.button.title).toBe(label);
     expect(control.button.textContent).not.toBe('');
   });
+});
+
+it('dispatches Stop when the actual custom button receives a click', () => {
+  const dispatch = vi.fn();
+  registerButtons({ getters: {}, watch: () => () => {}, dispatch });
+  const parent = document.createElement('div');
+  document.body.appendChild(parent);
+  const control = factories.get('close').create(parent, {});
+  control.button.click();
+  expect(dispatch).toHaveBeenCalledExactlyOnceWith('slplayer/PRESS_STOP');
 });
