@@ -33,7 +33,9 @@ export default {
   GET_PLEX_DEVICE_DEVICE_HEADER: (state, getters, rootState, rootGetters) => rootGetters
     .GET_BROWSER.os,
 
-  GET_PLEX_DEVICE_NAME_HEADER: (state, getters) => getters.GET_PLEX_DEVICE_NAME,
+  // Plex labels devices as "<device name> (<platform>)" in new-device notifications,
+  // so name the app here and leave the browser to the platform header.
+  GET_PLEX_DEVICE_NAME_HEADER: (state, getters) => getters.GET_PLEX_PRODUCT_HEADER,
   GET_PLEX_PLATFORM_HEADER: (state, getters) => getters.GET_PLEX_DEVICE_NAME,
   GET_PLEX_DEVICE_SCREEN_RESOLUTION_HEADER: () => `${window.screen.availWidth}x${
     window.screen.availHeight},${window.screen.width}x${window.screen.height}`,
