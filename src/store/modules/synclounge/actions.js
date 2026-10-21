@@ -22,6 +22,7 @@ const getSocketEventTimeout = (rootGetters) => {
 };
 
 let manualSyncRevision = 0;
+let retriedGuestStartup = null;
 
 // Hold the requested party-pause state until the host confirms the matching command.
 let pendingPartyPause = null;
@@ -993,11 +994,30 @@ export default {
     await dispatch('_SYNC_PLAYER_STATE', cancelSignal);
   },
 
-  SYNC_PLAYER_STATE: async ({ dispatch, getters, commit }) => {
+  SYNC_PLAYER_STATE: async ({
+    dispatch, getters, commit, rootGetters,
+  }) => {
     if (getters.AM_I_HOST || getters.GET_SYNC_CANCEL_TOKEN || getters.IS_HOST_GRACE_PERIOD
       || getters.GET_HOST_RESTORE_PENDING_ID) {
       return;
     }
+
+    // A cancelled startup can leave selected metadata without a loaded stream.
+    // Retry media selection once, rather than polling/seeking an empty decoder forever.
+    if (rootGetters?.['slplayer/GET_MASK_PLAYER_STATE']) {
+      if (rootGetters['slplayer/IS_CHANGING_SOURCE']) return;
+      const media = getters.GET_HOST_USER?.media;
+      if (!media || !rootGetters['settings/GET_AUTOPLAY']) return;
+      const key = JSON.stringify([
+        getters.GET_ROOM, getters.GET_HOST_ID, media.machineIdentifier, media.ratingKey,
+      ]);
+      if (retriedGuestStartup === key) return;
+      retriedGuestStartup = key;
+      dispatch('slplayer/REPORT_PLAYBACK_DIAGNOSTIC', { event: 'guest-startup-retry' }, { root: true });
+      await dispatch('SYNC_MEDIA_AND_PLAYER_STATE');
+      return;
+    }
+    retriedGuestStartup = null;
 
     // eslint-disable-next-line new-cap
     const token = new CAF.cancelToken();

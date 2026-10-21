@@ -5,6 +5,8 @@ import {
 import { CAF } from 'caf';
 import actions from '@/store/modules/slplayer/actions';
 import plexActions from '@/store/modules/plexclients/actions';
+import plexGetters from '@/store/modules/plexclients/getters';
+import partyActions from '@/store/modules/synclounge/actions';
 import { recordSeekIntent } from '@/player/seekIntent';
 import isSeekLandingValid from '@/utils/seeklanding';
 import incident from '../../test/fixtures/seek-landing-incidents.json';
@@ -338,4 +340,75 @@ describe('seek validation fuzz', () => {
     expect(decoder.seeks).toHaveLength(0);
     expect(context.commit).not.toHaveBeenCalled();
   });
+});
+
+it('retries a selected-but-unloaded guest stream after startup cancellation', async () => {
+  const { state } = setup();
+  const media = { machineIdentifier: 'own-server', ratingKey: 'fixture-movie' };
+  state.masked = true;
+  state.offset = 231660;
+  const controller = new AbortController();
+  const normalDispatch = context.dispatch.getMockImplementation();
+  let decisionReached = false;
+  context.dispatch.mockImplementation((type, payload) => {
+    if (type === 'SEND_PLEX_DECISION_REQUEST') {
+      decisionReached = true;
+      controller.abort();
+      return Promise.resolve();
+    }
+    return normalDispatch(type, payload);
+  });
+  await expect(actions.CHANGE_PLAYER_SRC(context, { signal: controller.signal }))
+    .rejects.toMatchObject({ name: 'AbortError' });
+  expect(decisionReached).toBe(true);
+  expect(decoder.loads).toBe(0);
+  expect(state.changing).toBe(false);
+  expect(state.masked).toBe(true);
+
+  Object.assign(context.getters, {
+    GET_HOST_ID: 'host',
+    GET_ROOM: 'private-fixture',
+    GET_HOST_USER: { media, state: 'playing' },
+  });
+  Object.assign(context.rootGetters, {
+    'settings/GET_AUTOPLAY': true,
+    'plexclients/IS_THIS_MEDIA_PLAYING': (candidate) => plexGetters.IS_THIS_MEDIA_PLAYING(
+      {},
+      { GET_ACTIVE_MEDIA_METADATA: media },
+      {},
+      { 'slplayer/GET_MASK_PLAYER_STATE': state.masked },
+    )(candidate),
+  });
+  context.dispatch.mockImplementation((type, payload) => {
+    if (type === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') {
+      return Promise.resolve({ state: 'buffering', time: state.offset });
+    }
+    if (type === 'plexservers/FIND_BEST_MEDIA_MATCH') return Promise.resolve(media);
+    if (type === 'PLAY_MEDIA_AND_SYNC_TIME') return actions.CHANGE_PLAYER_SRC(context);
+    return normalDispatch(type, payload);
+  });
+  await partyActions._SYNC_MEDIA_AND_PLAYER_STATE(context, new AbortController().signal);
+  expect(decoder.loads).toBe(1);
+  expect(state.masked).toBe(false);
+  // Once successfully loaded, an unchanged media update must not reload it again.
+  await partyActions._SYNC_MEDIA_AND_PLAYER_STATE(context, new AbortController().signal);
+  expect(decoder.loads).toBe(1);
+});
+
+it('uses one bounded media retry on ordinary host updates after an interrupted guest startup', async () => {
+  const { state } = setup();
+  const media = { machineIdentifier: 'fixture-server', ratingKey: 'interrupted-startup' };
+  Object.assign(context.getters, { GET_HOST_ID: 'fixture-host', GET_ROOM: 'startup-room', GET_HOST_USER: { media } });
+  Object.assign(context.rootGetters, {
+    'slplayer/GET_MASK_PLAYER_STATE': true,
+    'slplayer/IS_CHANGING_SOURCE': true,
+    'settings/GET_AUTOPLAY': true,
+  });
+  await partyActions.SYNC_PLAYER_STATE(context);
+  expect(context.dispatch).not.toHaveBeenCalledWith('SYNC_MEDIA_AND_PLAYER_STATE');
+  context.rootGetters['slplayer/IS_CHANGING_SOURCE'] = false;
+  await partyActions.SYNC_PLAYER_STATE(context);
+  await partyActions.SYNC_PLAYER_STATE(context);
+  expect(context.dispatch.mock.calls.filter(([type]) => type === 'SYNC_MEDIA_AND_PLAYER_STATE')).toHaveLength(1);
+  expect(state.offset).toBe(0);
 });
