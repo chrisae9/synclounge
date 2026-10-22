@@ -89,6 +89,19 @@
               <span>Party Pausing is currently {{
                 IS_PARTY_PAUSING_ENABLED ? 'enabled' : 'disabled' }} by the host</span>
             </v-tooltip>
+            <v-btn
+              size="small"
+              variant="tonal"
+              aria-label="Sync with host"
+              title="Sync with host"
+              :loading="syncPending"
+              @click="syncWithHost"
+            >
+              <v-icon start>
+                sync
+              </v-icon>
+              Sync
+            </v-btn>
           </div>
         </v-list-item>
       </section>
@@ -122,6 +135,8 @@ export default {
     UserList: defineAsyncComponent(() => import('@/components/UserList.vue')),
   },
 
+  data: () => ({ syncPending: false }),
+
   computed: {
     ...mapState(['isRightSidebarOpen']),
 
@@ -134,9 +149,19 @@ export default {
   },
 
   methods: {
+    async syncWithHost() {
+      if (this.syncPending) return;
+      this.syncPending = true;
+      try {
+        await this.MANUAL_SYNC({ notify: true });
+      } finally {
+        this.syncPending = false;
+      }
+    },
     ...mapActions('synclounge', [
       'SEND_SET_PARTY_PAUSING_ENABLED',
       'sendPartyPause',
+      'MANUAL_SYNC',
     ]),
 
     ...mapMutations([

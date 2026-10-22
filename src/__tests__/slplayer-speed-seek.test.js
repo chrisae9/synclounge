@@ -704,3 +704,38 @@ describe('buffering source changes', () => {
     );
   });
 });
+
+describe('personal menu clicks never become party playback commands', () => {
+  const menuLabels = ['Quality', 'Subtitles', 'Subtitle size', 'Subtitle color', 'Volume', 'Settings'];
+  it.each(menuLabels)('keeps %s changes local', async (label) => {
+    const container = document.createElement('div');
+    const button = document.createElement('button');
+    const icon = document.createElement('span');
+    button.textContent = label;
+    button.append(icon);
+    container.append(button);
+    const dispatch = vi.fn();
+    await slplayerActions.HANDLE_PLAYER_CLICK({ dispatch }, { target: icon, currentTarget: container });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+  it('sends exactly one party command for a play-button click that bubbles', async () => {
+    const container = document.createElement('div');
+    const button = document.createElement('button');
+    button.className = 'shaka-small-play-button';
+    const icon = document.createElement('span');
+    button.append(icon);
+    container.append(button);
+    const dispatch = vi.fn();
+    await slplayerActions.HANDLE_PLAYER_CLICK({ dispatch }, { target: icon, currentTarget: button });
+    await slplayerActions.HANDLE_PLAYER_CLICK({ dispatch }, { target: icon, currentTarget: container });
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith('SEND_PARTY_PLAY_PAUSE');
+  });
+  it('preserves direct video playback clicks', async () => {
+    const dispatch = vi.fn();
+    await slplayerActions.HANDLE_PLAYER_CLICK({ dispatch }, {
+      target: document.createElement('video'), currentTarget: document.createElement('div'),
+    });
+    expect(dispatch).toHaveBeenCalledWith('SEND_PARTY_PLAY_PAUSE');
+  });
+});

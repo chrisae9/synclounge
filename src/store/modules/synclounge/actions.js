@@ -1,4 +1,5 @@
 import { CAF } from 'caf';
+import hostPlaybackNotice from '@/utils/hostPlaybackNotice';
 import { abortable, throwIfAborted } from '@/utils/cancellation';
 import eventhandlers from '@/store/modules/synclounge/eventhandlers';
 import { combineUrl, combineRelativeUrlParts } from '@/utils/combineurl';
@@ -976,8 +977,10 @@ export default {
           return;
         }
       } else {
-        const text = `Failed to find a compatible copy of ${hostUser.media?.title ?? 'host media'
-        }. If you have access to the content try manually playing it.`;
+        const server = rootGetters['plexservers/GET_PLEX_SERVER']?.(hostUser.media.machineIdentifier);
+        const enabled = rootGetters['plexservers/IS_PLEX_SERVER_ENABLED']?.(hostUser.media.machineIdentifier);
+        const notice = hostPlaybackNotice(hostUser, server, enabled);
+        const text = `${notice.title}. ${notice.text}`;
         console.warn(text);
         await dispatch('DISPLAY_NOTIFICATION', {
           text,

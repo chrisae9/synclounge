@@ -452,9 +452,12 @@ export default {
   },
 
   HANDLE_PLAYER_CLICK: async ({ dispatch }, e) => {
-    if (!e.target.classList.contains('shaka-close-button')) {
-      await dispatch('SEND_PARTY_PLAY_PAUSE');
-    }
+    const { target } = e;
+    const playButton = target?.closest?.('.shaka-small-play-button, .shaka-play-button');
+    // Play buttons have their own listeners; ignore their bubbled container click.
+    if (playButton && e.currentTarget !== playButton) return;
+    if (!playButton && target?.tagName !== 'VIDEO') return;
+    await dispatch('SEND_PARTY_PLAY_PAUSE');
   },
 
   HANDLE_SEEKING: async ({ state, dispatch }) => {
