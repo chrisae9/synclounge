@@ -33,6 +33,13 @@ let seekRebaseRevision = null;
 let blockedSeekRevision = null;
 let isPlayerStopping = false;
 const streamRecovery = createStreamRecovery();
+let presentationTimeline = null;
+const setPresentationPaused = (paused) => {
+  if (!presentationTimeline || presentationTimeline.paused === paused) return;
+  if (!presentationTimeline.paused) presentationTimeline.offset += Date.now() - presentationTimeline.at;
+  presentationTimeline.at = Date.now();
+  presentationTimeline.paused = paused;
+};
 let bufferingStartedAt = null;
 let bufferingEpisode = 0;
 let lastHealthDiagnosticAt = 0;
@@ -184,7 +191,7 @@ export default {
 
   CHANGE_MAX_VIDEO_BITRATE: async ({ commit, dispatch }, bitrate) => {
     commit('settings/SET_SLPLAYERQUALITY', bitrate, { root: true });
-    await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME');
+    await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME', { personalChange: true });
   },
 
   CHANGE_AUDIO_STREAM: async ({ getters, dispatch }, audioStreamID) => {
@@ -197,7 +204,7 @@ export default {
     await dispatch('plexclients/RELOAD_ACTIVE_MEDIA_METADATA', null, { root: true });
 
     // Redo src
-    await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME');
+    await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME', { personalChange: true });
   },
 
   CHANGE_SUBTITLE_STREAM: async ({ getters, dispatch }, subtitleStreamID) => {
@@ -210,22 +217,43 @@ export default {
     await dispatch('plexclients/RELOAD_ACTIVE_MEDIA_METADATA', null, { root: true });
 
     // Redo src
-    await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME');
+    await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME', { personalChange: true });
   },
 
   CHANGE_MEDIA_INDEX: async ({ commit, dispatch }, index) => {
     commit('SET_MEDIA_INDEX', index);
-    await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME');
+    await dispatch('UPDATE_PLAYER_SRC_AND_KEEP_TIME', { personalChange: true });
   },
 
   // Changes the player src to the new one and restores the time afterwards
   UPDATE_PLAYER_SRC_AND_KEEP_TIME: async ({ commit, dispatch }, options) => {
     const revision = sourceRevision;
-    const offset = await abortable(dispatch('FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK'), options?.signal);
+    const previous = presentationTimeline;
+    const paused = previous ? previous.paused : isPaused();
+    const offset = previous
+      ? previous.offset + (previous.paused ? 0 : Date.now() - previous.at)
+      : await abortable(dispatch('FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK'), options?.signal);
     throwIfAborted(options?.signal);
     if (revision !== sourceRevision) throw new DOMException('Source replaced', 'AbortError');
+    if (!options?.personalChange) {
+      commit('SET_OFFSET_MS', offset);
+      await dispatch('CHANGE_PLAYER_SRC', options);
+      return;
+    }
+    // Personal stream settings must not freeze or rewind the room's host clock.
+    const restorePaused = options?.restorePaused ?? paused;
+    const anchor = { offset, at: Date.now(), paused: restorePaused };
+    const getRestoreTime = () => anchor.offset + (anchor.paused ? 0 : Date.now() - anchor.at);
+    const getRestorePaused = () => anchor.paused;
+    presentationTimeline = anchor;
     commit('SET_OFFSET_MS', offset);
-    await dispatch('CHANGE_PLAYER_SRC', options);
+    try {
+      await dispatch('CHANGE_PLAYER_SRC', {
+        ...options, restorePaused, getRestoreTime, getRestorePaused,
+      });
+    } finally {
+      if (presentationTimeline === anchor) presentationTimeline = null;
+    }
   },
 
   CHANGE_SUBTITLES: async ({ getters, dispatch }, options) => {
@@ -242,7 +270,7 @@ export default {
   },
 
   CHANGE_PLAYER_SRC: async ({ getters, commit, dispatch }, {
-    signal, restorePaused, ensureOwner = () => {},
+    signal, restorePaused, getRestoreTime, getRestorePaused, ensureOwner = () => {},
   } = {}) => {
     throwIfAborted(signal);
     if (!signal || restorePaused === undefined) streamRecovery.cancel();
@@ -281,7 +309,7 @@ export default {
         await abortable(dispatch('SEND_PLEX_DECISION_REQUEST', { signal, ensureCurrent }), signal);
         ensureCurrent();
         await abortable(dispatch('LOAD_PLAYER_SRC', {
-          signal, ensureCurrent, restorePaused, onLoadStart,
+          signal, ensureCurrent, restorePaused, getRestoreTime, getRestorePaused, onLoadStart,
         }), signal);
         ensureCurrent();
       } catch (e) {
@@ -296,7 +324,7 @@ export default {
         await abortable(dispatch('SEND_PLEX_DECISION_REQUEST', { signal, ensureCurrent }), signal);
         ensureCurrent();
         await abortable(dispatch('LOAD_PLAYER_SRC', {
-          signal, ensureCurrent, restorePaused, onLoadStart,
+          signal, ensureCurrent, restorePaused, getRestoreTime, getRestorePaused, onLoadStart,
         }), signal);
         ensureCurrent();
       }
@@ -359,19 +387,27 @@ export default {
     { signal },
   ),
 
-  FETCH_TIMELINE_POLL_DATA: async ({ getters, dispatch }) => (isMediaElementAttached()
-    ? {
-      time: await dispatch('FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK'),
-      duration: getDurationMs(),
-      playbackRate: getPlaybackRate(),
-      state: getters.GET_PLAYER_STATE,
+  FETCH_TIMELINE_POLL_DATA: async ({ getters, dispatch }) => {
+    if (presentationTimeline) {
+      return {
+        time: presentationTimeline.offset + (presentationTimeline.paused ? 0 : Date.now() - presentationTimeline.at),
+        duration: getDurationMs(),
+        playbackRate: 1,
+        state: presentationTimeline.paused ? 'paused' : 'playing',
+      };
     }
-    : {
-      time: getters.GET_OFFSET_MS,
-      duration: 0,
-      playbackRate: 0,
-      state: getters.GET_PLAYER_STATE,
-    }),
+    if (isMediaElementAttached()) {
+      return {
+        time: await dispatch('FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK'),
+        duration: getDurationMs(),
+        playbackRate: getPlaybackRate(),
+        state: getters.GET_PLAYER_STATE,
+      };
+    }
+    return {
+      time: getters.GET_OFFSET_MS, duration: 0, playbackRate: 0, state: getters.GET_PLAYER_STATE,
+    };
+  },
 
   HANDLE_PLAYER_PLAYING: async ({ getters, dispatch }) => {
     if (getters.GET_PLAYER_STATE === 'stopped') {
@@ -573,6 +609,7 @@ export default {
   },
 
   PRESS_PLAY: async ({ commit }) => {
+    setPresentationPaused(false);
     const success = await play();
     if (!success) {
       // Muted autoplay is always allowed by browsers
@@ -595,6 +632,7 @@ export default {
   },
 
   PRESS_PAUSE: () => {
+    setPresentationPaused(true);
     pause();
   },
 
@@ -610,6 +648,7 @@ export default {
   },
 
   PRESS_STOP: async ({ getters, commit, dispatch }) => {
+    presentationTimeline = null;
     isPlayerStopping = true;
     streamRecovery.cancel();
     sourceRevision += 1;
@@ -882,7 +921,7 @@ export default {
   },
 
   LOAD_PLAYER_SRC: async ({ getters, commit, dispatch }, {
-    signal, ensureCurrent = () => {}, restorePaused, onLoadStart = () => {},
+    signal, ensureCurrent = () => {}, restorePaused, getRestoreTime, getRestorePaused, onLoadStart = () => {},
   } = {}) => {
     const url = getters.GET_SRC_URL;
     const offset = getters.GET_OFFSET_MS;
@@ -911,8 +950,10 @@ export default {
     if (restorePaused !== undefined && !isCasting()) await waitForVideoReady(mediaElement, signal);
     throwIfAborted(signal);
     ensureCurrent();
-    if (restorePaused === true) pause();
-    else if (restorePaused === false) await dispatch('PRESS_PLAY');
+    if (getRestoreTime) setCurrentTimeMs(getRestoreTime());
+    const finalPaused = getRestorePaused ? getRestorePaused() : restorePaused;
+    if (finalPaused === true) pause();
+    else if (finalPaused === false) await dispatch('PRESS_PLAY');
     throwIfAborted(signal);
     ensureCurrent();
   },

@@ -739,3 +739,58 @@ describe('personal menu clicks never become party playback commands', () => {
     expect(dispatch).toHaveBeenCalledWith('SEND_PARTY_PLAY_PAUSE');
   });
 });
+
+describe('personal stream reload room clock', () => {
+  it.each([false, true])('preserves a continuous room clock during reload (paused: %s)', async (paused) => {
+    const player = await import('@/player');
+    vi.mocked(player.isPaused).mockReturnValue(paused);
+    let now = 1000;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    let finish;
+    const gate = new Promise((resolve) => { finish = resolve; });
+    let options;
+    const dispatch = vi.fn(async (type, payload) => {
+      if (type === 'FETCH_PLAYER_CURRENT_TIME_MS_OR_FALLBACK') return 100000;
+      if (type === 'CHANGE_PLAYER_SRC') { options = payload; await gate; }
+      return undefined;
+    });
+    try {
+      const operation = slplayerActions.UPDATE_PLAYER_SRC_AND_KEEP_TIME(
+        { commit: vi.fn(), dispatch },
+        { personalChange: true },
+      );
+      await vi.waitFor(() => expect(options).toBeDefined());
+      now += 4000;
+      const timeline = await slplayerActions.FETCH_TIMELINE_POLL_DATA({
+        getters: { GET_PLAYER_STATE: 'buffering' }, dispatch,
+      });
+      expect(timeline.state).toBe(paused ? 'paused' : 'playing');
+      expect(timeline.time).toBe(paused ? 100000 : 104000);
+      expect(options.getRestoreTime()).toBe(timeline.time);
+      await slplayerActions.PRESS_PAUSE();
+      expect(options.getRestorePaused()).toBe(true);
+      now += 3000;
+      expect(options.getRestoreTime()).toBe(timeline.time);
+      finish();
+      await operation;
+    } finally {
+      finish();
+      clock.mockRestore();
+      vi.mocked(player.isPaused).mockReturnValue(false);
+    }
+  });
+});
+
+it('clears the presentation clock if a personal source reload fails', async () => {
+  const dispatch = vi.fn(async (type) => {
+    if (type === 'CHANGE_PLAYER_SRC') throw new Error('decision failed');
+    return 100000;
+  });
+  const context = { commit: vi.fn(), dispatch };
+  const operation = slplayerActions.UPDATE_PLAYER_SRC_AND_KEEP_TIME(context, { personalChange: true });
+  await expect(operation).rejects.toThrow('decision failed');
+  const timeline = await slplayerActions.FETCH_TIMELINE_POLL_DATA({
+    getters: { GET_PLAYER_STATE: 'paused' }, dispatch,
+  });
+  expect(timeline).toMatchObject({ time: 100000, state: 'paused' });
+});
