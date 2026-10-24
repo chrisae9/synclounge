@@ -35,6 +35,30 @@ describe('synclounge actions', () => {
     vi.unstubAllGlobals();
   });
 
+  it('reports missing host-server access when no alternate copy is found', async () => {
+    const dispatch = vi.fn(async (type) => {
+      if (type === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') return { state: 'stopped' };
+      if (type === 'plexservers/FIND_BEST_MEDIA_MATCH') return null;
+      return undefined;
+    });
+    await actions._SYNC_MEDIA_AND_PLAYER_STATE({
+      getters: {
+        GET_ROOM: 'room',
+        GET_HOST_ID: 'host',
+        GET_HOST_USER: { state: 'playing', media: { machineIdentifier: 'not-shared', title: 'Movie' } },
+      },
+      rootGetters: {
+        'settings/GET_AUTOPLAY': true,
+        'plexservers/GET_PLEX_SERVER': () => undefined,
+      },
+      dispatch,
+    }, new AbortController().signal);
+    expect(dispatch).toHaveBeenCalledWith('DISPLAY_NOTIFICATION', {
+      text: expect.stringContaining('share the movie’s library'), color: 'error',
+    }, { root: true });
+    expect(dispatch).not.toHaveBeenCalledWith('PLAY_MEDIA_AND_SYNC_TIME', expect.anything());
+  });
+
   it('clears the previous room synchronization preset on disconnect', async () => {
     const mutations = (await import('@/store/modules/synclounge/mutations')).default;
     const state = { syncPreset: 'relaxed', isInRoom: true };

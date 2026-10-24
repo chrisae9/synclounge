@@ -5,10 +5,9 @@
       type="info"
       variant="tonal"
       class="recovery-panel"
-      title="No movie is playing in this room"
+      :title="playbackNotice.title"
     >
-      You’re in the room, but there’s no playback to restore. Rooms clear when everyone leaves.
-      Pick a movie below, or wait for your host to start one.
+      {{ playbackNotice.text }}
     </v-alert>
     <v-alert
       v-if="GET_PLEX_SERVERS.length && !hasEnabledServers"
@@ -169,6 +168,7 @@
 <script>
 import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters, mapMutations } from 'vuex';
+import hostPlaybackNotice from '@/utils/hostPlaybackNotice';
 import linkWithRoom from '@/mixins/linkwithroom';
 
 export default {
@@ -189,6 +189,12 @@ export default {
   }),
 
   computed: {
+    playbackNotice() {
+      const id = this.GET_HOST_USER?.media?.machineIdentifier;
+      const server = this.GET_PLEX_SERVERS.find((candidate) => candidate.clientIdentifier === id);
+      return hostPlaybackNotice(this.GET_HOST_USER, server, this.IS_PLEX_SERVER_ENABLED(id));
+    },
+    ...mapGetters('synclounge', ['GET_HOST_USER']),
     hasEnabledServers() {
       return this.GET_PLEX_SERVERS.some((server) => this.IS_PLEX_SERVER_ENABLED(server.clientIdentifier));
     },

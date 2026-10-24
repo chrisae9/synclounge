@@ -534,3 +534,19 @@ describe('seeded guest startup interruption traces', () => {
     }
   });
 });
+
+it('starts a personal replacement stream at its intended position before readiness', async () => {
+  const { state } = setup();
+  state.offset = 249000;
+  const original = decoder.getPlayer;
+  const load = vi.fn(async () => {});
+  decoder.getPlayer = () => ({ ...original(), load });
+  await actions.LOAD_PLAYER_SRC(context, {
+    restorePaused: false,
+    getRestoreTime: () => 250000,
+    getRestorePaused: () => false,
+  });
+  expect(load).toHaveBeenCalledWith('https://fixture.invalid/stream', 249);
+  // Only the elapsed-time adjustment remains; no post-load seek to the old offset.
+  expect(decoder.seeks).toEqual([250000]);
+});
