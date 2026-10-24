@@ -50,6 +50,7 @@ const setup = (component, options = {}) => {
         state: { health: {} },
         getters: {
           GET_ROOM: () => 'room',
+          GET_HOST_USER: () => options.host || null,
           GET_SERVER: () => 'https://service.invalid',
           GET_SERVER_HEALTH: (state) => (url) => state.health[url],
         },
@@ -88,7 +89,7 @@ const setup = (component, options = {}) => {
     props: options.props || props,
     global: {
       plugins: [store, createVuetify({ components, directives })],
-      mocks: { $route: { name: 'AdvancedRoomJoin', query: {} }, $router: { push: vi.fn() } },
+      mocks: { $route: { name: 'AdvancedRoomJoin', query: options.query || {} }, $router: { push: vi.fn() } },
       stubs: { RouterLink: { template: '<a><slot /></a>' } },
       directives: { intersect: {} },
     },
@@ -230,4 +231,17 @@ describe('connection recovery', () => {
     expect(connect).toHaveBeenCalledTimes(2);
     wrapper.unmount();
   });
+});
+
+it('explains missing host-server access on a redirected player instead of claiming no movie', async () => {
+  const { wrapper } = setup(PlexHome, {
+    query: { playback: 'unavailable' },
+    host: { state: 'playing', media: { machineIdentifier: 'not-shared' } },
+  });
+  try {
+    await flushPromises();
+    expect(wrapper.text()).toContain('Host movie isn’t available to your Plex account');
+    expect(wrapper.text()).toContain('share the movie’s library');
+    expect(wrapper.text()).not.toContain('No movie is playing in this room');
+  } finally { wrapper.unmount(); }
 });

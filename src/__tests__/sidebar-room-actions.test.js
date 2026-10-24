@@ -18,6 +18,7 @@ vi.mock('@/components/TheSettingsDialog.vue', () => ({ default: { template: '<di
 
 const setup = (component, inRoom = true, host = null) => {
   const disconnect = vi.fn();
+  const manualSync = vi.fn().mockResolvedValue({ status: 'success' });
   const store = createStore({
     state: { isLeftSidebarOpen: true, isRightSidebarOpen: true },
     mutations: {
@@ -38,7 +39,7 @@ const setup = (component, inRoom = true, host = null) => {
           GET_ROOM: () => 'movie-night',
           GET_SERVER: () => 'https://fixture.invalid',
         },
-        actions: { DISCONNECT_AND_NAVIGATE_HOME: disconnect },
+        actions: { DISCONNECT_AND_NAVIGATE_HOME: disconnect, MANUAL_SYNC: (_, payload) => manualSync(payload) },
       },
       plex: { namespaced: true, getters: { GET_PLEX_USER: () => null } },
       settings: { namespaced: true, getters: { GET_ADVANCED_PARTY_MODE: () => false } },
@@ -59,7 +60,9 @@ const setup = (component, inRoom = true, host = null) => {
       },
     },
   });
-  return { wrapper, store, disconnect };
+  return {
+    wrapper, store, disconnect, manualSync,
+  };
 };
 
 describe('sidebar close and room exit', () => {
@@ -103,4 +106,13 @@ describe('sidebar close and room exit', () => {
     expect(wrapper.find('[aria-label="Leave room"]').exists()).toBe(false);
     wrapper.unmount();
   });
+});
+
+it('offers personal sync beside party pause even when party pausing is disabled', async () => {
+  const { wrapper, manualSync } = setup(TheSidebarRight, true, { state: 'playing' });
+  try {
+    expect(wrapper.get('[aria-label="Pause party"]').attributes('disabled')).toBeDefined();
+    await wrapper.get('[aria-label="Sync with host"]').trigger('click');
+    expect(manualSync).toHaveBeenCalledWith({ notify: true });
+  } finally { wrapper.unmount(); }
 });

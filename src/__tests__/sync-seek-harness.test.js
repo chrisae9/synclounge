@@ -412,3 +412,141 @@ it('uses one bounded media retry on ordinary host updates after an interrupted g
   expect(context.dispatch.mock.calls.filter(([type]) => type === 'SYNC_MEDIA_AND_PLAYER_STATE')).toHaveLength(1);
   expect(state.offset).toBe(0);
 });
+
+describe('seeded guest startup interruption traces', () => {
+  it.each(seeds)('recovers cancelled decisions without duplicate loads for seed %s', async (seed) => {
+    const random = seededRandom(seed);
+    for (let step = 0; step < casesPerSeed; step += 1) {
+      decoder.finish();
+      const { state } = setup();
+      const caseContext = context;
+      const media = { machineIdentifier: `server-${step % 3}`, ratingKey: `movie-${seed}-${step}` };
+      const controller = new AbortController();
+      const normalDispatch = caseContext.dispatch.getMockImplementation();
+      const delay = 1 + Math.floor(random() * 2000);
+      const cancelBeforeDecision = random() < 0.5;
+      state.masked = true;
+      state.offset = Math.floor(random() * 5000000);
+      caseContext.dispatch.mockImplementation(async (type, payload) => {
+        if (type === 'SEND_PLEX_DECISION_REQUEST') {
+          await new Promise((resolve) => { setTimeout(resolve, delay); });
+          controller.abort();
+          return undefined;
+        }
+        return normalDispatch(type, payload);
+      });
+      const interrupted = actions.CHANGE_PLAYER_SRC(caseContext, { signal: controller.signal })
+        .then(() => 'loaded', (error) => error.name);
+      if (cancelBeforeDecision) controller.abort();
+      await vi.advanceTimersByTimeAsync(delay + 1);
+      try {
+        expect(await interrupted).toBe('AbortError');
+        expect(decoder.loads).toBe(0);
+        expect(state.changing).toBe(false);
+        expect(state.masked).toBe(true);
+        Object.assign(caseContext.getters, {
+          GET_ROOM: `fuzz-room-${seed}`, GET_HOST_ID: 'host', GET_HOST_USER: { media, state: 'playing' },
+        });
+        Object.assign(caseContext.rootGetters, {
+          'settings/GET_AUTOPLAY': true,
+          'plexclients/IS_THIS_MEDIA_PLAYING': (candidate) => plexGetters.IS_THIS_MEDIA_PLAYING(
+            {},
+            { GET_ACTIVE_MEDIA_METADATA: media },
+            {},
+            { 'slplayer/GET_MASK_PLAYER_STATE': state.masked },
+          )(candidate),
+        });
+        caseContext.dispatch.mockImplementation((type, payload) => {
+          if (type === 'plexclients/FETCH_TIMELINE_POLL_DATA_CACHE') {
+            return Promise.resolve({ state: 'buffering', time: state.offset });
+          }
+          if (type === 'plexservers/FIND_BEST_MEDIA_MATCH') return Promise.resolve(media);
+          if (type === 'PLAY_MEDIA_AND_SYNC_TIME') return actions.CHANGE_PLAYER_SRC(caseContext);
+          return normalDispatch(type, payload);
+        });
+        const polls = 2 + Math.floor(random() * 12);
+        for (let poll = 0; poll < polls; poll += 1) {
+          await partyActions._SYNC_MEDIA_AND_PLAYER_STATE(caseContext, new AbortController().signal);
+          await vi.advanceTimersByTimeAsync(Math.floor(random() * 1000));
+        }
+        expect(decoder.loads).toBe(1);
+        expect(state.masked).toBe(false);
+        expect(state.changing).toBe(false);
+        expect(decoder.listenerCount()).toBe(0);
+      } catch (error) {
+        throw new Error(
+          `startup SYNC_FUZZ_SEED=${seed} step=${step} early=${cancelBeforeDecision} delay=${delay}`,
+          { cause: error },
+        );
+      }
+    }
+  });
+
+  it.each(seeds)('bounds retries across guarded host-update bursts for seed %s', async (seed) => {
+    const random = seededRandom(seed);
+    for (let step = 0; step < casesPerSeed; step += 1) {
+      setup();
+      const caseContext = context;
+      Object.assign(caseContext.getters, {
+        GET_ROOM: `burst-${seed}-${step}`,
+        GET_HOST_ID: 'host',
+        GET_HOST_USER: { media: { machineIdentifier: 'server', ratingKey: 'movie' } },
+      });
+      Object.assign(caseContext.rootGetters, {
+        'slplayer/GET_MASK_PLAYER_STATE': true, 'settings/GET_AUTOPLAY': true,
+      });
+      const guard = [
+        ['getters', 'AM_I_HOST'], ['getters', 'GET_SYNC_CANCEL_TOKEN'],
+        ['getters', 'IS_HOST_GRACE_PERIOD'], ['getters', 'GET_HOST_RESTORE_PENDING_ID'],
+        ['rootGetters', 'slplayer/IS_CHANGING_SOURCE'],
+      ][Math.floor(random() * 5)];
+      caseContext[guard[0]][guard[1]] = true;
+      try {
+        await Promise.all(Array.from(
+          { length: 1 + Math.floor(random() * 12) },
+          () => partyActions.SYNC_PLAYER_STATE(caseContext),
+        ));
+        expect(caseContext.dispatch).not.toHaveBeenCalledWith('SYNC_MEDIA_AND_PLAYER_STATE');
+        caseContext[guard[0]][guard[1]] = false;
+        caseContext.rootGetters['settings/GET_AUTOPLAY'] = false;
+        await partyActions.SYNC_PLAYER_STATE(caseContext);
+        expect(caseContext.dispatch).not.toHaveBeenCalledWith('SYNC_MEDIA_AND_PLAYER_STATE');
+        caseContext.rootGetters['settings/GET_AUTOPLAY'] = true;
+        await Promise.all(Array.from(
+          { length: 2 + Math.floor(random() * 20) },
+          () => partyActions.SYNC_PLAYER_STATE(caseContext),
+        ));
+        const retryCount = () => caseContext.dispatch.mock.calls
+          .filter(([type]) => type === 'SYNC_MEDIA_AND_PLAYER_STATE').length;
+        expect(retryCount()).toBe(1);
+        // Recovery must rearm the allowance for a later interruption of the same movie.
+        const recoveries = 1 + Math.floor(random() * 4);
+        for (let recovery = 0; recovery < recoveries; recovery += 1) {
+          caseContext.rootGetters['slplayer/GET_MASK_PLAYER_STATE'] = false;
+          await partyActions.SYNC_PLAYER_STATE(caseContext);
+          caseContext.rootGetters['slplayer/GET_MASK_PLAYER_STATE'] = true;
+          await Promise.all(Array.from({ length: 3 }, () => partyActions.SYNC_PLAYER_STATE(caseContext)));
+          expect(retryCount()).toBe(recovery + 2);
+        }
+      } catch (error) {
+        throw new Error(`burst SYNC_FUZZ_SEED=${seed} step=${step} guard=${guard[1]}`, { cause: error });
+      }
+    }
+  });
+});
+
+it('starts a personal replacement stream at its intended position before readiness', async () => {
+  const { state } = setup();
+  state.offset = 249000;
+  const original = decoder.getPlayer;
+  const load = vi.fn(async () => {});
+  decoder.getPlayer = () => ({ ...original(), load });
+  await actions.LOAD_PLAYER_SRC(context, {
+    restorePaused: false,
+    getRestoreTime: () => 250000,
+    getRestorePaused: () => false,
+  });
+  expect(load).toHaveBeenCalledWith('https://fixture.invalid/stream', 249);
+  // Only the elapsed-time adjustment remains; no post-load seek to the old offset.
+  expect(decoder.seeks).toEqual([250000]);
+});
