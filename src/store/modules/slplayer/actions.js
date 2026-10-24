@@ -936,13 +936,13 @@ export default {
     await unload();
     throwIfAborted(signal);
     ensureCurrent();
-    await abortable(load(url), signal);
+    await abortable(getRestoreTime ? load(url, offset / 1000) : load(url), signal);
     throwIfAborted(signal);
     ensureCurrent();
     console.debug('LOAD_PLAYER_SRC: loaded, offset:', getters.GET_OFFSET_MS);
     dispatch('REPORT_PLAYBACK_DIAGNOSTIC', { event: 'playback-loaded' });
 
-    if (offset > 0) {
+    if (offset > 0 && !getRestoreTime) {
       commit('SET_SYNC_SEEK_TARGET', offset);
       setCurrentTimeMs(offset);
     }
