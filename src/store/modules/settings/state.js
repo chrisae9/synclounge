@@ -2,7 +2,7 @@
 const state = () => ({
   autoplay: null,
   advancedPartyMode: false,
-  showBufferingNotifications: true,
+  showBufferingNotifications: false,
   clientPollInterval: null,
   syncMode: null,
   syncFlexibility: null,

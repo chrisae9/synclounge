@@ -1479,7 +1479,7 @@ describe('host recovery identity boundary', () => {
 });
 
 describe('buffering popup preference', () => {
-  it.each([true, false])('keeps state updates while popups are %s', async (enabled) => {
+  it.each([true, false, undefined, null])('keeps state updates while popups are %s', async (enabled) => {
     const ctx = createMockContext();
     ctx.rootGetters['settings/GET_SHOW_BUFFERING_NOTIFICATIONS'] = enabled;
     const update = { id: 'friend-1', state: 'buffering', time: 2000 };
