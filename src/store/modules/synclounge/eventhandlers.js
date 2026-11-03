@@ -475,7 +475,7 @@ export default {
       return;
     }
 
-    if (rootGetters['settings/GET_SHOW_BUFFERING_NOTIFICATIONS'] !== false
+    if (rootGetters['settings/GET_SHOW_BUFFERING_NOTIFICATIONS'] === true
       && data.state === 'buffering' && previousState !== 'buffering'
       && data.id !== getters.GET_SOCKET_ID) {
       const user = getters.GET_USER(data.id);
