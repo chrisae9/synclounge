@@ -11,7 +11,11 @@ it.each([true, false])('keeps room policy controls scoped to the host (host: %s)
   const autoHost = vi.fn();
   const preset = vi.fn();
   const store = createStore({
-    getters: { GET_CONFIG: () => ({ default_sync_flexability: 3000, default_client_poll_interval: 1000 }) },
+    getters: {
+      GET_CONFIG: () => ({
+        default_sync_flexability: 3000, default_client_poll_interval: 1000, default_sync_mode: 'cleanseek',
+      }),
+    },
     modules: {
       settings,
       synclounge: {
@@ -45,6 +49,13 @@ it.each([true, false])('keeps room policy controls scoped to the host (host: %s)
   });
   try {
     await flushPromises();
+    const selects = wrapper.findAllComponents(components.VSelect);
+    const quality = selects.find((node) => node.find('[aria-label="Quality Limit"]').exists());
+    expect(quality.text()).toContain('Original');
+    const protocol = selects.find((node) => node.find('[aria-label="Streaming Protocol"]').exists());
+    expect(protocol.text()).toContain('hls');
+    const method = selects.find((node) => node.find('[aria-label="Syncing Method"]').exists());
+    expect(method.text()).toContain('Clean Seek');
     await wrapper.get('input[aria-label="Show party diagnostics"]').setValue(true);
     expect(store.getters['settings/GET_ADVANCED_PARTY_MODE']).toBe(true);
     const transfer = wrapper.find('input[aria-label="Transfer host automatically"]');
