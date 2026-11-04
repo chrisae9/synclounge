@@ -6,7 +6,7 @@ updates:
   - /packages/syncloungeserver
   schedule:
     interval: daily
-    time: 04:00
+    time: "04:00"
     timezone: America/New_York
   open-pull-requests-limit: 5
   commit-message:
@@ -24,7 +24,7 @@ updates:
   - /
   schedule:
     interval: daily
-    time: 04:00
+    time: "04:00"
     timezone: America/New_York
   open-pull-requests-limit: 5
   commit-message:
@@ -41,7 +41,7 @@ updates:
   - /
   schedule:
     interval: daily
-    time: 04:00
+    time: "04:00"
     timezone: America/New_York
   open-pull-requests-limit: 5
   commit-message:
