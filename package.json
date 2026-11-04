@@ -26,7 +26,7 @@
     "audit": "npm audit --audit-level=high",
     "test": "npm run build && npm run test:unit",
     "test:node": "node --test test/*.test.js",
-    "test:frontend": "vitest run",
+    "test:frontend": "node --no-experimental-webstorage ./node_modules/vitest/vitest.mjs run",
     "test:unit": "npm run test:node && npm run test:frontend",
     "test:ci": "npm run test:unit",
     "prepare": "if-env SKIP_BUILD=true && echo 'Skipping build' || npm run build",
@@ -34,12 +34,12 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.22.2",
+    "express": "^5.3.0",
     "ipaddr.js": "^2.5.0",
     "nconf": "^0.13.0",
     "proxy-addr": "^2.0.7",
     "socket.io": "^4.8.4",
-    "uuid": "^11.1.1"
+    "uuid": "^14.0.3"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8",
@@ -77,7 +77,7 @@
     "vitest": "^5.0.5",
     "vue": "^3.5.44",
     "vue-router": "^4.4.0",
-    "vuetify": "^3.7.0",
+    "vuetify": "^4.3.1",
     "vuex": "^4.1.0"
   },
   "bugs": {
