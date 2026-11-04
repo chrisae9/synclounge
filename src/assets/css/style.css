@@ -8,19 +8,21 @@
   --sl-content-inset: 32px;
 }
 
-:is(a, button, input, textarea, [tabindex]):focus-visible:not(.v-field__input) {
+:is(a, button, input, textarea, [tabindex]):focus-visible {
   outline: 2px solid #e5a00d;
   outline-offset: 4px;
 }
 
-/* Frame the whole Vuetify control, including its search and clear icons. */
-.v-field__input:focus-visible {
-  outline: none;
-}
+/* Frame the whole Vuetify control; keep the fallback ring on older browsers. */
+@supports selector(:has(*)) {
+  .v-field__input:focus-visible {
+    outline: none;
+  }
 
-.v-field:has(.v-field__input:focus-visible) {
-  outline: 2px solid #e5a00d;
-  outline-offset: 2px;
+  .v-field:has(.v-field__input:focus-visible) {
+    outline: 2px solid #e5a00d;
+    outline-offset: 2px;
+  }
 }
 
 .welcome-layout {
