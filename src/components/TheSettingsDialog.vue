@@ -121,7 +121,7 @@
             >
               <template #selection="{ item }">
                 <span class="text-body-2 text-medium-emphasis">
-                  {{ item.raw.label }}
+                  {{ item.label }}
                 </span>
               </template>
             </v-select>
@@ -174,7 +174,7 @@
                   size="small"
                   class="text-body-2 text-medium-emphasis"
                 >
-                  <span>{{ item.raw.name }}</span>
+                  <span>{{ item.name }}</span>
                 </v-chip>
               </template>
             </v-select>
@@ -405,7 +405,7 @@
                   >
                     <template #selection="{ item }">
                       <span class="text-body-2 text-medium-emphasis">
-                        {{ item.raw }}
+                        {{ item }}
                       </span>
                     </template>
                   </v-select>
@@ -454,7 +454,7 @@
                   >
                     <template #selection="{ item }">
                       <span class="text-body-2 text-medium-emphasis">
-                        {{ item.raw.title }}
+                        {{ item.title }}
                       </span>
                     </template>
                   </v-select>
