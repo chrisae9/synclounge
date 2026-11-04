@@ -13,6 +13,18 @@
   outline-offset: 4px;
 }
 
+/* Frame the whole Vuetify control; keep the fallback ring on older browsers. */
+@supports selector(:has(*)) {
+  .v-field__input:focus-visible {
+    outline: none;
+  }
+
+  .v-field:has(.v-field__input:focus-visible) {
+    outline: 2px solid #e5a00d;
+    outline-offset: 2px;
+  }
+}
+
 .welcome-layout {
   min-height: calc(100dvh - var(--v-layout-top, 64px) - 48px);
   display: flex;
