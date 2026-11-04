@@ -1,52 +1,55 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
-    directories:
-      - "/"
-      - "/packages/syncloungeserver"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    versioning-strategy: increase
-    open-pull-requests-limit: 10
-    groups:
-      production-dependencies:
-        dependency-type: "production"
-        update-types: ["minor", "patch"]
-      development-dependencies:
-        dependency-type: "development"
-        update-types: ["minor", "patch"]
-    commit-message:
-      prefix: "build(deps)"
-      prefix-development: "build(deps-dev)"
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 10
-    groups:
-      actions:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
-    commit-message:
-      prefix: "ci(action)"
-      prefix-development: "ci(dev-action)"
-
-  - package-ecosystem: "docker"
-    directory: "/"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 10
-    groups:
-      container-base-images:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
-    commit-message:
-      prefix: "build(docker)"
-      prefix-development: "build(docker)"
+- package-ecosystem: npm
+  directories:
+  - /
+  - /packages/syncloungeserver
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: America/New_York
+  open-pull-requests-limit: 5
+  commit-message:
+    prefix: build(deps)
+  groups:
+    minor-and-patch:
+      patterns:
+      - '*'
+      update-types:
+      - minor
+      - patch
+  versioning-strategy: increase
+- package-ecosystem: docker
+  directories:
+  - /
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: America/New_York
+  open-pull-requests-limit: 5
+  commit-message:
+    prefix: build(deps)
+  groups:
+    minor-and-patch:
+      patterns:
+      - '*'
+      update-types:
+      - minor
+      - patch
+- package-ecosystem: github-actions
+  directories:
+  - /
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: America/New_York
+  open-pull-requests-limit: 5
+  commit-message:
+    prefix: build(deps)
+  groups:
+    minor-and-patch:
+      patterns:
+      - '*'
+      update-types:
+      - minor
+      - patch
