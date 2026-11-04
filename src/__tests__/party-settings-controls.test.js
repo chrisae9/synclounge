@@ -11,7 +11,11 @@ it.each([true, false])('keeps room policy controls scoped to the host (host: %s)
   const autoHost = vi.fn();
   const preset = vi.fn();
   const store = createStore({
-    getters: { GET_CONFIG: () => ({ default_sync_flexability: 3000, default_client_poll_interval: 1000, default_sync_mode: 'cleanseek' }) },
+    getters: {
+      GET_CONFIG: () => ({
+        default_sync_flexability: 3000, default_client_poll_interval: 1000, default_sync_mode: 'cleanseek',
+      }),
+    },
     modules: {
       settings,
       synclounge: {
