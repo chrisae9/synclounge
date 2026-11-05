@@ -694,7 +694,7 @@ export default {
     const timeUntilSynced = (seekToMs - currentTimeMs) / (rate - 1);
     console.log('ms until synced: ', timeUntilSynced);
 
-    const main = CAF(function* main(signal) {
+    const main = CAF(function* syncPlaybackRate(signal) {
       // Register listener before setting rate — setPlaybackRate fires ratechange synchronously
       const rateChangePromise = dispatch('PROCESS_STATE_UPDATE_ON_PLAYER_EVENT', {
         signal,
@@ -771,7 +771,7 @@ export default {
     const timeoutSignal = timeoutToken.signal;
     const anySignal = CAF.signalRace([cancelSignal, timeoutSignal]);
 
-    const main = CAF(function* main(signal) {
+    const main = CAF(function* waitForSeek(signal) {
       yield waitForMediaElementEvent({ signal, type: 'seeked' });
     });
 

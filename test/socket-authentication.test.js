@@ -1,11 +1,11 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { io } = require('socket.io-client');
-// eslint-disable-next-line import/extensions
+// eslint-disable-next-line import-x/extensions
 const { socketServer } = require('../packages/syncloungeserver/dist/lib.js');
 const {
   createSocketAuthentication, createReconnectIdentity,
-  // eslint-disable-next-line import/extensions
+  // eslint-disable-next-line import-x/extensions
 } = require('../packages/syncloungeserver/dist/socketserver/authentication.js');
 
 const policy = { mechanism: 'plex', type: ['user'], authorized: ['alice'] };

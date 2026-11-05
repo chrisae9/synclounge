@@ -1,4 +1,3 @@
-import muxjs from 'mux.js';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 import store from '@/store';
 import playerUiPlugins from '@/player/ui';
@@ -9,8 +8,6 @@ import suppressStationaryMouseMoves from './suppressStationaryMouseMoves';
 import {
   getPlayer, setPlayer, setOverlay, setControlsCleanup,
 } from './state';
-
-window.muxjs = muxjs;
 
 playerUiPlugins(store);
 

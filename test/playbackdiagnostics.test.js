@@ -2,13 +2,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 // The generated dist module does not exist until build:server runs.
-/* eslint-disable import/extensions */
+/* eslint-disable import-x/extensions */
 const {
   sanitizePlaybackDiagnostic,
 } = require(
   '../packages/syncloungeserver/dist/socketserver/playbackdiagnostics.js',
 );
-/* eslint-enable import/extensions */
+/* eslint-enable import-x/extensions */
 
 test('sanitizes structured playback diagnostics without accepting unrelated fields', () => {
   const diagnostic = sanitizePlaybackDiagnostic({

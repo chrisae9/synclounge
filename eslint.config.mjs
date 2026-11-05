@@ -4,9 +4,12 @@ import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
 import stylistic from '@stylistic/eslint-plugin';
 import confusingBrowserGlobals from 'confusing-browser-globals';
-import importPlugin from 'eslint-plugin-import';
+import importRecommended from 'eslint-plugin-import-x/config/recommended';
+import { createNodeResolver } from 'eslint-plugin-import-x/node-resolver';
 import vue from 'eslint-plugin-vue';
 import globals from 'globals';
+// eslint-disable-next-line import-x/extensions -- Node ESM requires explicit config extensions.
+import importPlugin from './eslint-import-plugin.mjs';
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const javascriptFiles = [
@@ -31,7 +34,8 @@ export default [
     files: lintFiles,
   },
   {
-    ...importPlugin.flatConfigs.recommended,
+    plugins: { 'import-x': importPlugin },
+    rules: importRecommended.rules,
     name: 'synclounge/import-recommended',
     files: lintFiles,
   },
@@ -324,45 +328,40 @@ export default [
       '@stylistic/switch-colon-spacing': ['error', { after: true, before: false }],
       '@stylistic/wrap-iife': ['error', 'outside', { functionPrototypeMethods: false }],
 
-      'import/extensions': ['error', 'ignorePackages', {
+      'import-x/extensions': ['error', 'ignorePackages', {
         js: 'never',
         mjs: 'never',
         jsx: 'never',
       }],
-      'import/first': 'error',
-      'import/newline-after-import': 'error',
-      'import/no-absolute-path': 'error',
-      'import/no-amd': 'error',
-      'import/no-cycle': 'error',
-      'import/no-duplicates': 'error',
-      'import/no-dynamic-require': 'error',
-      'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
-      'import/no-import-module-exports': 'error',
-      'import/no-mutable-exports': 'error',
-      'import/no-named-as-default': 'error',
-      'import/no-named-as-default-member': 'error',
-      'import/no-named-default': 'error',
-      'import/no-relative-packages': 'error',
-      'import/no-self-import': 'error',
-      'import/no-unresolved': ['error', { ignore: ['^@/'] }],
-      'import/no-useless-path-segments': ['error', { commonjs: true }],
-      'import/no-webpack-loader-syntax': 'error',
-      'import/order': ['error', { groups: [['builtin', 'external', 'internal']] }],
-      'import/prefer-default-export': 'error',
+      'import-x/first': 'error',
+      'import-x/newline-after-import': 'error',
+      'import-x/no-absolute-path': 'error',
+      'import-x/no-amd': 'error',
+      'import-x/no-cycle': 'error',
+      'import-x/no-duplicates': 'error',
+      'import-x/no-dynamic-require': 'error',
+      'import-x/no-extraneous-dependencies': ['error', { devDependencies: true }],
+      'import-x/no-import-module-exports': 'error',
+      'import-x/no-mutable-exports': 'error',
+      'import-x/no-named-as-default': 'error',
+      'import-x/no-named-as-default-member': 'error',
+      'import-x/no-named-default': 'error',
+      'import-x/no-relative-packages': 'error',
+      'import-x/no-self-import': 'error',
+      'import-x/no-unresolved': 'error',
+      'import-x/no-useless-path-segments': ['error', { commonjs: true }],
+      'import-x/no-webpack-loader-syntax': 'error',
+      'import-x/order': ['error', { groups: [['builtin', 'external', 'internal']] }],
+      'import-x/prefer-default-export': 'error',
 
       'vue/no-template-target-blank': 'off',
       'vue/no-v-text-v-html-on-component': 'off',
     },
     settings: {
-      'import/resolver': {
-        node: {
-          extensions: ['.js', '.mjs', '.json'],
-        },
-        alias: {
-          map: [['@', path.resolve(projectRoot, 'src')]],
-          extensions: ['.js', '.mjs', '.vue', '.json'],
-        },
-      },
+      'import-x/resolver-next': [createNodeResolver({
+        alias: { '@': [path.resolve(projectRoot, 'src')] },
+        extensions: ['.js', '.mjs', '.vue', '.json'],
+      })],
     },
   },
   {
@@ -384,14 +383,6 @@ export default [
     files: javascriptFiles.filter((file) => !file.startsWith('src/')),
     languageOptions: {
       globals: globals.node,
-    },
-  },
-  {
-    name: 'synclounge/vite-config-interop',
-    files: ['vite.config.mjs'],
-    rules: {
-      // eslint-plugin-import does not resolve this package's ESM default through its exports map.
-      'import/default': 'off',
     },
   },
 ];

@@ -8,7 +8,7 @@ let combineRelativeUrlParts;
 describe('combineurl', () => {
   before(async () => {
     // Node ESM resolution requires the extension for this CommonJS dynamic import.
-    // eslint-disable-next-line import/extensions
+    // eslint-disable-next-line import-x/extensions
     const mod = await import('../src/utils/combineurl.mjs');
     combineUrl = mod.combineUrl;
     combineRelativeUrlParts = mod.combineRelativeUrlParts;

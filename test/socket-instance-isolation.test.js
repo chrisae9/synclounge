@@ -2,7 +2,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { io } = require('socket.io-client');
 // The generated dist entry does not exist until build:server runs.
-// eslint-disable-next-line import/extensions
+// eslint-disable-next-line import-x/extensions
 const { socketServer } = require('../packages/syncloungeserver/dist/lib.js');
 
 const waitForEvent = (socket, eventName, timeoutMs = 3000) => new Promise((resolve, reject) => {

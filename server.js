@@ -3,7 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const path = require('path');
 const fs = require('fs');
-const syncloungeServer = require('./packages/syncloungeserver/dist/lib.js'); // eslint-disable-line import/extensions
+const syncloungeServer = require('./packages/syncloungeserver/dist/lib.js'); // eslint-disable-line import-x/extensions
 const config = require('./config');
 const {
   createCache,

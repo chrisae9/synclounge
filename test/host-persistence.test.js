@@ -9,9 +9,9 @@ const crypto = require('node:crypto');
 const os = require('node:os');
 const path = require('node:path');
 const { io } = require('socket.io-client');
-// eslint-disable-next-line import/extensions
+// eslint-disable-next-line import-x/extensions
 const { socketServer } = require('../packages/syncloungeserver/dist/lib.js');
-// eslint-disable-next-line import/extensions
+// eslint-disable-next-line import-x/extensions
 const { createHostPersistence } = require('../packages/syncloungeserver/dist/socketserver/hostpersistence.js');
 
 const storedRecord = {

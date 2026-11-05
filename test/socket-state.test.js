@@ -2,7 +2,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
 // The generated dist module does not exist until build:server runs.
-// eslint-disable-next-line import/extensions
+// eslint-disable-next-line import-x/extensions
 const { createState } = require('../packages/syncloungeserver/dist/socketserver/state.js');
 
 describe('socket server room state', () => {
