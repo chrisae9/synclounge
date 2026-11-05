@@ -68,7 +68,7 @@
     "happy-dom": "^21.0.4",
     "mux.js": "^6.3.0",
     "sass": "^1.107.1",
-    "shaka-player": "^4.16.13",
+    "shaka-player": "^5.3.3",
     "socket.io-client": "^4.8.4",
     "synclounge-libjass": "^1.0.0",
     "vanilla-tilt": "^1.8.1",
