@@ -118,6 +118,8 @@ export default defineConfig({
     ),
   },
   build: {
+    // Keep Vite 6's browser floor rather than adopting a newer default on each upgrade.
+    target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14'],
     outDir: 'dist',
   },
   test: {

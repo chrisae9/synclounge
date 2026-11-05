@@ -40,3 +40,19 @@ const hidden = panelLabels.length >= 2
 globalThis.document.querySelector('#result').textContent = hidden
   ? 'PASS: audio/subtitle labels stay hidden in the actual control bar.'
   : 'FAIL: overflow labels leaked into the control bar.';
+
+// Explicit opt-in keeps the fixture usable offline for layout-only checks.
+globalThis.document.querySelector('#load-sample').addEventListener('click', async () => {
+  const result = globalThis.document.querySelector('#playback-result');
+  result.textContent = 'Loading public HLS sample…';
+  try {
+    await player.load('https://storage.googleapis.com/shaka-demo-assets/angel-one-hls/hls.m3u8');
+    result.textContent = `Ready: Shaka ${shaka.Player.version}`;
+  } catch (error) {
+    result.textContent = `FAIL: sample load (${error.code || error.name})`;
+  }
+});
+
+ui.getControls().addEventListener('error', (event) => {
+  globalThis.document.querySelector('#playback-result').textContent = `FAIL: player UI (${event.detail?.message})`;
+});
