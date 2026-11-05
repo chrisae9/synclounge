@@ -72,7 +72,7 @@
     "socket.io-client": "^4.8.4",
     "synclounge-libjass": "^1.0.0",
     "vanilla-tilt": "^1.8.1",
-    "vite": "^6.4.3",
+    "vite": "^8.3.5",
     "vite-plugin-vuetify": "^2.0.0",
     "vitest": "^5.0.5",
     "vue": "^3.5.44",
