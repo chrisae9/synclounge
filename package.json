@@ -57,7 +57,7 @@
     "caf": "^15.0.1",
     "cast-mux.js": "npm:mux.js@7.0.3",
     "confusing-browser-globals": "^1.0.11",
-    "date-fns": "^2.30.0",
+    "date-fns": "^4.4.0",
     "detect-browser": "^5.3.0",
     "eslint": "^9.39.5",
     "eslint-import-resolver-alias": "^1.1.2",
