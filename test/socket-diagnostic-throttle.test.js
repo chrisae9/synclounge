@@ -1,6 +1,6 @@
 const { it } = require('node:test');
 const assert = require('node:assert/strict');
-// eslint-disable-next-line import/extensions
+// eslint-disable-next-line import-x/extensions
 const { createEventHandlers } = require('../packages/syncloungeserver/dist/socketserver/handlers.js');
 
 it('resumes diagnostics after the window expires and logs only one warning per window', (t) => {

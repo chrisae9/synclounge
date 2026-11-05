@@ -1,5 +1,5 @@
 // Share the server allowlist so report fields cannot grow accidentally.
-// eslint-disable-next-line import/no-relative-packages
+// eslint-disable-next-line import-x/no-relative-packages
 import { sanitizePlaybackDiagnostic } from '../../packages/syncloungeserver/src/socketserver/playbackdiagnostics';
 
 const recent = [];

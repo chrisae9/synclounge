@@ -63,13 +63,6 @@ export const fetchJson = async (url, queryParams, { headers, ...rest } = {}) => 
   }
 };
 
-export const fetchXmlAndTransform = async (...args) => {
-  const text = await fetchText(...args);
-
-  const xmlutils = (await import('@/utils/xmlutils')).default;
-  return xmlutils.parse(text);
-};
-
 export const fetchBodyReader = async (...args) => {
   const response = await queryFetch(...args);
   return response.body.getReader();

@@ -36,6 +36,8 @@ jobs:
         env:
           SKIP_BUILD: true
 
+      - run: npm run check:dependencies
+
       - run: npm run lint -- --no-fix
 
       - run: npm run build

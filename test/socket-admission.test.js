@@ -1,9 +1,9 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { io } = require('socket.io-client');
-// eslint-disable-next-line import/extensions
+// eslint-disable-next-line import-x/extensions
 const { default: createAdmission } = require('../packages/syncloungeserver/dist/socketserver/admission.js');
-// eslint-disable-next-line import/extensions
+// eslint-disable-next-line import-x/extensions
 const { socketServer } = require('../packages/syncloungeserver/dist/lib.js');
 
 describe('socket admission limits', () => {

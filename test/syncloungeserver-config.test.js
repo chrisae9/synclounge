@@ -11,7 +11,7 @@ const {
   defaultConfig,
   getConfig,
   socketServer,
-} = require('../packages/syncloungeserver/dist/lib.js'); // eslint-disable-line import/extensions
+} = require('../packages/syncloungeserver/dist/lib.js'); // eslint-disable-line import-x/extensions
 
 describe('embedded socket server configuration', () => {
   it('does not reset the imported nconf singleton', () => {

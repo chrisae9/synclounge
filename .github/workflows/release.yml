@@ -25,6 +25,8 @@ jobs:
         env:
           SKIP_BUILD: true
 
+      - run: npm run check:dependencies
+
       - run: npm run build
 
       - run: npm run lint
@@ -96,7 +98,7 @@ jobs:
           echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
           echo "minor=$MINOR" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -161,7 +163,7 @@ jobs:
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           body: ${{ steps.tag_message.outputs.has_notes == 'true' && steps.tag_message.outputs.message || '' }}
           generate_release_notes: ${{ steps.tag_message.outputs.has_notes != 'true' }}
