@@ -429,7 +429,7 @@ export default {
 
     getPlayerUiOptions() {
       return {
-        addBigPlayButton: true,
+        bigButtons: ['play_pause'],
         controlPanelElements: [
           'mute',
           'volume',

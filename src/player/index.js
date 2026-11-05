@@ -143,13 +143,11 @@ export const setCurrentTimeMs = (timeMs, { userInitiated = false } = {}) => {
   }
 };
 
-export const getSmallPlayButton = () => getOverlay()
-  .getControls()
-  .getControlsContainer()
-  .getElementsByClassName('shaka-small-play-button')[0];
+export const getSmallPlayButton = () => getOverlay().getControls().getControlsContainer()
+  .querySelector('.shaka-controls-button-panel .shaka-play-button');
 
 export const getBigPlayButton = () => getOverlay().getControls().getControlsContainer()
-  .getElementsByClassName('shaka-play-button')[0];
+  .querySelector('.shaka-big-buttons-container .shaka-play-button');
 
 export const getDimensions = () => {
   const {
