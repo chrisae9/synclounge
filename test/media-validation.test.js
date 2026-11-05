@@ -1,6 +1,6 @@
 const { it } = require('node:test');
 const assert = require('node:assert/strict');
-// eslint-disable-next-line import/extensions
+// eslint-disable-next-line import-x/extensions
 const { validateEvent } = require('../packages/syncloungeserver/dist/socketserver/validation.js');
 
 const timeline = {

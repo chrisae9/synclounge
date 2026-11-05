@@ -1,10 +1,10 @@
 # build environment
-FROM --platform=$BUILDPLATFORM node:26-alpine AS build-stage
+FROM --platform=$BUILDPLATFORM node:26.13.0-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94 AS build-stage
 RUN mkdir /app && chown -R node:node /app
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
 USER node
-COPY --link --chown=1000:1000 package*.json ./
+COPY --link --chown=1000:1000 package*.json .npmrc ./
 COPY --link --chown=1000:1000 packages packages
 RUN SKIP_BUILD=true npm ci
 COPY --link --chown=1000:1000 . .
@@ -14,18 +14,18 @@ ARG VERSION
 RUN npm run build
 
 # dependency environment
-FROM node:26-alpine AS dependency-stage
+FROM node:26.13.0-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94 AS dependency-stage
 RUN mkdir /app && chown -R node:node /app
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
 USER node
-COPY --link --chown=1000:1000 package*.json ./
+COPY --link --chown=1000:1000 package*.json .npmrc ./
 COPY --link --chown=1000:1000 packages packages
 RUN SKIP_BUILD=true npm ci
-RUN npm prune --production
+RUN npm prune --omit=dev
 
 # production environment
-FROM node:26-alpine AS production-stage
+FROM node:26.13.0-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94 AS production-stage
 ENV NODE_ENV=production
 RUN mkdir /app && chown -R node:node /app
 WORKDIR /app
