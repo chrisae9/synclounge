@@ -1,3 +1,4 @@
+import { addControlIcon } from '@/player/ui/utils';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 
 export default (store) => {
@@ -9,8 +10,7 @@ export default (store) => {
       this.button = document.createElement('button');
       this.button.classList.add('shaka-close-button');
       this.button.classList.add('shaka-slplayer-button');
-      this.button.classList.add('material-icons-round');
-      this.button.textContent = 'close';
+      addControlIcon(this.button, 'CLOSE');
       this.button.setAttribute('aria-label', 'Stop playback');
       this.button.title = 'Stop playback';
       this.parent.appendChild(this.button);

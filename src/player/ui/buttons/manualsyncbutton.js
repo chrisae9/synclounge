@@ -1,5 +1,5 @@
 import shaka from 'shaka-player/dist/shaka-player.ui';
-import { setDisplay } from '@/player/ui/utils';
+import { addControlIcon, setDisplay } from '@/player/ui/utils';
 
 export default (store) => {
   class ManualSyncButton extends shaka.ui.Element {
@@ -12,8 +12,7 @@ export default (store) => {
       this.button = document.createElement('button');
       this.button.classList.add('shaka-manualsync-button');
       this.button.classList.add('shaka-slplayer-button');
-      this.button.classList.add('material-icons-round');
-      this.button.textContent = 'sync';
+      addControlIcon(this.button, 'LOOP');
       this.button.setAttribute('aria-label', 'Sync with host');
       this.button.title = 'Sync with host';
       this.parent.appendChild(this.button);
