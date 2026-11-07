@@ -25,9 +25,10 @@ const shakaMocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('shaka-player/dist/shaka-player.ui', () => ({
+vi.mock('shaka-player/dist/shaka-player.ui', async () => ({
   default: {
     ui: {
+      ...((await import('./helpers/shaka-icon-mock')).default),
       SettingsMenu: shakaMocks.SettingsMenu,
       Controls: {
         registerElement: shakaMocks.registerControlElement,

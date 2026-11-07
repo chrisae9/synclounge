@@ -1,4 +1,8 @@
 /* Shaka creates these nodes outside Vue's scoped styles. */
+.shaka-video-container {
+  container-type: inline-size;
+  container-name: sl-player;
+}
 .shaka-video-container .shaka-overflow-menu {
   width: min(360px, calc(100% - 24px));
   min-width: 0;
@@ -16,7 +20,7 @@
   font-size: 14px;
   line-height: 1.4;
 }
-.shaka-video-container .shaka-overflow-menu > button > .material-svg-icon {
+.shaka-video-container .shaka-overflow-menu > button > .shaka-ui-icon {
   width: 24px;
   height: 24px;
   padding: 0;
@@ -48,4 +52,62 @@
   text-overflow: ellipsis;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+}
+
+.shaka-video-container .shaka-slplayer-button {
+  position: relative;
+  flex: 0 0 auto;
+}
+.shaka-video-container .shaka-seek-amount {
+  position: absolute;
+  inset-inline-end: 2px;
+  bottom: 3px;
+  padding: 0 1px;
+  border-radius: 2px;
+  background: #181818;
+  color: white;
+  font: 700 9px/12px sans-serif;
+  pointer-events: none;
+}
+
+/* Track choices have direct desktop controls and compact overflow entries. */
+.shaka-video-container .shaka-overflow-menu > .shaka-audio-button,
+.shaka-video-container .shaka-overflow-menu > .shaka-subtitles-button {
+  display: none;
+}
+/* Keep essential playback, Stop and Sync reachable in narrow player layouts. */
+@media (max-width: 700px) {
+  .shaka-video-container .shaka-controls-container {
+    --shaka-icon-size: 44px;
+  }
+  .shaka-video-container .shaka-overflow-menu > .shaka-audio-button:not(.shaka-hidden),
+  .shaka-video-container .shaka-overflow-menu > .shaka-subtitles-button:not(.shaka-hidden) {
+    display: grid;
+  }
+  /* The central play control remains available; avoid a duplicate toolbar target. */
+  .shaka-video-container .shaka-controls-button-panel > .shaka-play-button,
+  .shaka-video-container .shaka-controls-button-panel > .shaka-audio-button,
+  .shaka-video-container .shaka-controls-button-panel > .shaka-subtitles-button,
+  .shaka-video-container .shaka-controls-button-panel > .shaka-nextbutton,
+  .shaka-video-container .shaka-controls-button-panel > .shaka-previousbutton {
+    display: none;
+  }
+}
+
+@container sl-player (max-width: 700px) {
+  .shaka-video-container .shaka-controls-container {
+    --shaka-icon-size: 44px;
+  }
+  .shaka-video-container .shaka-overflow-menu > .shaka-audio-button:not(.shaka-hidden),
+  .shaka-video-container .shaka-overflow-menu > .shaka-subtitles-button:not(.shaka-hidden) {
+    display: grid;
+  }
+  /* The central play control remains available; avoid a duplicate toolbar target. */
+  .shaka-video-container .shaka-controls-button-panel > .shaka-play-button,
+  .shaka-video-container .shaka-controls-button-panel > .shaka-audio-button,
+  .shaka-video-container .shaka-controls-button-panel > .shaka-subtitles-button,
+  .shaka-video-container .shaka-controls-button-panel > .shaka-nextbutton,
+  .shaka-video-container .shaka-controls-button-panel > .shaka-previousbutton {
+    display: none;
+  }
 }

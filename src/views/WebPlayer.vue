@@ -455,6 +455,8 @@ export default {
         ],
 
         overflowMenuButtons: [
+          'audio',
+          'subtitle',
           'media',
           'bitrate',
 
@@ -666,18 +668,6 @@ export default {
 .shaka-slplayer-button:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-.shaka-play-button {
-  padding: clamp(22px, 3vw, 50px) !important;
-}
-
-:fullscreen .shaka-play-button {
-  padding: 50px !important;
-}
-
-.shaka-spinner {
-  padding: clamp(16px, 4vw, 57px) !important;
 }
 
 .libjass-wrapper {

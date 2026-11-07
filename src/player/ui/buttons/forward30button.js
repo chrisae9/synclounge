@@ -1,3 +1,4 @@
+import { addControlIcon } from '@/player/ui/utils';
 import { setCurrentTimeMs } from '@/player';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 
@@ -9,8 +10,7 @@ class Forward30Button extends shaka.ui.Element {
     this.button = document.createElement('button');
     this.button.classList.add('shaka-forward30-button');
     this.button.classList.add('shaka-slplayer-button');
-    this.button.classList.add('material-icons-round');
-    this.button.textContent = 'forward_30';
+    addControlIcon(this.button, 'REPLAY_FORWARD', 30);
     this.button.setAttribute('aria-label', 'Seek forward 30 seconds');
     this.button.title = 'Seek forward 30 seconds';
     this.parent.appendChild(this.button);

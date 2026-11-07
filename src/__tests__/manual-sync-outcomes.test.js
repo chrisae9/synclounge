@@ -3,9 +3,10 @@ import {
 } from 'vitest';
 
 const capture = vi.hoisted(() => ({ factory: null, click: null, connected: true }));
-vi.mock('shaka-player/dist/shaka-player.ui', () => ({
+vi.mock('shaka-player/dist/shaka-player.ui', async () => ({
   default: {
     ui: {
+      ...((await import('./helpers/shaka-icon-mock')).default),
       Element: class {
         constructor(parent) {
           this.parent = parent;
