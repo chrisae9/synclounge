@@ -14,9 +14,10 @@ vi.mock('@/player', () => ({
   getVolume: () => 0.5,
   setVolume: vi.fn(),
 }));
-vi.mock('shaka-player/dist/shaka-player.ui', () => ({
+vi.mock('shaka-player/dist/shaka-player.ui', async () => ({
   default: {
     ui: {
+      ...((await import('./helpers/shaka-icon-mock')).default),
       Element: class {
         constructor(parent, controls) {
           this.parent = parent;
@@ -164,7 +165,7 @@ describe('custom player control accessible names', () => {
     expect(control.button.tagName).toBe('BUTTON');
     expect(control.button.getAttribute('aria-label')).toBe(label);
     expect(control.button.title).toBe(label);
-    expect(control.button.textContent).not.toBe('');
+    expect(control.button.querySelector('svg.shaka-ui-icon path')).not.toBeNull();
   });
 });
 

@@ -1,3 +1,4 @@
+import { addControlIcon } from '@/player/ui/utils';
 import { setCurrentTimeMs } from '@/player';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 
@@ -10,10 +11,9 @@ export default (store) => {
 
       // The actual button that will be displayed
       this.button = document.createElement('button');
-      this.button.classList.add('shaka-nextbutton');
+      this.button.classList.add('shaka-previousbutton');
       this.button.classList.add('shaka-slplayer-button');
-      this.button.classList.add('material-icons-round');
-      this.button.textContent = 'skip_previous';
+      addControlIcon(this.button, 'SKIP_PREVIOUS');
       this.button.setAttribute('aria-label', 'Previous item');
       this.button.title = 'Previous item';
       this.parent.appendChild(this.button);

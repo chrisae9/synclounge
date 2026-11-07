@@ -1,3 +1,5 @@
+import shaka from 'shaka-player/dist/shaka-player.ui';
+
 /**
    * Depending on the value of display, sets/removes the css class of element to
    * either display it or hide it.
@@ -44,13 +46,21 @@ export const removeAllChildren = (element) => {
   }
 };
 
+export const addControlIcon = (button, name, amount) => {
+  const icon = new shaka.ui.Icon(button, shaka.ui.Enums.MaterialDesignSVGIcons[name]);
+  if (amount) {
+    const badge = document.createElement('span');
+    badge.classList.add('shaka-seek-amount');
+    badge.setAttribute('aria-hidden', 'true');
+    badge.textContent = String(amount);
+    button.appendChild(badge);
+  }
+  return icon.getSvgElement();
+};
+
 export const checkmarkIcon = () => {
-  const icon = document.createElement('i');
-  icon.classList.add('material-icons-round');
+  const icon = new shaka.ui.Icon(null, shaka.ui.Enums.MaterialDesignSVGIcons.CHECKMARK).getSvgElement();
   icon.classList.add('shaka-chosen-item');
-  icon.textContent = 'done';
-  // Screen reader should ignore icon text.
-  icon.setAttribute('aria-hidden', 'true');
   return icon;
 };
 

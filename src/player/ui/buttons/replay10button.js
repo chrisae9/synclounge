@@ -1,3 +1,4 @@
+import { addControlIcon } from '@/player/ui/utils';
 import { setCurrentTimeMs } from '@/player';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 
@@ -9,8 +10,7 @@ class Replay10Button extends shaka.ui.Element {
     this.button = document.createElement('button');
     this.button.classList.add('shaka-replay10-button');
     this.button.classList.add('shaka-slplayer-button');
-    this.button.classList.add('material-icons-round');
-    this.button.textContent = 'replay_10';
+    addControlIcon(this.button, 'REPLAY', 10);
     this.button.setAttribute('aria-label', 'Seek backward 10 seconds');
     this.button.title = 'Seek backward 10 seconds';
     this.parent.appendChild(this.button);
