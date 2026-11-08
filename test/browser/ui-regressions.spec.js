@@ -49,8 +49,9 @@ test('sidebar version remains readable and inside a short viewport', async ({ pa
   await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
   const version = page.getByLabel('SyncLounge version', { exact: true });
   await expect(version).toHaveText(`Version ${process.env.npm_package_version}`);
-  await expect(version).toBeInViewport();
+  await expect(version).toBeInViewport({ ratio: 1 });
   const bounds = await version.boundingBox();
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.y).toBeGreaterThanOrEqual(0);
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(page.viewportSize().height);
   await expect(version).toHaveCSS('color', 'rgb(183, 189, 200)');

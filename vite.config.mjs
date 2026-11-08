@@ -38,8 +38,8 @@ export function generateConfigPlugin({
   return {
     name: 'generate-config',
     buildStart: generate,
-    // Vite's dev server must have config ready before the first browser request.
-    configureServer: generate,
+    // Generate before Vite scans publicDir; configureServer runs after that scan.
+    configResolved: generate,
   };
 }
 

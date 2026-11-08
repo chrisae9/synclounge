@@ -125,7 +125,7 @@ describe('public configuration projection', () => {
         }),
       });
 
-      for (const hook of ['buildStart', 'configureServer']) {
+      for (const hook of ['buildStart', 'configResolved']) {
         fs.rmSync(outputFile, { force: true });
         plugin[hook]();
         const generatedConfig = JSON.parse(fs.readFileSync(outputFile, 'utf8'));

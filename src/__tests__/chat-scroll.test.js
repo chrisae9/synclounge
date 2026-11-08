@@ -17,12 +17,21 @@ const setup = () => {
   vi.stubGlobal('ResizeObserver', observerMock((fn) => { resize = fn; }));
   const el = document.createElement('div');
   let height = 1000;
+  let viewport = 200;
   Object.defineProperties(el, {
-    scrollHeight: { get: () => height }, clientHeight: { value: 200 },
+    scrollHeight: { get: () => height }, clientHeight: { get: () => viewport },
   });
   chatScroll.mounted(el);
   return {
-    el, append: () => { height += 300; mutation(); }, resize: () => resize(), disconnect,
+    el,
+    append: () => { height += 300; mutation(); },
+    resize: () => resize(),
+    disconnect,
+    shrink: () => {
+      viewport = 100;
+      el.dispatchEvent(new Event('scroll'));
+      resize();
+    },
   };
 };
 afterEach(() => vi.unstubAllGlobals());
@@ -62,5 +71,13 @@ it('shows a newly sent own message without moving the reader on unrelated update
   el.scrollTop = 200; el.dispatchEvent(new Event('scroll'));
   chatScroll.updated(el, { value: own, oldValue: own });
   expect(el.scrollTop).toBe(200);
+  chatScroll.unmounted(el);
+});
+
+it('remains pinned when async participant layout shrinks the chat viewport', () => {
+  const { el, shrink } = setup();
+  el.scrollTop = 800; el.dispatchEvent(new Event('scroll'));
+  shrink();
+  expect(el.scrollTop).toBe(1000);
   chatScroll.unmounted(el);
 });
