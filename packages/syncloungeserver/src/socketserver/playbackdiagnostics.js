@@ -60,6 +60,8 @@ const diagnosticSchema = {
     currentTime: true,
     duration: true,
     paused: true,
+    muted: 'boolean',
+    volume: 'number:1',
     ended: true,
     seeking: true,
     readyState: true,

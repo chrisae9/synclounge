@@ -54,6 +54,8 @@ export const buildPlaybackDiagnostics = ({ mediaElement, stats }) => {
     currentTime,
     duration: round(mediaElement.duration),
     paused: Boolean(mediaElement.paused),
+    muted: Boolean(mediaElement.muted),
+    volume: round(mediaElement.volume),
     ended: Boolean(mediaElement.ended),
     seeking: Boolean(mediaElement.seeking),
     readyState: mediaElement.readyState,

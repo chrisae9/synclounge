@@ -5,9 +5,9 @@ import { setPlayer, setOverlay } from '@/player/state';
 
 vi.mock('@/player/init', () => ({ default: vi.fn() }));
 
-it('requests the Shaka 5 big play control required by player event registration', () => {
+it('uses toolbar playback without a central play control', () => {
   const options = WebPlayer.methods.getPlayerUiOptions();
-  expect(options.bigButtons).toContain('play_pause');
+  expect(options.bigButtons).toEqual([]);
   expect(options.controlPanelElements).toContain('play_pause');
   expect(options).not.toHaveProperty('addBigPlayButton');
 });

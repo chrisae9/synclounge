@@ -15,6 +15,8 @@ describe('playback diagnostics', () => {
         currentTime: 25,
         duration: 120,
         paused: false,
+        muted: true,
+        volume: 0.25,
         ended: false,
         seeking: false,
         readyState: 3,
@@ -37,6 +39,8 @@ describe('playback diagnostics', () => {
       },
     });
 
+    expect(diagnostics.muted).toBe(true);
+    expect(diagnostics.volume).toBe(0.25);
     expect(diagnostics.bufferAhead).toBe(20.556);
     expect(diagnostics.bufferedRanges).toEqual([
       { start: 0, end: 10 },
