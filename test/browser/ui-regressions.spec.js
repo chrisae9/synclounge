@@ -71,8 +71,8 @@ test('player starts without a central button and unmute stays inside the player'
     const player = globalThis.document.querySelector('#player').getBoundingClientRect();
     return { top: button.top - player.top, right: player.right - button.right, height: button.height };
   });
-  expect(placement.top).toBe(12);
-  expect(placement.right).toBe(12);
+  expect(placement.top).toBeCloseTo(12, 2);
+  expect(placement.right).toBeCloseTo(12, 2);
   expect(placement.height).toBeGreaterThanOrEqual(44);
   await page.screenshot({ path: testInfo.outputPath('unmute.png') });
   await unmute.click();
