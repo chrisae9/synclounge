@@ -18,6 +18,7 @@ test.beforeEach(async ({ page }) => {
 test('chat follows tall messages, preserves scrollback and shows own sent messages', async ({ page }, testInfo) => {
   await page.goto(preview);
   const party = page.getByRole('navigation', { name: 'Watch party', exact: true });
+  await expect(party.locator('.user-row')).toHaveCount(6);
   const chat = party.locator('.messages');
   await expect(chat.locator('.message-item')).toHaveCount(33);
   await page.evaluate(() => globalThis.document.fonts.ready);
