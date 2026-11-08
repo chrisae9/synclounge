@@ -3,6 +3,7 @@ import '@/assets/css/style.css';
 import '@/assets/css/player-menu.css';
 import { createApp, h } from 'vue';
 import vuetify from '@/plugins/vuetify';
+import { isAudioSupported } from '@/utils/mediasupport';
 import PlayerUnmuteButton from '@/components/PlayerUnmuteButton.vue';
 import store from '@/store';
 import initialize from '@/player/init';
@@ -45,6 +46,16 @@ try {
     } else {
       store.commit('slplayer/SET_MEDIA_INDEX', 0);
     }
+  }
+  if (new URLSearchParams(globalThis.location.search).has('audioProbe')) {
+    const probe = globalThis.document.createElement('pre');
+    probe.id = 'audio-probe';
+    probe.textContent = JSON.stringify({
+      dts: isAudioSupported({ codec: 'dca', profile: 'dts' }),
+      mp3: isAudioSupported({ codec: 'mp3' }),
+      aac: isAudioSupported({ codec: 'aac', profile: 'lc' }),
+    });
+    globalThis.document.body.appendChild(probe);
   }
   await initialize({
     mediaElement: globalThis.document.querySelector('video'),

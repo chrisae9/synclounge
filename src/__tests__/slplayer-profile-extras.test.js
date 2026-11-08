@@ -5,7 +5,7 @@ import slplayerGetters from '@/store/modules/slplayer/getters';
 
 vi.mock('@/utils/mediasupport', () => ({
   isVideoSupported: vi.fn(({ codec }) => codec !== 'vp9'),
-  isAudioSupported: vi.fn(({ codec }) => codec === 'aac'),
+  isAudioSupported: vi.fn(({ codec }) => ['aac', 'mp3'].includes(codec)),
   isContainerSupported: vi.fn(({ container }) => container === 'mp4'),
 }));
 
@@ -181,5 +181,12 @@ describe('selected audio compatibility', () => {
     const unmarked = streams.map((s) => ({ ...s, selected: false }));
     expect(slplayerGetters.GET_SHOULD_TRANSCODE_AUDIO({}, { GET_STREAMS: unmarked })).toBe(true);
     expect(slplayerGetters.GET_SHOULD_TRANSCODE_AUDIO({}, { GET_STREAMS: [] })).toBe(false);
+  });
+  it('rejects the incident DTS track despite three supported MP3 alternatives', () => {
+    const incident = [streams[0], streams[1], ...Array.from({ length: 3 }, () => ({ streamType: 2, codec: 'mp3' }))];
+    expect(slplayerGetters.CAN_DIRECT_PLAY({ allowDirectPlay: true }, {
+      GET_PART: { container: 'mp4' }, GET_STREAMS: incident,
+    }, {}, {})).toBe(false);
+    expect(slplayerGetters.GET_SHOULD_TRANSCODE_AUDIO({}, { GET_STREAMS: incident })).toBe(true);
   });
 });
