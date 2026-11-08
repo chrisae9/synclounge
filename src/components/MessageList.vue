@@ -43,7 +43,7 @@ export default {
     ]),
     latestOwnMessage() {
       const last = this.GET_MESSAGES[this.GET_MESSAGES.length - 1];
-      return last?.senderId === this.GET_SOCKET_ID ? last : null;
+      return last?.senderId === this.GET_SOCKET_ID ? `${last.senderId}:${last.time}` : null;
     },
   },
 };

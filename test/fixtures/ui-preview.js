@@ -175,6 +175,7 @@ const store = createStore({
       mutations: {
         SET_PREVIEW_HOST(state, id) { state.hostId = id; },
         SET_PREVIEW_MESSAGES(state, messages) { state.messages = messages; },
+        ADD_PREVIEW_MESSAGE(state, message) { state.messages.push(message); },
         ADD_MESSAGE(state, text) { state.messages.push({ senderId: 'user-0', time: Date.now(), text }); },
         SET_SYNC_PRESET(state, value) { state.syncPreset = value; },
         SET_PAUSING(state, value) { state.pausing = value; },
@@ -210,3 +211,11 @@ const app = createApp(Preview, { poster: image('SAMPLE MOVIE') });
 app.use(store).use(router).use(vuetify);
 app.directive('chat-scroll', {});
 app.mount('#app');
+
+// Controlled incoming-message input for isolated browser regression tests.
+globalThis.addEventListener('fixture-chat-message', ({ detail }) => {
+  if (typeof detail?.text !== 'string' || detail.text.length > 500) return;
+  store.commit('synclounge/ADD_PREVIEW_MESSAGE', {
+    senderId: 'user-1', time: Date.now(), text: detail.text,
+  });
+});
