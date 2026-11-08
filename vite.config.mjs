@@ -109,6 +109,8 @@ export default defineConfig({
     }),
     vuetify({ autoImport: true }),
   ],
+  // Prebundle auto-imported Vuetify subpaths before a lazy drawer can trigger a reload.
+  optimizeDeps: { include: ['vuetify/components/**', 'vuetify/directives/**'] },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
