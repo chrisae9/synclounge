@@ -3,7 +3,9 @@
 const iconUi = {
   Enums: {
     MaterialDesignSVGIcons: Object.fromEntries(
-      ['SKIP_PREVIOUS', 'SKIP_NEXT', 'CLOSE', 'LOOP', 'REPLAY', 'REPLAY_FORWARD', 'CHECKMARK']
+      ['SKIP_PREVIOUS', 'SKIP_NEXT', 'CLOSE', 'LOOP', 'REPLAY', 'REPLAY_FORWARD', 'CHECKMARK',
+        'VIDEO_TYPE', 'RESOLUTION', 'CLOSED_CAPTIONS_SIZE',
+        'CLOSED_CAPTIONS_FONT_COLOR', 'PLAYBACK_RATE', 'CLOSED_CAPTIONS_POSITION']
         .map((name) => [name, 'M0 0h1v1z']),
     ),
   },

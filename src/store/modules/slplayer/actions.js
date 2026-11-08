@@ -626,6 +626,7 @@ export default {
     const mediaElement = getMediaElement();
     if (mediaElement) {
       mediaElement.muted = false;
+      if (mediaElement.volume === 0) mediaElement.volume = 1;
     }
     commit('SET_AUTOPLAY_BLOCKED', false);
     await dispatch('PRESS_PLAY');
@@ -1138,7 +1139,7 @@ export default {
 
     const clickListener = (e) => dispatch('HANDLE_PLAYER_CLICK', e);
     getSmallPlayButton().addEventListener('click', clickListener);
-    getBigPlayButton().addEventListener('click', clickListener);
+    getBigPlayButton()?.addEventListener('click', clickListener);
     commit('SET_CLICK_EVENT_LISTENER', clickListener);
 
     const errorListener = (e) => dispatch('HANDLE_ERROR', e);
@@ -1158,7 +1159,7 @@ export default {
 
     if (getters.GET_CLICK_EVENT_LISTENER) {
       getSmallPlayButton().removeEventListener('click', getters.GET_CLICK_EVENT_LISTENER);
-      getBigPlayButton().removeEventListener('click', getters.GET_CLICK_EVENT_LISTENER);
+      getBigPlayButton()?.removeEventListener('click', getters.GET_CLICK_EVENT_LISTENER);
     }
     commit('SET_CLICK_EVENT_LISTENER', null);
 

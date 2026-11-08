@@ -5,7 +5,7 @@ import slplayerGetters from '@/store/modules/slplayer/getters';
 
 vi.mock('@/utils/mediasupport', () => ({
   isVideoSupported: vi.fn(({ codec }) => codec !== 'vp9'),
-  isAudioSupported: vi.fn(({ codec }) => codec === 'aac'),
+  isAudioSupported: vi.fn(({ codec }) => ['aac', 'mp3'].includes(codec)),
   isContainerSupported: vi.fn(({ container }) => container === 'mp4'),
 }));
 
@@ -144,5 +144,49 @@ describe('slplayer Plex profile extras', () => {
     const protocol = slplayerGetters.GET_STREAMING_PROTOCOL(state, getters, {}, rootGetters);
 
     expect(protocol).toBe('hls');
+  });
+});
+
+describe('selected audio compatibility', () => {
+  const streams = [
+    { streamType: 1, codec: 'h264', bitrate: 8000 },
+    { streamType: 2, codec: 'dca', selected: true },
+    { streamType: 2, codec: 'aac', selected: false },
+  ];
+  it('rejects direct play when only an unselected audio track is supported', () => {
+    expect(slplayerGetters.CAN_DIRECT_PLAY({ allowDirectPlay: true }, {
+      GET_PART: { container: 'mp4' }, GET_STREAMS: streams,
+    }, {}, {})).toBe(false);
+  });
+  it('requests audio conversion without forcing supported video to transcode', () => {
+    const audioTranscode = slplayerGetters.GET_SHOULD_TRANSCODE_AUDIO({}, { GET_STREAMS: streams });
+    expect(audioTranscode).toBe(true);
+    const params = slplayerGetters.GET_DECISION_AND_START_PARAMS({}, {
+      GET_SHOULD_TRANSCODE_AUDIO: audioTranscode, CAN_DIRECT_PLAY: false,
+    }, {}, { 'plex/GET_PLEX_BASE_PARAMS': () => ({}) });
+    expect(params.directPlay).toBe(0);
+    expect(params.directStream).toBe(1);
+    expect(params.directStreamAudio).toBe(0);
+    expect(params.audioCodec).toBe('aac');
+    expect(params.videoCodec).toBeUndefined();
+  });
+  it('keeps direct play for the supported selected track even with an unsupported alternative', () => {
+    const selected = streams.map((s) => ({ ...s, selected: s.codec === 'aac' }));
+    expect(slplayerGetters.CAN_DIRECT_PLAY({ allowDirectPlay: true }, {
+      GET_PART: { container: 'mp4' }, GET_STREAMS: selected,
+    }, {}, {})).toBe(true);
+    expect(slplayerGetters.GET_SHOULD_TRANSCODE_AUDIO({}, { GET_STREAMS: selected })).toBe(false);
+  });
+  it('checks the first audio track when Plex does not mark a selected track', () => {
+    const unmarked = streams.map((s) => ({ ...s, selected: false }));
+    expect(slplayerGetters.GET_SHOULD_TRANSCODE_AUDIO({}, { GET_STREAMS: unmarked })).toBe(true);
+    expect(slplayerGetters.GET_SHOULD_TRANSCODE_AUDIO({}, { GET_STREAMS: [] })).toBe(false);
+  });
+  it('rejects the incident DTS track despite three supported MP3 alternatives', () => {
+    const incident = [streams[0], streams[1], ...Array.from({ length: 3 }, () => ({ streamType: 2, codec: 'mp3' }))];
+    expect(slplayerGetters.CAN_DIRECT_PLAY({ allowDirectPlay: true }, {
+      GET_PART: { container: 'mp4' }, GET_STREAMS: incident,
+    }, {}, {})).toBe(false);
+    expect(slplayerGetters.GET_SHOULD_TRANSCODE_AUDIO({}, { GET_STREAMS: incident })).toBe(true);
   });
 });

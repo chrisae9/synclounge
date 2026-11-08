@@ -8,7 +8,7 @@ export default (store) => {
     #watcherCancellers = [];
 
     constructor(parent, controls) {
-      super(parent, controls, 'view_list');
+      super(parent, controls, shaka.ui.Enums.MaterialDesignSVGIcons.VIDEO_TYPE);
 
       this.#watcherCancellers = [
         store.watch(
@@ -58,6 +58,8 @@ export default (store) => {
     }
 
     addMediaSelection() {
+      this.currentSelection.textContent = 'Choose version';
+      const selectedIndex = store.getters['slplayer/GET_MEDIA_INDEX'];
       store.getters['slplayer/GET_MEDIA_LIST'].forEach((media) => {
         const button = document.createElement('button');
         button.classList.add('explicit-media');
@@ -72,7 +74,7 @@ export default (store) => {
           () => MediaSelection.onMediaClicked(media.index),
         );
 
-        if (media.index === store.getters['slplayer/GET_MEDIA_INDEX']) {
+        if (selectedIndex != null && media.index === Number(selectedIndex)) {
           button.setAttribute('aria-selected', 'true');
           button.appendChild(checkmarkIcon());
           span.classList.add('shaka-chosen-item');

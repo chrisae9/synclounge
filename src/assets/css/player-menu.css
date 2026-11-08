@@ -84,8 +84,9 @@
   .shaka-video-container .shaka-overflow-menu > .shaka-subtitles-button:not(.shaka-hidden) {
     display: grid;
   }
-  /* The central play control remains available; avoid a duplicate toolbar target. */
-  .shaka-video-container .shaka-controls-button-panel > .shaka-play-button,
+  /* Keep toolbar Play visible; seek remains available through the seek bar. */
+  .shaka-video-container .shaka-controls-button-panel > .shaka-replay10-button,
+  .shaka-video-container .shaka-controls-button-panel > .shaka-forward30-button,
   .shaka-video-container .shaka-controls-button-panel > .shaka-audio-button,
   .shaka-video-container .shaka-controls-button-panel > .shaka-subtitles-button,
   .shaka-video-container .shaka-controls-button-panel > .shaka-nextbutton,
@@ -102,8 +103,9 @@
   .shaka-video-container .shaka-overflow-menu > .shaka-subtitles-button:not(.shaka-hidden) {
     display: grid;
   }
-  /* The central play control remains available; avoid a duplicate toolbar target. */
-  .shaka-video-container .shaka-controls-button-panel > .shaka-play-button,
+  /* Keep toolbar Play visible; seek remains available through the seek bar. */
+  .shaka-video-container .shaka-controls-button-panel > .shaka-replay10-button,
+  .shaka-video-container .shaka-controls-button-panel > .shaka-forward30-button,
   .shaka-video-container .shaka-controls-button-panel > .shaka-audio-button,
   .shaka-video-container .shaka-controls-button-panel > .shaka-subtitles-button,
   .shaka-video-container .shaka-controls-button-panel > .shaka-nextbutton,

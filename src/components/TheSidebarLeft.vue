@@ -112,8 +112,11 @@
             @click="leaveRoom"
           />
         </v-list>
-        <div class="sidebar-version">
-          v{{ appVersion }}
+        <div
+          class="sidebar-version"
+          aria-label="SyncLounge version"
+        >
+          Version {{ appVersion }}
         </div>
       </div>
     </template>
@@ -122,6 +125,7 @@
 
 <script>
 import { defineAsyncComponent } from 'vue';
+import getAppVersion from '@/utils/appversion';
 import SidebarCloseButton from '@/components/SidebarCloseButton.vue';
 import linkWithRoom from '@/mixins/linkwithroom';
 import {
@@ -151,7 +155,7 @@ export default {
     ]),
 
     appVersion() {
-      return import.meta.env.VITE_APP_VERSION || 'dev';
+      return getAppVersion();
     },
   },
 
@@ -201,7 +205,9 @@ export default {
 
 .sidebar-version {
   padding: 8px 16px 0;
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--sl-text-muted, #b7bdc8);
+  overflow-wrap: anywhere;
 }
 </style>

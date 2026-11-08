@@ -106,7 +106,7 @@ describe('public configuration projection', () => {
     assert.equal(maximum.socket_event_timeout, 2_147_483_647);
   });
 
-  it('filters nested secrets from the static build artifact', async () => {
+  it('filters nested secrets from fresh build and dev-server artifacts', async () => {
     const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'synclounge-config-'));
     const outputFile = path.join(temporaryDirectory, 'config.json');
 
@@ -125,15 +125,17 @@ describe('public configuration projection', () => {
         }),
       });
 
-      plugin.buildStart();
-
-      const generatedConfig = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
-      assert.deepEqual(generatedConfig.authentication, {
-        mechanism: 'plex',
-        type: [],
-        authorized: [],
-      });
-      assert.equal(JSON.stringify(generatedConfig).includes('secret'), false);
+      for (const hook of ['buildStart', 'configResolved']) {
+        fs.rmSync(outputFile, { force: true });
+        plugin[hook]();
+        const generatedConfig = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+        assert.deepEqual(generatedConfig.authentication, {
+          mechanism: 'plex',
+          type: [],
+          authorized: [],
+        });
+        assert.equal(JSON.stringify(generatedConfig).includes('secret'), false);
+      }
     } finally {
       fs.rmSync(temporaryDirectory, { recursive: true, force: true });
     }
