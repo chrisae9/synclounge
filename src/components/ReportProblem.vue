@@ -70,6 +70,7 @@
 <script>
 import { buildProblemReport, formatProblemReport } from '@/utils/problemreport';
 import { getPlaybackDiagnostics } from '@/player';
+import getAppVersion from '@/utils/appversion';
 import { isConnected } from '@/socket';
 
 export default {
@@ -83,7 +84,7 @@ export default {
       try { playback = getPlaybackDiagnostics(); } catch { playback = { attached: false }; }
       const { state, getters } = this.$store;
       this.report = formatProblemReport(buildProblemReport({
-        version: import.meta.env.VITE_APP_VERSION,
+        version: getAppVersion(),
         browser: getters.GET_BROWSER,
         view: String(this.$route.name || 'unknown'),
         connection: {

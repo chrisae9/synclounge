@@ -133,6 +133,12 @@ const store = createStore({
         hostId: 'user-0',
         users,
         messages: [
+          ...(new URLSearchParams(globalThis.location.search).has('longChat')
+            ? Array.from({ length: 30 }, (_, i) => ({
+              senderId: `user-${i % 6}`,
+              time: Date.now() - 120000 + i * 1000,
+              text: `Sample message ${i + 1}: checking that history stays compact and readable.`,
+            })) : []),
           { senderId: 'user-0', time: Date.now() - 60000, text: 'Everyone ready for movie night?' },
           { senderId: 'user-1', time: Date.now() - 45000, text: 'Ready! I brought the popcorn.' },
           {

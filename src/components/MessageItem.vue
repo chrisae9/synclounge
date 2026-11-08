@@ -1,23 +1,29 @@
 <template>
-  <v-list-item class="message-item">
-    <template #prepend>
-      <v-avatar size="28">
-        <v-img
-          :src="sender.thumb"
-        />
-      </v-avatar>
-    </template>
+  <article
+    class="message-item"
+    role="listitem"
+  >
+    <v-avatar
+      size="24"
+      class="message-avatar"
+    >
+      <v-img
+        :src="sender.thumb"
+      />
+    </v-avatar>
 
-    <div class="message-heading">
-      <span class="message-sender">{{ sender.username }}</span>
-      <span class="message-time text-disabled text-caption">{{ formattedTime }}</span>
+    <div class="message-body">
+      <div class="message-heading">
+        <span class="message-sender">{{ sender.username }}</span>
+        <span class="message-time text-disabled text-caption">{{ formattedTime }}</span>
+      </div>
+
+      <p
+        class="message-content"
+        v-text="message.text"
+      />
     </div>
-
-    <p
-      class="message-content"
-      v-text="message.text"
-    />
-  </v-list-item>
+  </article>
 </template>
 
 <script>
@@ -52,19 +58,19 @@ export default {
 </script>
 
 <style scoped>
-.message-item.v-list-item { padding: 8px 16px; }
-
-.message-item :deep(.v-list-item__spacer) { width: 8px; }
-
-.message-item :deep(.v-list-item__prepend) {
-  align-self: start;
-  padding-top: 0;
+.message-item {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  padding: 4px 12px;
 }
+.message-avatar { align-self: start; margin-top: 1px; }
+.message-body { min-width: 0; }
 
 .message-heading {
-  min-height: 20px;
-  line-height: 20px;
-  font-size: 14px;
+  min-height: 18px;
+  line-height: 18px;
+  font-size: 12px;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -72,6 +78,7 @@ export default {
 }
 
 .message-sender {
+  font-weight: 600;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -89,6 +96,6 @@ export default {
   font-size: 0.875rem;
   line-height: 1.5;
   color: var(--sl-text-muted);
-  margin-top: 4px;
+  margin: 2px 0 0;
 }
 </style>

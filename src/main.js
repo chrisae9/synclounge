@@ -16,25 +16,6 @@ import {
 } from './router/guardutils';
 import { isConnected } from './socket';
 
-const vChatScroll = {
-  mounted(el) {
-    const observer = new MutationObserver(() => {
-      const threshold = 50;
-      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-      if (isNearBottom) {
-        // eslint-disable-next-line no-param-reassign
-        el.scrollTop = el.scrollHeight;
-      }
-    });
-    observer.observe(el, { childList: true, subtree: true });
-    // eslint-disable-next-line no-param-reassign
-    el._chatScrollObserver = observer;
-  },
-  unmounted(el) {
-    el._chatScrollObserver?.disconnect();
-  },
-};
-
 const recordAppError = () => rememberDiagnostic({
   event: 'application-error', clientTimestamp: new Date().toISOString(),
 });
@@ -53,7 +34,6 @@ window.addEventListener('unhandledrejection', recordAppError);
 
 const app = createApp(App);
 app.use(router).use(store).use(vuetify);
-app.directive('chat-scroll', vChatScroll);
 
 app.config.errorHandler = (err) => {
   // Suppress Vuetify v-img internal error during unmount (known race condition)

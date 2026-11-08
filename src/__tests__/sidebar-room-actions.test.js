@@ -116,3 +116,10 @@ it('offers personal sync beside party pause even when party pausing is disabled'
     expect(manualSync).toHaveBeenCalledWith({ notify: true });
   } finally { wrapper.unmount(); }
 });
+
+it('renders an explicit nonblank app version in the navigation footer', () => {
+  const { wrapper } = setup(TheSidebarLeft);
+  try {
+    expect(wrapper.get('[aria-label="SyncLounge version"]').text()).toMatch(/^Version \S+/);
+  } finally { wrapper.unmount(); }
+});
