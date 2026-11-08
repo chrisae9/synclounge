@@ -41,21 +41,10 @@
           @timeupdate="handleTimeUpdate"
         />
 
-        <v-fade-transition>
-          <v-btn
-            v-show="IS_AUTOPLAY_BLOCKED"
-            size="large"
-            variant="flat"
-            color="primary"
-            class="unmute-banner text-white"
-            @click.stop="UNMUTE_AFTER_AUTOPLAY_BLOCK"
-          >
-            <v-icon start>
-              mdi-volume-off
-            </v-icon>
-            Click to unmute
-          </v-btn>
-        </v-fade-transition>
+        <PlayerUnmuteButton
+          :visible="IS_AUTOPLAY_BLOCKED"
+          @unmute="UNMUTE_AFTER_AUTOPLAY_BLOCK"
+        />
 
         <v-fade-transition
           transition="fade-transition"
@@ -181,6 +170,7 @@ import { defineAsyncComponent } from 'vue';
 import { mapActions, mapGetters, mapState } from 'vuex';
 
 import initialize from '@/player/init';
+import PlayerUnmuteButton from '@/components/PlayerUnmuteButton.vue';
 import {
   getControlsOffset, getCurrentTimeMs, setCurrentTimeMs, getVolume, setVolume,
 } from '@/player';
@@ -194,6 +184,7 @@ export default {
   name: 'WebPlayer',
 
   components: {
+    PlayerUnmuteButton,
     MessageList: defineAsyncComponent(() => import('@/components/MessageList.vue')),
     MessageInput: defineAsyncComponent(() => import('@/components/MessageInput.vue')),
   },
@@ -429,7 +420,7 @@ export default {
 
     getPlayerUiOptions() {
       return {
-        bigButtons: ['play_pause'],
+        bigButtons: [],
         controlPanelElements: [
           'mute',
           'volume',
@@ -621,13 +612,6 @@ export default {
   vertical-align: middle;
   margin-left: auto;
   margin-right: auto;
-}
-
-.v-btn.unmute-banner {
-  z-index: 2;
-  position: absolute;
-  top: 12px;
-  left: 12px;
 }
 
 .v-btn.skip-intro {

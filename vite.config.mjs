@@ -30,14 +30,16 @@ export function generateConfigPlugin({
   configFile = 'public/config.json',
   loadConfig = () => configModule.get(null),
 } = {}) {
+  const generate = () => {
+    // Generate from defaults/environment every time; never reuse stale public settings.
+    const appConfig = loadConfig();
+    configModule.save(configModule.getPublic(appConfig), configFile);
+  };
   return {
     name: 'generate-config',
-    buildStart() {
-      // Generate from defaults/environment every time. Reading the previous generated file here
-      // made local builds stateful and allowed stale keys to leak into later images.
-      const appConfig = loadConfig();
-      configModule.save(configModule.getPublic(appConfig), configFile);
-    },
+    buildStart: generate,
+    // Generate before Vite scans publicDir; configureServer runs after that scan.
+    configResolved: generate,
   };
 }
 
@@ -114,7 +116,7 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(
-      process.env.VERSION || require('./package.json').version,
+      process.env.VERSION?.trim() || require('./package.json').version,
     ),
   },
   build: {

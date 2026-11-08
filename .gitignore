@@ -11,3 +11,6 @@ npm-debug.log
 .npm
 
 public/config.json
+
+test-results/
+playwright-report/

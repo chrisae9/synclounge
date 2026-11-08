@@ -9,7 +9,7 @@ export default (store) => {
     #watcherCancellers = [];
 
     constructor(parent, controls) {
-      super(parent, controls, 'format_size');
+      super(parent, controls, shaka.ui.Enums.MaterialDesignSVGIcons.CLOSED_CAPTIONS_SIZE);
 
       this.#watcherCancellers = [
         store.watch(

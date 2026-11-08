@@ -1,6 +1,7 @@
 import {
   describe, it, expect, vi, beforeEach,
 } from 'vitest';
+import registerMediaSelection from '@/player/ui/menus/mediaselection';
 import registerAudioSelection from '@/player/ui/menus/audioselection';
 import registerSubtitleSelection from '@/player/ui/menus/subtitleselection';
 
@@ -113,5 +114,27 @@ describe('subtitle menu registration', () => {
     selector.updateAudioSelection();
     expect(selector.eventManager.unlisten).toHaveBeenCalledWith(oldOption, 'click');
     expect(selector.button.getAttribute('shaka-status')).toBe('');
+  });
+});
+
+describe('media version selection', () => {
+  it('labels string-valued selected indexes and never leaves an unmatched selection blank', () => {
+    const store = {
+      getters: {
+        'slplayer/GET_MEDIA_LIST': [{ index: 0, text: '1080p' }, { index: 1, text: '4K' }],
+        'slplayer/GET_MEDIA_INDEX': '1',
+      },
+      watch: vi.fn(() => vi.fn()),
+      dispatch: vi.fn(),
+    };
+    shakaMocks.registerOverflowElement.mockClear();
+    registerMediaSelection(store);
+    const factory = shakaMocks.registerOverflowElement.mock.calls[0][1];
+    const selector = factory.create(document.createElement('div'), {});
+    expect(selector.iconText).toMatch(/^M/);
+    expect(selector.currentSelection.textContent).toBe('4K');
+    store.getters['slplayer/GET_MEDIA_INDEX'] = 999;
+    selector.updateMediaSelection();
+    expect(selector.currentSelection.textContent).toBe('Choose version');
   });
 });

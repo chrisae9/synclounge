@@ -1,13 +1,18 @@
 import 'shaka-player/dist/controls.css';
 import '@/assets/css/style.css';
 import '@/assets/css/player-menu.css';
+import { createApp, h } from 'vue';
+import vuetify from '@/plugins/vuetify';
+import { isAudioSupported } from '@/utils/mediasupport';
+import PlayerUnmuteButton from '@/components/PlayerUnmuteButton.vue';
 import store from '@/store';
 import initialize from '@/player/init';
 import WebPlayer from '@/views/WebPlayer.vue';
 import { getRawPlayer } from '@/player/state';
-import { getSmallPlayButton, getBigPlayButton } from '@/player';
+import { getSmallPlayButton } from '@/player';
 
 if (!import.meta.env.DEV) throw new Error('Development fixture only');
+const previewUnmute = new URLSearchParams(globalThis.location.search).has('unmute');
 const result = globalThis.document.querySelector('#result');
 try {
   const config = await (await fetch('/config.json')).json();
@@ -31,7 +36,26 @@ try {
         }],
       }],
     });
-    store.commit('slplayer/SET_MEDIA_INDEX', 0);
+    if (new URLSearchParams(globalThis.location.search).has('versions')) {
+      const metadata = store.getters['plexclients/GET_ACTIVE_MEDIA_METADATA'];
+      store.commit('plexclients/SET_ACTIVE_MEDIA_METADATA', {
+        ...metadata,
+        Media: [...metadata.Media, { ...metadata.Media[0], videoResolution: '720', bitrate: 4000 }],
+      });
+      store.commit('slplayer/SET_MEDIA_INDEX', '1');
+    } else {
+      store.commit('slplayer/SET_MEDIA_INDEX', 0);
+    }
+  }
+  if (new URLSearchParams(globalThis.location.search).has('audioProbe')) {
+    const probe = globalThis.document.createElement('pre');
+    probe.id = 'audio-probe';
+    probe.textContent = JSON.stringify({
+      dts: isAudioSupported({ codec: 'dca', profile: 'dts' }),
+      mp3: isAudioSupported({ codec: 'mp3' }),
+      aac: isAudioSupported({ codec: 'aac', profile: 'lc' }),
+    });
+    globalThis.document.body.appendChild(probe);
   }
   await initialize({
     mediaElement: globalThis.document.querySelector('video'),
@@ -42,7 +66,15 @@ try {
   // Exercise the real Vuex startup and event registration, not a mock dispatch.
   await store.dispatch('slplayer/INIT_PLAYER_STATE');
   if (!store.getters['slplayer/IS_PLAYER_INITIALIZED']
-    || !getSmallPlayButton() || !getBigPlayButton()) throw new Error('Missing startup controls');
+    || !getSmallPlayButton()) throw new Error('Missing startup controls');
+  const unmuteRoot = globalThis.document.createElement('div');
+  globalThis.document.querySelector('#player').appendChild(unmuteRoot);
+  createApp({
+    render: () => h(PlayerUnmuteButton, {
+      visible: store.getters['slplayer/IS_AUTOPLAY_BLOCKED'],
+      onUnmute: () => store.dispatch('slplayer/UNMUTE_AFTER_AUTOPLAY_BLOCK'),
+    }),
+  }).use(store).use(vuetify).mount(unmuteRoot);
   result.textContent = 'PASS: real Shaka overlay and full player state initialized';
 } catch (error) {
   result.textContent = `FAIL: ${error.message}`;
@@ -50,6 +82,8 @@ try {
 }
 globalThis.document.querySelector('#load').addEventListener('click', async () => {
   try {
+    globalThis.document.querySelector('video').muted = previewUnmute;
+    store.commit('slplayer/SET_AUTOPLAY_BLOCKED', previewUnmute);
     await getRawPlayer().load('https://storage.googleapis.com/shaka-demo-assets/angel-one-hls/hls.m3u8');
     await globalThis.document.querySelector('video').play();
     result.textContent = 'PASS: full startup and sample playback';

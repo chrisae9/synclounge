@@ -9,7 +9,7 @@ export default (store) => {
     #watcherCancellers = [];
 
     constructor(parent, controls) {
-      super(parent, controls, 'color_lens');
+      super(parent, controls, shaka.ui.Enums.MaterialDesignSVGIcons.CLOSED_CAPTIONS_FONT_COLOR);
 
       this.#watcherCancellers = [
         store.watch(

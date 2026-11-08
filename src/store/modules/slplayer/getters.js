@@ -5,6 +5,10 @@ import { isVideoSupported, isAudioSupported, isContainerSupported } from '@/util
 import qualities from './qualities';
 
 const buggyChromeBitrate = 23000;
+const selectedAudio = (streams) => {
+  const audio = streams.filter(({ streamType }) => streamType === 2);
+  return audio.find(({ selected }) => selected) || audio[0];
+};
 
 const getQualityParameters = (bitrate) => {
   if (!bitrate) return {};
@@ -156,16 +160,19 @@ export default {
       return false;
     }
 
-    const audioStreams = getters.GET_STREAMS.filter(({ streamType }) => streamType === 2);
-    const anyAudioSupported = audioStreams.some(isAudioSupported);
-
-    if (audioStreams.length > 0 && !anyAudioSupported) {
+    const audioStream = selectedAudio(getters.GET_STREAMS);
+    if (audioStream && !isAudioSupported(audioStream)) {
       console.debug('CAN_DIRECT_PLAY: false audio codec not supported');
       return false;
     }
 
     console.debug('CAN_DIRECT_PLAY: true');
     return true;
+  },
+
+  GET_SHOULD_TRANSCODE_AUDIO: (state, getters) => {
+    const audio = selectedAudio(getters.GET_STREAMS);
+    return Boolean(audio) && !isAudioSupported(audio);
   },
 
   GET_DECISION_STREAMS: (state, getters) => getters.GET_DECISION_PART?.Stream || [],
@@ -333,7 +340,9 @@ export default {
 
     // TODO: figure out how to make autoAdjustQuality work
     autoAdjustQuality: 0,
-    directStreamAudio: getters.GET_FORCE_TRANSCODE || getters.GET_HEVC_VIDEO_STREAM ? 0 : 1,
+    directStreamAudio: getters.GET_FORCE_TRANSCODE || getters.GET_HEVC_VIDEO_STREAM
+      || getters.GET_SHOULD_TRANSCODE_AUDIO ? 0 : 1,
+    ...getters.GET_SHOULD_TRANSCODE_AUDIO && { audioCodec: 'aac' },
     autoAdjustSubtitle: 1,
     ...getters.GET_SHOULD_FORCE_VIDEO_TRANSCODE && {
       videoCodec: 'h264',

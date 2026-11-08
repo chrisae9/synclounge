@@ -1,7 +1,8 @@
 import { detect } from 'detect-browser';
+import getAppVersion from '@/utils/appversion';
 
 const state = () => ({
-  version: import.meta.env.VITE_APP_VERSION,
+  version: getAppVersion(),
 
   background: null,
   configuration: null,

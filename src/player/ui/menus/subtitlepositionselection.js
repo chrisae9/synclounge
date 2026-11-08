@@ -9,7 +9,7 @@ export default (store) => {
     #watcherCancellers = [];
 
     constructor(parent, controls) {
-      super(parent, controls, 'swap_vert');
+      super(parent, controls, shaka.ui.Enums.MaterialDesignSVGIcons.CLOSED_CAPTIONS_POSITION);
 
       this.#watcherCancellers = [
         store.watch(

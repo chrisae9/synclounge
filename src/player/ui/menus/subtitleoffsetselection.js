@@ -12,7 +12,7 @@ export default (store) => {
     #watcherCancellers = [];
 
     constructor(parent, controls) {
-      super(parent, controls, 'timer');
+      super(parent, controls, shaka.ui.Enums.MaterialDesignSVGIcons.PLAYBACK_RATE);
 
       this.#watcherCancellers = [
         store.watch(

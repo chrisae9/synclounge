@@ -135,3 +135,12 @@ test('bounds every seek landing timing field for malformed and boundary values',
     }
   }
 });
+
+test('retains bounded audio state while rejecting invalid volume diagnostics', () => {
+  const valid = sanitizePlaybackDiagnostic({ event: 'playback-health', playback: { muted: true, volume: 0 } });
+  assert.equal(valid.playback.muted, true);
+  assert.equal(valid.playback.volume, 0);
+  const invalid = sanitizePlaybackDiagnostic({ event: 'playback-health', playback: { muted: 'false', volume: 2 } });
+  assert.equal(invalid.playback.volume, null);
+  assert.equal(invalid.playback.muted, undefined);
+});

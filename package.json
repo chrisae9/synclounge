@@ -1,6 +1,6 @@
 {
   "name": "synclounge",
-  "version": "6.4.24",
+  "version": "6.4.25",
   "description": "Synced playback of Plex content",
   "author": "Chris Alves",
   "bin": "./server.js",
@@ -31,7 +31,8 @@
     "test:ci": "npm run test:unit",
     "prepare": "node -e \"if (process.env.SKIP_BUILD !== 'true') require('node:child_process').execSync('npm run build', { stdio: 'inherit' })\"",
     "test:sync-fuzz": "node --no-experimental-webstorage ./node_modules/vitest/vitest.mjs run src/__tests__/sync-seek-harness.test.js src/__tests__/participant-health.test.js",
-    "check:dependencies": "npm ls --all"
+    "check:dependencies": "npm ls --all",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "cors": "2.8.6",
@@ -51,6 +52,7 @@
     "@babel/core": "8.1.0",
     "@babel/preset-env": "8.0.7",
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.0",
     "@stylistic/eslint-plugin": "5.10.0",
     "@vitejs/plugin-vue": "6.0.10",
     "@vue/devtools-api": "8.2.1",

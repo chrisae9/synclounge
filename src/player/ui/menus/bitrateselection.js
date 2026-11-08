@@ -8,7 +8,7 @@ export default (store) => {
     #watcherCancellers = [];
 
     constructor(parent, controls) {
-      super(parent, controls, 'settings');
+      super(parent, controls, shaka.ui.Enums.MaterialDesignSVGIcons.RESOLUTION);
 
       this.#watcherCancellers = [
         store.watch(
