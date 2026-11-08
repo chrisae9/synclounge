@@ -64,6 +64,10 @@ test('player starts without a central button and unmute stays inside the player'
   await expect(page.locator('.shaka-big-buttons-container .shaka-play-button')).toHaveCount(0);
   await page.getByRole('button', { name: 'Load public sample', exact: true }).click();
   await expect(page.locator('#result')).toContainText('PASS: full startup and sample playback');
+  await expect.poll(() => page.locator('video').evaluate((video) => video.currentTime)).toBeGreaterThan(0.3);
+  await expect.poll(() => page.locator('video').evaluate(
+    (video) => video.getVideoPlaybackQuality().totalVideoFrames,
+  )).toBeGreaterThan(0);
   const unmute = page.getByRole('button', { name: 'Click to unmute', exact: true });
   await expect(unmute).toBeVisible();
   const placement = await unmute.evaluate((el) => {
@@ -79,4 +83,7 @@ test('player starts without a central button and unmute stays inside the player'
   await expect(unmute).toBeHidden();
   await expect.poll(() => page.locator('video').evaluate((video) => video.muted)).toBe(false);
   await expect.poll(() => page.locator('video').evaluate((video) => video.paused)).toBe(false);
+  const resumedAt = await page.locator('video').evaluate((video) => video.currentTime);
+  await expect.poll(() => page.locator('video').evaluate((video) => video.currentTime))
+    .toBeGreaterThan(resumedAt + 0.2);
 });
