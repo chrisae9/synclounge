@@ -67,7 +67,7 @@
     "eslint-plugin-vue": "10.12.0",
     "globals": "17.14.0",
     "happy-dom": "21.0.4",
-    "sass": "1.107.1",
+    "sass": "1.108.0",
     "shaka-player": "5.3.3",
     "socket.io-client": "4.8.4",
     "synclounge-libjass": "1.0.0",
