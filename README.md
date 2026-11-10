@@ -46,13 +46,15 @@ SyncLounge keeps multiple viewing sessions in sync using a WebSocket server as a
 
 New rooms open on library browsing. On phones, library navigation shows a back action and the current location. Media rows support touch scrolling; desktop users can also use the arrows. Invite copies the room link; the browser address also preserves the room and current page for sharing. Settings → Advanced contains the optional watch-party service selector, separate from Plex library selection.
 
-The watch-party drawer keeps viewers, chat, and party pausing visible. Settings → Advanced contains Show party diagnostics, automatic host transfer, and the room synchronization preset; the message composer stays available in landscape and while typing.
+Closing either sidebar only hides it; **Leave room** is a separate action in the left navigation. The watch-party drawer keeps viewers, chat, and party pausing visible. Chat follows new messages while you are at the bottom, preserves your place while reading history, and returns to the latest message when you send one. Settings → Advanced contains Show party diagnostics, automatic host transfer, and the room synchronization preset; the message composer stays available in landscape and while typing.
 
 The host can choose Strict (0.5 seconds), Balanced (3 seconds), or Relaxed (7 seconds) room synchronization, or use each viewer’s personal tolerance. Relaxed synchronization reduces corrective seeks; it cannot repair a slow stream. Participant details show playback state, drift, and recent buffer/quality measurements. After repeated substantial buffering, Settings can offer a lower-quality option for that viewer; applying it may require Plex transcoding.
 
-Settings → Notifications can hide buffering popups without disabling playback diagnostics. Menu → Report a problem copies a bounded report for sharing with the host, without requiring GitHub. Include what happened and the report’s timestamp; Plex/transcode session identifiers connect it to server logs. Raw error messages, credentials, and chat are excluded. GitHub issue creation is optional and requires pasting the report into the issue.
+Buffering popups are off by default. Enable them under Settings → Notifications without changing playback diagnostics. Menu → Report a problem copies a bounded report for sharing with the host, without requiring GitHub. Include what happened and the report’s timestamp; Plex/transcode session identifiers connect it to server logs. Raw error messages, credentials, and chat are excluded. GitHub issue creation is optional and requires pasting the report into the issue.
 
 If the player cannot start, use **Retry playback** to start a fresh attempt. Leaving the player cancels pending startup. **Manual sync** reports success only after synchronization and a state refresh complete; if the room is disconnected or the host has no usable playback, reconnect or wait for the host before retrying. A superseded sync stays quiet.
+
+Playback controls stay in the bottom toolbar without a large central play/pause button. If autoplay starts muted, use **Click to unmute** in the player’s upper-right corner. Subtitle and quality changes are personal to the viewer and should not pause or seek other room members. Unsupported selected audio tracks are transcoded when needed; Plex server access and transcoding capacity are still required.
 
 Player shortcuts leave focused controls, text fields, and dialogs to their own keyboard handling. Space on the seek bar still sends the party play/pause command. Custom playback buttons include descriptive accessible names and tooltips. Playback health reporting continues when Plex timeline reporting is unavailable, provided the room socket remains connected.
 
@@ -80,6 +82,8 @@ services:
 Development builds are published separately as `ghcr.io/chrisae9/synclounge:dev`. Every development build also has an immutable `dev-<commit SHA>` tag. These images may be unstable and never replace `latest`.
 
 ### Node.js
+
+Use Node.js 22.18+ on the 22.x line, or 24.11+; CI checks Node 22, 24 and 26. Run these commands from a source checkout:
 
 ```sh
 SKIP_BUILD=true npm ci
@@ -200,9 +204,18 @@ npm test        # Run tests
 npm run test:sync-fuzz # Replay sync regressions and seeded decoder faults
 ```
 
+Browser regression checks use isolated sample data and public sample media:
+
+```sh
+npx playwright install chromium firefox
+npm run test:browser
+```
+
+On Linux, browser installation may also require Playwright’s `--with-deps` option. These checks cover desktop Chromium/Firefox and narrow/short Chromium viewports; they do not establish physical iPhone or audible playback acceptance.
+
 See [the sync harness](docs/sync-harness.md) for fault scenarios and seed replay.
 
-Pull requests target `dev`; `main` is reserved for stable release promotions. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete verification and review contract.
+Feature and fix pull requests target `dev`. `main` accepts stable release promotions and same-repository Dependabot updates; dependency changes must also be brought into `dev` before the next promotion. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete verification and review contract.
 
 ## Chromecast
 
