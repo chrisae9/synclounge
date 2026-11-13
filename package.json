@@ -1,6 +1,6 @@
 {
   "name": "synclounge",
-  "version": "6.4.26",
+  "version": "6.4.27",
   "description": "Synced playback of Plex content",
   "author": "Chris Alves",
   "bin": "./server.js",
@@ -44,7 +44,7 @@
     "uuid": "14.0.3"
   },
   "optionalDependencies": {
-    "bufferutil": "4.1.0",
+    "bufferutil": "4.2.0",
     "utf-8-validate": "6.0.6"
   },
   "devDependencies": {
@@ -63,21 +63,21 @@
     "date-fns": "4.4.0",
     "detect-browser": "5.3.0",
     "eslint": "10.14.0",
-    "eslint-plugin-import-x": "4.17.1",
-    "eslint-plugin-vue": "10.12.0",
+    "eslint-plugin-import-x": "4.18.1",
+    "eslint-plugin-vue": "10.12.1",
     "globals": "17.14.0",
     "happy-dom": "21.0.4",
-    "sass": "1.108.0",
-    "shaka-player": "5.3.3",
+    "sass": "1.108.1",
+    "shaka-player": "5.3.4",
     "socket.io-client": "4.8.4",
     "synclounge-libjass": "1.0.0",
     "vanilla-tilt": "1.8.1",
-    "vite": "8.3.6",
+    "vite": "8.3.7",
     "vite-plugin-vuetify": "2.1.3",
     "vitest": "5.1.0",
     "vue": "3.5.45",
     "vue-router": "5.4.0",
-    "vuetify": "4.3.2",
+    "vuetify": "4.3.3",
     "vuex": "4.1.0"
   },
   "bugs": {
