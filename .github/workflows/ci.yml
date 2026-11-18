@@ -92,7 +92,12 @@ jobs:
 
   browser-ui:
     name: Browser UI regressions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    container:
+      # Keep this image version aligned with @playwright/test in package-lock.json.
+      image: mcr.microsoft.com/playwright:v1.65.1-noble@sha256:1507cbfc550a63a6b7396791ca4f00df17beb56342d2447b3f106c306f525579
+      # Firefox requires the process user to own the mounted home directory.
+      options: --user pwuser
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -105,7 +110,6 @@ jobs:
       - run: npm ci
         env:
           SKIP_BUILD: true
-      - run: npx playwright install --with-deps chromium firefox
       - run: npm run test:browser
       - name: Preserve browser evidence
         if: always()
