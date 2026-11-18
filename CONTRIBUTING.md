@@ -9,7 +9,7 @@ Create a focused branch from the latest `dev`, keep unrelated cleanup out of the
 
 ## Local verification
 
-Use Node.js 22.18+ on the 22.x line, or 24.11+. CI checks Node 22, 24 and 26:
+Use Node.js 22.22.2+ on the 22.x line, 24.15.0+ on the 24.x line, or 26+. CI checks Node 22, 24 and 26:
 
 ```sh
 SKIP_BUILD=true npm ci
