@@ -83,7 +83,7 @@ Development builds are published separately as `ghcr.io/chrisae9/synclounge:dev`
 
 ### Node.js
 
-Use Node.js 22.18+ on the 22.x line, or 24.11+; CI checks Node 22, 24 and 26. Run these commands from a source checkout:
+Use Node.js 22.22.2+ on the 22.x line, 24.15.0+ on the 24.x line, or 26+; CI checks Node 22, 24 and 26. Run these commands from a source checkout:
 
 ```sh
 SKIP_BUILD=true npm ci
