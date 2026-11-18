@@ -96,6 +96,8 @@ jobs:
     container:
       # Keep this image version aligned with @playwright/test in package-lock.json.
       image: mcr.microsoft.com/playwright:v1.65.1-noble@sha256:1507cbfc550a63a6b7396791ca4f00df17beb56342d2447b3f106c306f525579
+      # Firefox requires the process user to own the mounted home directory.
+      options: --user pwuser
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
