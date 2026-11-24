@@ -53,7 +53,7 @@
     "@babel/preset-env": "8.0.7",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.65.1",
-    "@stylistic/eslint-plugin": "5.10.0",
+    "@stylistic/eslint-plugin": "6.0.1",
     "@vitejs/plugin-vue": "6.0.11",
     "@vue/devtools-api": "8.2.1",
     "@vue/test-utils": "2.6.0",
