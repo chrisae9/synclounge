@@ -1,6 +1,6 @@
 {
   "name": "synclounge",
-  "version": "6.4.28",
+  "version": "6.4.29",
   "description": "Synced playback of Plex content",
   "author": "Chris Alves",
   "bin": "./server.js",
@@ -96,7 +96,7 @@
     "@parcel/watcher@2.6.0": true,
     "bufferutil@4.2.0": true,
     "fsevents@2.3.3": true,
-    "utf-8-validate@6.0.6": true
+    "utf-8-validate@6.1.0": true
   },
   "overrides": {
     "qs": "6.17.1",

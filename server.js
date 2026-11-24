@@ -49,9 +49,6 @@ const roomPosterPath = (room, revision) => (
   `/share/room-poster/${encodeURIComponent(room)}/${encodeURIComponent(revision)}`
 );
 
-// Log exactly the browser-safe projection rather than deployment-only configuration.
-console.log(publicAppConfig);
-
 const { setMetadata, getMetadata, deleteMetadata } = createCache();
 const {
   setMetadata: setRoomPosterMetadata,

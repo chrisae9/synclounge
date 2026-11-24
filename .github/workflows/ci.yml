@@ -46,6 +46,12 @@ jobs:
 
       - run: npm run audit
 
+      - name: Audit standalone socket server dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm audit --omit=dev --audit-level=high
+        working-directory: packages/syncloungeserver
+
   container:
     name: Container build
     runs-on: ubuntu-latest

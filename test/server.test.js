@@ -7,6 +7,7 @@ const http = require('node:http');
 
 let baseUrl;
 let serverProcess;
+let startupLog = '';
 async function getFreePort() {
   const server = http.createServer();
   await new Promise((resolve) => {
@@ -106,11 +107,17 @@ describe('server', () => {
         PORT: String(port),
         AUTHENTICATION: JSON.stringify({ mechanism: 'plex', type: ['user'], authorized: ['test-only'] }),
       },
-      stdio: 'ignore',
+      stdio: ['ignore', 'pipe', 'ignore'],
     });
+    serverProcess.stdout.setEncoding('utf8');
+    serverProcess.stdout.on('data', (chunk) => { startupLog += chunk; });
     await waitForServer(`${baseUrl}/health`);
   });
   after(() => stopServer(serverProcess));
+
+  it('keeps authorization entries out of startup logs', () => {
+    assert.doesNotMatch(startupLog, /test-only/);
+  });
 
   it('rejects legacy metadata writes and image relays even with restricted authentication', async () => {
     const response = await request('/api/metadata', {
