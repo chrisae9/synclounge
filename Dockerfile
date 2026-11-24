@@ -2,7 +2,7 @@
 FROM --platform=$BUILDPLATFORM node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS build-stage
 RUN mkdir /app && chown -R node:node /app
 WORKDIR /app
-RUN apk add --no-cache python3 make g++
+RUN apk add --no-cache python3 make g++ 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1' 'zlib>=1.4-r0'
 USER node
 COPY --link --chown=1000:1000 package*.json .npmrc ./
 COPY --link --chown=1000:1000 packages packages
@@ -17,7 +17,7 @@ RUN npm run build
 FROM node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS dependency-stage
 RUN mkdir /app && chown -R node:node /app
 WORKDIR /app
-RUN apk add --no-cache python3 make g++
+RUN apk add --no-cache python3 make g++ 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1' 'zlib>=1.4-r0'
 USER node
 COPY --link --chown=1000:1000 package*.json .npmrc ./
 COPY --link --chown=1000:1000 packages packages
@@ -29,7 +29,8 @@ FROM node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43dd
 ENV NODE_ENV=production
 RUN mkdir /app && chown -R node:node /app
 WORKDIR /app
-RUN apk add --no-cache tini
+# Require the Alpine security fixes even when the pinned Node base predates them.
+RUN apk add --no-cache tini 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1' 'zlib>=1.4-r0'
 
 USER node
 COPY --link --chown=1000:1000 server.js cache.js poster-proxy.js request-abort.js ./
