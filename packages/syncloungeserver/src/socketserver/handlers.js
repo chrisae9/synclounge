@@ -315,7 +315,7 @@ export const createEventHandlers = ({ state: socketState, actions }) => {
     if (expectedSecret === null || secret !== expectedSecret) {
       logSocket({
         socketId: socket.id,
-        message: `Incorrect secret. Expected "${expectedSecret}", got "${secret}"`,
+        message: 'Rejected invalid heartbeat response',
       });
 
       socket.disconnect(true);
